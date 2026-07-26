@@ -1,4 +1,13 @@
 # Gestion de stock complète
+# Installation facile 
+
+- Copier tous les fichiers sur votre hébergement
+- Editer le fichier config/install.key
+- ajouter un nom, ce que vous voulez
+- lancer https://tondomaine.tld/frontend/install.php
+- Remplissez les champs demandés
+- Enjoy
+
 # Gestion Stock — Fonctionnalites completes
 
 Ce document liste l'ensemble des fonctionnalites de l'application telles
