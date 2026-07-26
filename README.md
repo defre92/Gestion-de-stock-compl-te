@@ -151,4 +151,9 @@ GitHub LM-Code: https://github.com/LM-Code-Be/
 Contact: https://lm-code.be/contact/
 Code source projet: https://github.com/LM-Code-Be/gestion-stock
 
+## Projet amélioré et finalisé par Fred 
+Contact: defre92@gmail.com
+Code source projet: https://github.com/defre92/Gestion-de-stock-compl-te)
+
+
 ---
