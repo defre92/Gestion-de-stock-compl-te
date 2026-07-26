@@ -1,5 +1,5 @@
 # Gestion de stock complète
-# Gestion Stock - Servia — Fonctionnalites completes
+# Gestion Stock — Fonctionnalites completes
 
 Ce document liste l'ensemble des fonctionnalites de l'application telles
 qu'elles existent aujourd'hui, apres les evolutions recentes (liaison achats,
