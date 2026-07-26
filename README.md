@@ -144,4 +144,11 @@ production initiale:
    ligne, sortie/retour automatique du statut, impression, historique de
    vente par client/date).
 
+## Projet initial de LM-Code 
+Site LM-Code: https://lm-code.be
+Tutoriel complet LM-Code: https://lm-code.be/tutoriel-app-gestion-stock-php-mysql/
+GitHub LM-Code: https://github.com/LM-Code-Be/
+Contact: https://lm-code.be/contact/
+Code source projet: https://github.com/LM-Code-Be/gestion-stock
+
 ---
