@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="LM monogramme">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#12151c"/>
+      <stop offset="100%" stop-color="#07090e"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="#1d212b"/>
+  <circle cx="256" cy="256" r="200" fill="url(#bg)"/>
+  <g fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M150 130v252h52l20-20v-80l28 28 28-28v80l20 20h52V130h-52l-20 20v80l-28-28-28 28v-80l-20-20z"/>
+    <circle cx="113" cy="193" r="7" fill="#ffffff"/>
+    <circle cx="113" cy="219" r="7" fill="#ffffff"/>
+    <circle cx="113" cy="245" r="7" fill="#ffffff"/>
+    <circle cx="113" cy="271" r="7" fill="#ffffff"/>
+    <circle cx="113" cy="297" r="7" fill="#ffffff"/>
+    <circle cx="399" cy="193" r="7" fill="#ffffff"/>
+    <circle cx="399" cy="219" r="7" fill="#ffffff"/>
+    <circle cx="399" cy="245" r="7" fill="#ffffff"/>
+    <circle cx="399" cy="271" r="7" fill="#ffffff"/>
+    <circle cx="399" cy="297" r="7" fill="#ffffff"/>
+    <path d="M241 112v28"/>
+    <path d="M271 112v28"/>
+    <circle cx="241" cy="99" r="8" fill="#ffffff"/>
+    <circle cx="271" cy="99" r="8" fill="#ffffff"/>
+  </g>
+  <text x="256" y="275" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="700" fill="#ffffff">LM</text>
+</svg>

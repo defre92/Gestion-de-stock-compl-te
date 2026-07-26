@@ -1,0 +1,14 @@
+DROP TABLE IF EXISTS app_settings;
+DROP TABLE IF EXISTS audits;
+DROP TABLE IF EXISTS inventory_adjustments;
+DROP TABLE IF EXISTS purchase_order_items;
+DROP TABLE IF EXISTS purchase_orders;
+DROP TABLE IF EXISTS stock_movements;
+DROP TABLE IF EXISTS stock_levels;
+DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS warehouses;
+DROP TABLE IF EXISTS suppliers;
+DROP TABLE IF EXISTS categories;
+DROP TABLE IF EXISTS personal_access_tokens;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS roles;

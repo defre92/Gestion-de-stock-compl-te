@@ -1,0 +1,108 @@
+# Conf Nginx pour "Gestion Stock" - equivalent des .htaccess Apache.
+# A adapter: server_name, chemin de root, chemin du socket PHP-FPM, certificats.
+#
+# Chaque regle a ete testee en local (blocage des fichiers sensibles, execution
+# bloquee dans uploads/, routage API, installateur web) avant livraison.
+
+# Rate limiting applicatif complementaire a celui deja gere par LoginAttemptRepository
+# (voir AuthService::MAX_FAILED_ATTEMPTS): celui-ci bloque au niveau nginx, avant
+# meme que PHP ne soit sollicite, en cas de bourrinage sur /login.
+limit_req_zone $binary_remote_addr zone=login_zone:10m rate=5r/m;
+
+# Redirige tout le trafic HTTP vers HTTPS.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name domaine-du-client.tld;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name domaine-du-client.tld;
+
+    # A adapter selon l'hebergeur / Let's Encrypt.
+    ssl_certificate     /etc/letsencrypt/live/domaine-du-client.tld/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/domaine-du-client.tld/privkey.pem;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    # Defense en profondeur: le CSP fin (avec nonce) est envoye par PHP
+    # (voir frontend/route-frontend.php), ces deux-la sont statiques et
+    # s'appliquent a toutes les reponses, y compris l'API JSON.
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # A adapter: chemin ou le projet est deploye sur le serveur.
+    root /var/www/gestion-stock-main;
+    index index.php;
+
+    client_max_body_size 20m;
+
+    # Racine du domaine -> page de connexion.
+    location = / {
+        return 302 /frontend/login.php;
+    }
+
+    # Bloque tout par defaut: config/, database/, backend/src/, backend/bin/,
+    # backend/.env, backend/bootstrap.php, README.md, etc. Seuls /frontend et
+    # /backend/public sont reautorises explicitement ci-dessous.
+    location / {
+        deny all;
+        return 403;
+    }
+
+    location ^~ /frontend/ {
+        # Defense en profondeur, meme dans un dossier autorise.
+        location ~* \.(env|sql|log|lock|ini|bak|md)$ {
+            deny all;
+            return 403;
+        }
+
+        location ~ \.php$ {
+            include fastcgi_params;
+            fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        }
+
+        try_files $uri $uri/ =404;
+    }
+
+    # Rate limiting nginx sur /login, en complement du blocage applicatif deja en
+    # place (5 echecs/15min, voir AuthService::MAX_FAILED_ATTEMPTS): celui-ci coupe
+    # le trafic avant meme que PHP-FPM ne soit sollicite.
+    location = /backend/public/api/v1/auth/login {
+        limit_req zone=login_zone burst=3 nodelay;
+
+        include fastcgi_params;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $document_root/backend/public/index.php;
+    }
+
+    location ^~ /backend/public/ {
+        # Empeche l'execution de scripts PHP dans le dossier des uploads,
+        # meme si un fichier malveillant passait malgre la whitelist applicative
+        # (voir FileStorageService::storeUploadedFile).
+        location ~ ^/backend/public/uploads/.*\.php$ {
+            deny all;
+            return 403;
+        }
+
+        location ~* \.(env|sql|log|lock|ini|bak|md)$ {
+            deny all;
+            return 403;
+        }
+
+        location ~ \.php$ {
+            include fastcgi_params;
+            fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        }
+
+        # Routeur "front controller": toute route API inexistante en fichier
+        # physique retombe sur index.php (meme logique que le RewriteRule
+        # d'Apache dans backend/public/.htaccess).
+        try_files $uri /backend/public/index.php?$query_string;
+    }
+}

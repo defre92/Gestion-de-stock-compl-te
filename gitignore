@@ -1,0 +1,19 @@
+# Secrets / configuration locale
+backend/.env
+config/install.key
+config/database.local.php
+
+# Donnees de demo internes - a ne jamais partager avec un tiers/client
+database/seeders/
+
+# Fichiers uploades par les utilisateurs (pas du code source)
+backend/public/uploads/*
+!backend/public/uploads/.gitkeep
+frontend/assets/img/brand/*
+!frontend/assets/img/brand/.gitkeep
+
+# Divers
+.DS_Store
+Thumbs.db
+node_modules/
+*.log

@@ -1,0 +1,14 @@
+# Ce dossier ne doit JAMAIS executer de code, meme si un fichier malveillant
+# venait a s'y trouver malgre les controles applicatifs (whitelist + MIME).
+# Toute requete sur un fichier de script echoue au lieu d'etre executee.
+
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+
+<FilesMatch "\.(php|php[0-9]?|phtml|phar|pl|py|cgi|asp|aspx|sh|exe)$">
+    Require all denied
+</FilesMatch>
+
+Options -ExecCGI -Indexes
+AddType text/plain .php .phtml .php5 .php7
