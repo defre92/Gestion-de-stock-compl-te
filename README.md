@@ -1,4 +1,3 @@
-# Gestion de stock complète
 # Gestion Stock — par Servia
 
 **Solution web complète de gestion de stock, achats et livraisons**, pensée
@@ -369,8 +368,8 @@ GitHub LM-Code: https://github.com/LM-Code-Be/
 Contact: https://lm-code.be/contact/
 Code source projet: https://github.com/LM-Code-Be/gestion-stock
 
-## Projet amélioré et finalisé par Fred 
-Contact: defre92@gmail.com
+## Projet amélioré et finalisé par servia
+web: https://servia.fr
 Code source projet: https://github.com/defre92/Gestion-de-stock-compl-te)
 
 
