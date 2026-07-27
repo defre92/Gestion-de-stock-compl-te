@@ -72,6 +72,12 @@ export async function apiRequest(path, options = {}) {
         method,
         headers,
         credentials: 'include',
+        // Sans ceci, un GET identique enchaine juste apres une creation/
+        // modification peut, selon le navigateur, resservir la reponse mise
+        // en cache heuristiquement (aucun Cache-Control n'est envoye par
+        // l'API) - la liste semble alors ne pas s'etre mise a jour tant
+        // qu'on ne recharge pas completement la page.
+        cache: 'no-store',
         body: body ? JSON.stringify(body) : undefined,
     });
 

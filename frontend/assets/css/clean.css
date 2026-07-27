@@ -216,6 +216,11 @@ textarea {
     color: #ac2f2f;
 }
 
+.feedback.is-success {
+    color: #1a8a5f;
+    font-weight: 600;
+}
+
 .hint-box {
     margin-top: 1rem;
     padding: 0.7rem;

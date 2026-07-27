@@ -1094,13 +1094,32 @@ async function renderCrud(module) {
             const path = editId === null ? config.endpoint : `${config.endpoint}/${editId}`;
             const method = editId === null ? 'POST' : 'PUT';
 
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Enregistrement...';
+            }
+
             try {
                 await apiRequest(path, { method, body: payload });
                 await refreshLookups();
                 await renderCrud(module);
+                // renderCrud reconstruit tout le panneau (dont le formulaire),
+                // on recupere donc le nouveau champ de feedback pour y
+                // afficher la confirmation - l'ancien a ete remplace.
+                const freshFeedback = document.getElementById('crudFeedback');
+                if (freshFeedback) {
+                    freshFeedback.textContent = editId === null ? 'Cree avec succes.' : 'Modifie avec succes.';
+                    freshFeedback.classList.remove('is-error');
+                    freshFeedback.classList.add('is-success');
+                }
             } catch (error) {
                 feedback.textContent = error.message;
                 feedback.classList.add('is-error');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Enregistrer';
+                }
             }
         });
 
