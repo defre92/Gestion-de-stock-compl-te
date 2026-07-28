@@ -97,7 +97,23 @@ final class InventoryService
             throw new HttpException('Session already completed', 422);
         }
 
+        // Un meme produit peut avoir ete compte plusieurs fois dans la session
+        // (recomptage volontaire apres une erreur de saisie). Seul le dernier
+        // comptage saisi pour chaque produit doit generer l'ajustement de
+        // stock final - les entrees precedentes pour ce produit sont
+        // ignorees ici (elles restent visibles dans l'historique des
+        // comptages, juste pas appliquees).
+        $latestPerProduct = [];
         foreach ($session['items'] as $item) {
+            $productId = (int)$item['product_id'];
+            $isNewer = !isset($latestPerProduct[$productId])
+                || (int)$item['id'] > (int)$latestPerProduct[$productId]['id'];
+            if ($isNewer) {
+                $latestPerProduct[$productId] = $item;
+            }
+        }
+
+        foreach ($latestPerProduct as $item) {
             $diff = (int)$item['difference_qty'];
             if ($diff === 0) {
                 continue;

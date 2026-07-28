@@ -1855,7 +1855,8 @@ async function renderAlerts() {
 }
 
 async function renderInventories() {
-    // Sessions inventaire + saisie comptage + finalisation.
+    // Sessions inventaire: creation, puis on rentre dans une session pour
+    // saisir/voir les comptages et la finaliser (renderInventorySessionDetail).
     const root = document.getElementById('appContent');
     await refreshLookups();
 
@@ -1865,7 +1866,7 @@ async function renderInventories() {
 
     root.innerHTML = `
         <section class="panel">
-            <div class="panel-head"><h4>Session inventaire</h4></div>
+            <div class="panel-head"><h4>Nouvelle session inventaire</h4></div>
             ${writable ? `
             <form id="inventorySessionForm" class="form-grid">
                 ${selectField('warehouse_id', 'Entrepot', state.lookups.warehouses, 'id', 'name', true)}
@@ -1873,36 +1874,23 @@ async function renderInventories() {
                 <label class="full"><span>Notes</span><textarea name="notes"></textarea></label>
                 <button type="submit" class="btn btn-primary">Creer une session</button>
                 <p id="inventorySessionFeedback" class="feedback"></p>
-            </form>
-            <hr>
-            <form id="inventoryCountForm" class="form-grid">
-                ${selectField('session_id', 'Session', sessions, 'id', 'code', true)}
-                ${selectField('product_id', 'Produit', state.lookups.products, 'id', 'name', true)}
-                <label><span>Quantite comptee</span><input type="number" name="counted_qty" min="0" required></label>
-                ${selectField('location_id', 'Emplacement', state.lookups.warehouse_locations, 'id', 'code', false)}
-                <label class="full"><span>Notes</span><textarea name="notes"></textarea></label>
-                <button type="submit" class="btn btn-primary">Ajouter comptage</button>
-                <button type="button" id="inventoryFinalizeBtn" class="btn btn-soft">Finaliser session</button>
-                <p id="inventoryCountFeedback" class="feedback"></p>
             </form>` : '<p class="muted">Acces en lecture seule sur ce module.</p>'}
         </section>
         <section class="panel">
             <h4>Sessions</h4>
             ${renderSimpleTable(sessions, [
-                ['id', 'ID'],
                 ['code', 'Code'],
                 ['warehouse_name', 'Entrepot'],
                 ['status', 'Statut'],
                 ['counting_mode', 'Mode'],
                 ['started_at', 'Debut'],
                 ['ended_at', 'Fin'],
+                ['id', 'Comptages', (value) => `<button type="button" class="btn btn-soft" data-open-session="${value}">Voir / Compter</button>`],
             ])}
         </section>
     `;
 
     const sessionForm = document.getElementById('inventorySessionForm');
-    const countForm = document.getElementById('inventoryCountForm');
-
     sessionForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
         const feedback = document.getElementById('inventorySessionFeedback');
@@ -1910,7 +1898,7 @@ async function renderInventories() {
         const data = new FormData(sessionForm);
 
         try {
-            await apiRequest('/inventories', {
+            const created = await apiRequest('/inventories', {
                 method: 'POST',
                 body: {
                     warehouse_id: Number(data.get('warehouse_id')),
@@ -1918,19 +1906,114 @@ async function renderInventories() {
                     notes: String(data.get('notes') ?? ''),
                 },
             });
-            await renderInventories();
+            // On rentre directement dans la session fraichement creee, plutot
+            // que de reafficher juste la liste: c'est la qu'on va saisir les
+            // comptages.
+            await renderInventorySessionDetail(created.id);
         } catch (error) {
             feedback.textContent = error.message;
             feedback.classList.add('is-error');
         }
     });
 
+    root.querySelectorAll('[data-open-session]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            await renderInventorySessionDetail(Number(btn.dataset.openSession));
+        });
+    });
+}
+
+async function renderInventorySessionDetail(sessionId) {
+    // Vue detail d'une session: on y voit tous les comptages deja saisis
+    // (c'est ce qui manquait avant - on pouvait ajouter un comptage mais
+    // jamais le revoir), on peut en ajouter d'autres, et finaliser.
+    const root = document.getElementById('appContent');
+    await refreshLookups();
+
+    const response = await apiRequest(`/inventories/${sessionId}`);
+    const session = response.data;
+    const items = Array.isArray(session.items) ? session.items : [];
+    const writable = canWrite('inventories');
+    const isEditable = ['IN_PROGRESS', 'DRAFT'].includes(session.status);
+
+    const itemsHtml = items.map((item) => {
+        const diff = Number(item.difference_qty);
+        const diffClass = diff === 0 ? '' : (diff > 0 ? 'is-positive' : 'is-error');
+        const diffLabel = diff > 0 ? `+${diff}` : String(diff);
+        return `
+            <tr>
+                <td>${sanitize(item.sku)}</td>
+                <td>${sanitize(item.product_name)}</td>
+                <td>${Number(item.expected_qty)}</td>
+                <td>${Number(item.counted_qty)}</td>
+                <td class="${diffClass}">${diffLabel}</td>
+                <td>${sanitize(item.location_code ?? '-')}</td>
+                <td>${sanitize(item.counted_by_name ?? '-')}</td>
+                <td>${sanitize(item.counted_at)}</td>
+            </tr>
+        `;
+    }).join('');
+
+    root.innerHTML = `
+        <section class="panel">
+            <div class="panel-head">
+                <h4>Session ${sanitize(session.code)}</h4>
+                <button type="button" id="backToInventoryList" class="btn btn-soft">Retour a la liste</button>
+            </div>
+            <p><strong>Entrepot:</strong> ${sanitize(session.warehouse_name)}</p>
+            <p><strong>Statut:</strong> <span class="status-badge">${sanitize(session.status)}</span></p>
+            <p><strong>Mode:</strong> ${sanitize(session.counting_mode)}</p>
+            <p><strong>Debut:</strong> ${sanitize(session.started_at)}${session.ended_at ? ` &nbsp;|&nbsp; <strong>Fin:</strong> ${sanitize(session.ended_at)}` : ''}</p>
+            ${session.notes ? `<p><strong>Notes:</strong> ${sanitize(session.notes)}</p>` : ''}
+        </section>
+
+        <section class="panel">
+            <h4>Comptages saisis (${items.length})</h4>
+            <p class="muted">Si un produit est compte plusieurs fois, seul le dernier comptage saisi pour ce produit sera applique a la finalisation.</p>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead><tr><th>SKU</th><th>Produit</th><th>Attendu</th><th>Compte</th><th>Ecart</th><th>Emplacement</th><th>Compte par</th><th>Date</th></tr></thead>
+                    <tbody>${itemsHtml || '<tr><td colspan="8">Aucun comptage saisi pour le moment.</td></tr>'}</tbody>
+                </table>
+            </div>
+        </section>
+
+        ${writable && isEditable ? `
+        <section class="panel">
+            <div class="panel-head"><h4>Ajouter un comptage</h4></div>
+            <form id="inventoryCountForm" class="form-grid">
+                ${selectField('product_id', 'Produit', state.lookups.products, 'id', 'name', true)}
+                <label><span>Quantite comptee</span><input type="number" name="counted_qty" min="0" required></label>
+                ${selectField('location_id', 'Emplacement', state.lookups.warehouse_locations, 'id', 'code', false)}
+                <label class="full"><span>Notes</span><textarea name="notes"></textarea></label>
+                <button type="submit" class="btn btn-primary">Ajouter comptage</button>
+                <p id="inventoryCountFeedback" class="feedback"></p>
+            </form>
+        </section>
+
+        <section class="panel">
+            <div class="panel-head"><h4>Finaliser la session</h4></div>
+            <p class="muted">
+                La finalisation genere un mouvement de stock d'ajustement pour
+                chaque produit dont l'ecart n'est pas nul, puis verrouille la
+                session (plus aucun comptage possible ensuite).
+            </p>
+            <button type="button" id="inventoryFinalizeBtn" class="btn btn-primary">Finaliser la session</button>
+            <p id="inventoryFinalizeFeedback" class="feedback"></p>
+        </section>
+        ` : (!isEditable ? '<section class="panel"><p class="muted">Cette session est terminee, plus aucune saisie possible.</p></section>' : '')}
+    `;
+
+    document.getElementById('backToInventoryList')?.addEventListener('click', async () => {
+        await renderInventories();
+    });
+
+    const countForm = document.getElementById('inventoryCountForm');
     countForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
         const feedback = document.getElementById('inventoryCountFeedback');
         feedback.textContent = '';
         const data = new FormData(countForm);
-        const sessionId = Number(data.get('session_id'));
 
         try {
             await apiRequest(`/inventories/${sessionId}/counts`, {
@@ -1942,7 +2025,10 @@ async function renderInventories() {
                     notes: String(data.get('notes') ?? ''),
                 },
             });
-            await renderInventories();
+            // On reste sur la meme session (au lieu de retomber sur la liste)
+            // pour que le comptage qu'on vient d'ajouter soit visible tout de
+            // suite et qu'on puisse enchainer sur le suivant.
+            await renderInventorySessionDetail(sessionId);
         } catch (error) {
             feedback.textContent = error.message;
             feedback.classList.add('is-error');
@@ -1950,15 +2036,31 @@ async function renderInventories() {
     });
 
     document.getElementById('inventoryFinalizeBtn')?.addEventListener('click', async () => {
-        const data = new FormData(countForm);
-        const sessionId = Number(data.get('session_id'));
-        if (!sessionId) {
-            window.alert('Selectionne une session');
+        const feedback = document.getElementById('inventoryFinalizeFeedback');
+        feedback.textContent = '';
+
+        if (items.length === 0) {
+            feedback.textContent = 'Ajoute au moins un comptage avant de finaliser.';
+            feedback.classList.add('is-error');
             return;
         }
 
-        await apiRequest(`/inventories/${sessionId}/finalize`, { method: 'POST' });
-        await renderInventories();
+        const nonZero = items.filter((item) => Number(item.difference_qty) !== 0).length;
+        const confirmMsg = nonZero > 0
+            ? `${nonZero} produit(s) ont un ecart et vont generer un ajustement de stock. Finaliser quand meme ?`
+            : 'Finaliser cette session (aucun ecart detecte) ?';
+
+        if (!window.confirm(confirmMsg)) {
+            return;
+        }
+
+        try {
+            await apiRequest(`/inventories/${sessionId}/finalize`, { method: 'POST', body: {} });
+            await renderInventorySessionDetail(sessionId);
+        } catch (error) {
+            feedback.textContent = error.message;
+            feedback.classList.add('is-error');
+        }
     });
 }
 

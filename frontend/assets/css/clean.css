@@ -711,3 +711,22 @@ textarea {
 .modal-body table {
     width: 100%;
 }
+
+/* Ecarts d'inventaire: negatif en rouge, positif en vert, neutre inchange. */
+td.is-error {
+    color: #b91c1c;
+    font-weight: 600;
+}
+td.is-positive {
+    color: #15803d;
+    font-weight: 600;
+}
+.status-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: #eef2ff;
+    color: #3730a3;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
