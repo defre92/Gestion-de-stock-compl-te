@@ -170,7 +170,6 @@ const crudModules = {
             { key: 'supplier_id', label: 'Fournisseur', type: 'select', optionsFrom: 'suppliers', optionLabel: 'name' },
             { key: 'unit_id', label: 'Unite', type: 'select', optionsFrom: 'units', optionLabel: 'code' },
             { key: 'brand_id', label: 'Marque', type: 'select', optionsFrom: 'brands', optionLabel: 'name' },
-            { key: 'tax_id', label: 'Taxe', type: 'select', optionsFrom: 'taxes', optionLabel: 'name' },
             { key: 'pack_size', label: 'Conditionnement', type: 'text' },
             { key: 'weight_kg', label: 'Poids kg', type: 'number', step: '0.001' },
             { key: 'width_cm', label: 'Largeur cm', type: 'number', step: '0.01' },
@@ -178,6 +177,7 @@ const crudModules = {
             { key: 'depth_cm', label: 'Profondeur cm', type: 'number', step: '0.01' },
             { key: 'unit_price', label: 'Prix vente', type: 'number', step: '0.01' },
             { key: 'cost_price', label: 'Prix achat', type: 'number', step: '0.01' },
+            { key: 'tax_id', label: 'Taxe (TVA)', type: 'select', optionsFrom: 'taxes', optionLabel: 'name' },
             { key: 'reorder_level', label: 'Seuil alerte', type: 'number' },
             { key: 'min_stock', label: 'Stock mini', type: 'number' },
             { key: 'max_stock', label: 'Stock maxi', type: 'number' },
@@ -207,6 +207,7 @@ const crudModules = {
             { key: 'supplier_name', label: 'Fournisseur' },
             { key: 'stock_total', label: 'Stock' },
             { key: 'unit_price', label: 'Prix', format: (value) => formatMoney(value) },
+            { key: 'tax_rate', label: 'TVA', format: (value) => (value !== null && value !== undefined ? `${Number(value)}%` : '-') },
             { key: 'valuation_method', label: 'Valorisation' },
             { key: 'tags', label: 'Tags', format: (value) => renderTagBadges(value) },
         ],
@@ -1968,7 +1969,10 @@ async function renderInventorySessionDetail(sessionId) {
         </section>
 
         <section class="panel">
-            <h4>Comptages saisis (${items.length})</h4>
+            <div class="panel-head">
+                <h4>Comptages saisis (${items.length})</h4>
+                <button type="button" id="exportInventoryBtn" class="btn btn-soft">Exporter en Excel</button>
+            </div>
             <p class="muted">Si un produit est compte plusieurs fois, seul le dernier comptage saisi pour ce produit sera applique a la finalisation.</p>
             <div class="table-wrap">
                 <table class="data-table">
@@ -2006,6 +2010,14 @@ async function renderInventorySessionDetail(sessionId) {
 
     document.getElementById('backToInventoryList')?.addEventListener('click', async () => {
         await renderInventories();
+    });
+
+    document.getElementById('exportInventoryBtn')?.addEventListener('click', async () => {
+        try {
+            await downloadCsv(`/inventories/${sessionId}/export.xlsx`, `inventaire-${session.code}.xlsx`);
+        } catch (error) {
+            window.alert(error.message);
+        }
     });
 
     const countForm = document.getElementById('inventoryCountForm');
@@ -2293,9 +2305,8 @@ async function renderPurchaseOrders() {
             <hr>
             <form id="poReceiptForm" class="form-grid">
                 <label><span>Commande</span><select name="purchase_order_id" id="receiptOrderId" required><option value="">Choisir</option>${orderOptions}</select></label>
-                <label><span>Ligne</span><select name="item_id" id="receiptItemId" required><option value="">Choisir une commande</option></select></label>
-                <label><span>Quantite recue</span><input type="number" name="quantity_received" min="1" required></label>
-                <button type="submit" class="btn btn-primary">Receptionner</button>
+                <div id="receiptItemsContainer" class="full"><p class="muted">Choisis une commande pour voir ses lignes restantes.</p></div>
+                <button type="submit" class="btn btn-primary">Receptionner les lignes cochees</button>
                 <p id="poReceiptFeedback" class="feedback"></p>
             </form>
             ` : '<p class="muted">Acces en lecture seule sur ce module.</p>'}
@@ -2450,28 +2461,45 @@ async function renderPurchaseOrders() {
     const receiptForm = document.getElementById('poReceiptForm');
     const receiptFeedback = document.getElementById('poReceiptFeedback');
     const receiptOrderSelect = document.getElementById('receiptOrderId');
-    const receiptItemSelect = document.getElementById('receiptItemId');
+    const receiptItemsContainer = document.getElementById('receiptItemsContainer');
 
     const loadReceiptItems = async (orderId) => {
         if (!orderId) {
-            receiptItemSelect.innerHTML = '<option value="">Choisir une commande</option>';
+            receiptItemsContainer.innerHTML = '<p class="muted">Choisis une commande pour voir ses lignes restantes.</p>';
             return;
         }
 
         const orderResponse = await apiRequest(`/purchase-orders/${orderId}`);
         const order = orderResponse.data ?? {};
-        const options = (order.items ?? []).map((item) => {
-            const ordered = Number(item.quantity_ordered ?? 0);
-            const received = Number(item.quantity_received ?? 0);
-            const remaining = ordered - received;
-            if (remaining <= 0) {
-                return '';
-            }
-            const label = `${sanitize(item.product_name)} (${remaining} restant)`;
-            return `<option value="${item.id}">${label}</option>`;
-        }).filter(Boolean).join('');
+        const remainingItems = (order.items ?? [])
+            .map((item) => {
+                const ordered = Number(item.quantity_ordered ?? 0);
+                const received = Number(item.quantity_received ?? 0);
+                return { ...item, remaining: ordered - received };
+            })
+            .filter((item) => item.remaining > 0);
 
-        receiptItemSelect.innerHTML = `<option value="">Choisir</option>${options}`;
+        if (remainingItems.length === 0) {
+            receiptItemsContainer.innerHTML = '<p class="muted">Toutes les lignes de cette commande sont deja receptionnees.</p>';
+            return;
+        }
+
+        const rowsHtml = remainingItems.map((item) => `
+            <tr>
+                <td><input type="checkbox" data-receipt-check="${item.id}" checked></td>
+                <td>${sanitize(item.product_name)}</td>
+                <td>${item.remaining} restant(s)</td>
+                <td><input type="number" data-receipt-qty="${item.id}" min="1" max="${item.remaining}" value="${item.remaining}"></td>
+            </tr>
+        `).join('');
+
+        receiptItemsContainer.innerHTML = `
+            <p class="muted">Toutes les lignes sont cochees et pre-remplies avec la quantite restante - decoche ou ajuste celles qui ne sont pas (encore) livrees, puis valide une seule fois.</p>
+            <table class="simple-table">
+                <thead><tr><th>Recevoir</th><th>Produit</th><th>Reste a recevoir</th><th>Quantite recue</th></tr></thead>
+                <tbody>${rowsHtml}</tbody>
+            </table>
+        `;
     };
 
     receiptOrderSelect?.addEventListener('change', async () => {
@@ -2482,22 +2510,28 @@ async function renderPurchaseOrders() {
         event.preventDefault();
         receiptFeedback.textContent = '';
 
-        const data = new FormData(receiptForm);
-        const orderId = Number(data.get('purchase_order_id'));
-        const itemId = Number(data.get('item_id'));
-        const quantityReceived = Number(data.get('quantity_received'));
+        const orderId = Number(receiptOrderSelect.value);
+        const checkboxes = receiptItemsContainer.querySelectorAll('[data-receipt-check]:checked');
+
+        const items = Array.from(checkboxes).map((checkbox) => {
+            const itemId = checkbox.getAttribute('data-receipt-check');
+            const qtyInput = receiptItemsContainer.querySelector(`[data-receipt-qty="${itemId}"]`);
+            return {
+                item_id: Number(itemId),
+                quantity_received: Number(qtyInput.value),
+            };
+        }).filter((item) => item.quantity_received > 0);
+
+        if (!orderId || items.length === 0) {
+            receiptFeedback.textContent = 'Coche au moins une ligne a receptionner.';
+            receiptFeedback.classList.add('is-error');
+            return;
+        }
 
         try {
             await apiRequest(`/purchase-orders/${orderId}/receive`, {
                 method: 'POST',
-                body: {
-                    items: [
-                        {
-                            item_id: itemId,
-                            quantity_received: quantityReceived,
-                        },
-                    ],
-                },
+                body: { items },
             });
             await renderPurchaseOrders();
         } catch (error) {

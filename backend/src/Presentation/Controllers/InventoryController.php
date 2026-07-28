@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Presentation\Controllers;
 
 use App\Application\Services\InventoryService;
+use App\Shared\Export\XlsxWriter;
 use App\Shared\Http\JsonResponse;
 use App\Shared\Http\Request;
 
@@ -48,5 +49,34 @@ final class InventoryController
         $this->service->finalize($id, (int)$user['id'], $_SERVER['REMOTE_ADDR'] ?? null);
 
         JsonResponse::send(['message' => 'Inventory session finalized']);
+    }
+
+    public function exportXlsx(int $id): void
+    {
+        $session = $this->service->findSession($id);
+
+        $headers = ['SKU', 'Produit', 'Attendu', 'Compte', 'Ecart', 'Emplacement', 'Compte par', 'Date'];
+        $rows = [];
+        foreach ($session['items'] as $item) {
+            $rows[] = [
+                (string)$item['sku'],
+                (string)$item['product_name'],
+                (int)$item['expected_qty'],
+                (int)$item['counted_qty'],
+                (int)$item['difference_qty'],
+                (string)($item['location_code'] ?? ''),
+                (string)($item['counted_by_name'] ?? ''),
+                (string)$item['counted_at'],
+            ];
+        }
+
+        $content = XlsxWriter::generate($headers, $rows);
+        $filename = 'inventaire-' . preg_replace('/[^A-Za-z0-9_-]/', '', (string)$session['code']) . '.xlsx';
+
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Length: ' . (string)strlen($content));
+        header('X-Content-Type-Options: nosniff');
+        echo $content;
     }
 }
