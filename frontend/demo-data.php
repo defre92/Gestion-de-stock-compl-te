@@ -132,11 +132,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($sql === false) {
                 throw new RuntimeException("Fichier introuvable : {$sqlFile}");
             }
+            // Remplace le placeholder par l'id de l'admin actuellement
+            // connecte, pour que les references utilisateur du scenario de
+            // demo (commandes, livraison, inventaire...) pointent vers un
+            // compte qui existe reellement chez le client.
+            $sql = str_replace('__CURRENT_ADMIN_ID__', (string)(int)$admin['id'], $sql);
             $pdo->beginTransaction();
             $pdo->exec($sql);
             $pdo->commit();
             logAudit($pdo, (int)$admin['id'], 'DEMO_DATA_LOADED', $ip);
-            $message = "Donnees de demo chargees : categories, fournisseurs, produits, stock et referentiels. Aucun compte utilisateur n'a ete touche.";
+            $message = "Donnees de demo chargees : categories, fournisseurs, produits, stock, referentiels, et un scenario complet (demande d'achat, commande fournisseur, livraison, inventaire, mouvements, alertes). Aucun compte utilisateur n'a ete touche.";
         } catch (Throwable $ex) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
@@ -220,8 +225,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   <fieldset>
     <legend>Charger les donnees de demo</legend>
-    <p>Ajoute des categories, fournisseurs, produits et niveaux de stock d'exemple, pour explorer l'application avec des donnees deja remplies.</p>
-    <p class="hint">Sans risque : n'ajoute rien qui ecrase tes donnees existantes, ne touche aucun compte utilisateur.</p>
+    <p>Ajoute un catalogue d'exemple (categories, fournisseurs, produits, stock) et un scenario complet deja en action : demande d'achat, commande fournisseur receptionnee, livraison client, session d'inventaire, mouvements de stock et alertes. Ideal pour montrer l'application "en vie" plutot qu'un catalogue vide.</p>
+    <p class="hint">Sans risque : n'ajoute rien qui ecrase tes donnees existantes, ne touche aucun compte utilisateur (les references "fait par" pointent vers ton propre compte admin connecte).</p>
     <form method="post">
       <input type="hidden" name="action" value="load_demo">
       <button type="submit">Charger les donnees de demo</button>

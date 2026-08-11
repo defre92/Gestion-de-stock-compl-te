@@ -262,6 +262,7 @@ $router->add('POST', '/api/v1/users', static fn (Request $req) => $userControlle
 $router->add('PUT', '/api/v1/users/{id}', static fn (Request $req, array $p) => $userController->update($req, (int)$p['id']), [$authMiddleware, $adminRolesMiddleware]);
 $router->add('POST', '/api/v1/users/{id}/reset-password', static fn (Request $req, array $p) => $userController->resetPassword($req, (int)$p['id']), [$authMiddleware, $adminRolesMiddleware]);
 $router->add('GET', '/api/v1/audits', static fn (Request $req) => $auditController->index($req), [$authMiddleware, $adminRolesMiddleware]);
+$router->add('DELETE', '/api/v1/audits', static fn (Request $req) => $auditController->clear($req), [$authMiddleware, $adminRolesMiddleware]);
 $router->add('POST', '/api/v1/me/password', static fn (Request $req) => $userController->changeOwnPassword($req), [$authMiddleware]);
 $router->add('DELETE', '/api/v1/users/{id}', static fn (Request $req, array $p) => $userController->destroy($req, (int)$p['id']), [$authMiddleware, $adminRolesMiddleware]);
 

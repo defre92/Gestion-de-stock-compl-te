@@ -32,6 +32,14 @@ final class AuditRepository
         ]);
     }
 
+    public function clear(): int
+    {
+        $count = (int)$this->pdo->query('SELECT COUNT(*) FROM audits')->fetchColumn();
+        $this->pdo->exec('DELETE FROM audits');
+
+        return $count;
+    }
+
     public function paginate(int $page, int $perPage, array $filters = []): array
     {
         $page = max(1, $page);

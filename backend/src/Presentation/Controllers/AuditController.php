@@ -28,4 +28,24 @@ final class AuditController
 
         JsonResponse::send($this->repository->paginate($page, $perPage, $filters));
     }
+
+    public function clear(Request $request): void
+    {
+        $user = $request->attribute('auth_user');
+        $deletedCount = $this->repository->clear();
+
+        // Le journal vient d'etre vide : cette action elle-meme redevient la
+        // toute premiere entree du nouveau journal, pour garder une trace de
+        // qui a vide l'historique et quand.
+        $this->repository->log(
+            $user ? (int)$user['id'] : null,
+            'AUDIT_LOG_CLEARED',
+            'audits',
+            null,
+            ['deleted_count' => $deletedCount],
+            $_SERVER['REMOTE_ADDR'] ?? null
+        );
+
+        JsonResponse::send(['deleted_count' => $deletedCount]);
+    }
 }

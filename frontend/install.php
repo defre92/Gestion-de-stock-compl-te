@@ -497,7 +497,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
     </fieldset>
 
-    <button type="submit">Installer</button>
+    <button type="submit">Installer - 2 à 10 mns max</button>
   </form>
 <?php endif; ?>
 </div>

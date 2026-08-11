@@ -796,6 +796,7 @@ async function renderAudits() {
                 <div class="full form-actions">
                     <button type="submit" class="btn btn-primary">Filtrer</button>
                     <button type="button" id="auditFilterReset" class="btn btn-soft">Reinitialiser</button>
+                    <button type="button" id="auditClearAll" class="btn btn-danger">Vider le journal</button>
                 </div>
             </form>
         </section>
@@ -828,6 +829,24 @@ async function renderAudits() {
     document.getElementById('auditFilterReset')?.addEventListener('click', async () => {
         state.auditFilters = { user_id: '', action: '' };
         await renderAudits();
+    });
+
+    document.getElementById('auditClearAll')?.addEventListener('click', async () => {
+        const confirmText = prompt('Cette action va supprimer definitivement TOUT le journal d\'audit (l\'historique de qui a fait quoi). Tape SUPPRIMER pour confirmer :');
+        if (confirmText !== 'SUPPRIMER') {
+            if (confirmText !== null) {
+                alert('Confirmation invalide, rien n\'a ete supprime.');
+            }
+            return;
+        }
+        try {
+            const result = await apiRequest('/audits', { method: 'DELETE' });
+            alert(`Journal d'audit vide (${result?.deleted_count ?? 0} entree(s) supprimee(s)).`);
+            state.auditFilters = { user_id: '', action: '' };
+            await renderAudits();
+        } catch (err) {
+            alert("Echec de la suppression du journal d'audit : " + (err?.message ?? err));
+        }
     });
 }
 
