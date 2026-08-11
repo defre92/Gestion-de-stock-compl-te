@@ -296,7 +296,13 @@ En plus de ce qui precede:
   toutes deux invalident les sessions actives de l'utilisateur concerne
   apres coup.
 - **Journal d'audit** consultable dans l'UI (admin uniquement): qui a fait
-  quoi, filtrable par utilisateur/action.
+  quoi, filtrable par utilisateur/action. Le bouton "Reinitialiser" ne fait
+  que vider les filtres (reaffiche tout). Un bouton separe **"Vider le
+  journal"** supprime definitivement tout l'historique
+  (`DELETE /api/v1/audits`, admin uniquement) - double confirmation requise
+  (saisie du mot "SUPPRIMER"). Cette suppression est elle-meme journalisee
+  (`AUDIT_LOG_CLEARED`), qui devient donc la premiere entree du nouveau
+  journal.
 - **Seed interne LM-Code** (`database/seeders/`, mot de passe admin partage
   entre environnements de demo LM-Code): a **exclure systematiquement des
   livraisons clients** - reserve a l'usage interne, voir avertissement en
