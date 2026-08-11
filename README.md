@@ -1,73 +1,10 @@
-# Gestion Stock — par Servia
+# Gestion Stock - Servia
 
-**Solution web complète de gestion de stock, achats et livraisons**, pensée
-pour les PME et collectivités qui veulent piloter leurs produits, leurs
-fournisseurs et leurs mouvements de stock sans usine à gaz.
+Application de gestion de stock professionnelle avec separation stricte Frontend/API, structure orientee Clean Architecture, migrations SQL versionnees et interface moderne en francais.
 
-> Application web (PHP 8.1+ / MySQL), architecture Clean Architecture,
-> déployable en quelques minutes sur un hébergement mutualisé classique
-> comme sur un VPS.
-
----
-
-## En bref
-
-- 📦 **Catalogue produits** complet : catégories, marques, unités, taxes,
-  tags personnalisés, et suivi individuel par **numéro de série** pour le
-  matériel (avec historique complet — quand et à quel client un exemplaire
-  a été vendu).
-- 🛒 **Achats pilotés** : une demande d'achat validée se transforme en
-  commande fournisseur en un clic (entrepôt, produit, quantité pré-remplis
-  automatiquement), avec conversion automatique du statut de la demande.
-- 🚚 **Livraisons** : bons de livraison multi-lignes, sortie de stock
-  automatique, association optionnelle d'un numéro de série par ligne,
-  génération PDF/impression avec logo de votre entreprise.
-- 🏬 **Multi-entrepôts** : organisation par zones et emplacements précis,
-  mouvements tracés (entrées, sorties, transferts, ajustements, inventaires),
-  alertes de rupture et de stock bas.
-- 📊 **Tableau de bord** : indicateurs clés cliquables, journal d'audit,
-  exports CSV, rapports.
-- 🔐 **Sécurité prise au sérieux** : sessions en cookie httpOnly/Secure,
-  protection anti brute-force applicative (fonctionne même sans accès
-  serveur), rôles utilisateurs granulaires, revue de sécurité complète
-  (voir plus bas).
-- 🖥️ **Déploiement simple** : installateur web guidé (aucun accès SSH
-  requis), chaque client dispose de son propre environnement indépendant.
-
-## Stack technique
-
-| Composant | Choix |
-|---|---|
-| Backend | PHP 8.1+, architecture en couches (Domain / Application / Infrastructure / Presentation) |
-| Base de données | MySQL 8.x, migrations SQL versionnées |
-| Frontend | HTML / CSS / JavaScript natif (aucun framework lourd, aucune dépendance de build) |
-| Authentification | Sessions cookie httpOnly + Secure + SameSite=Strict |
-| Déploiement | Hébergement mutualisé (Apache) ou VPS (Nginx), installateur web sans SSH |
-
-## Pourquoi cette solution
-
-- **Pas de ressaisie** : le parcours demande d'achat → commande → réception
-  → livraison est pensé pour éviter les doubles saisies et les erreurs.
-- **Traçabilité fine** : jusqu'au numéro de série d'un équipement individuel.
-- **Autonomie du client final** : installation et administration 100% via
-  navigateur, aucune compétence serveur requise.
-- **Isolation totale** : une base de données par client, pas de
-  multi-tenant partagé — aucun risque qu'un client accède aux données d'un
-  autre.
-
----
-
-## Sommaire
-
-- [Architecture](#architecture)
-- [Fonctionnalités principales](#fonctionnalites-principales)
-- [Prérequis](#prerequis)
-- [Installation chez un client](#installation-chez-un-client-hebergement-mutualise-ftp-uniquement-sans-ssh)
-- [Installation locale (dev)](#installation-locale-wamp-pour-devdemo-uniquement-bdd-jamais-creee)
-- [Audit de sécurité effectué](#audit-de-securite-effectue)
-- [Tests automatisés](#tests-automatises)
-
----
+## Identite projet
+- Nom produit: `Gestion Stock`
+- Societe: `Servia`
 
 ## Architecture
 - `frontend/`: interface utilisateur (HTML/CSS/JS), aucune logique metier backend.
@@ -82,12 +19,11 @@ fournisseurs et leurs mouvements de stock sans usine à gaz.
 
 ## Fonctionnalites principales
 
-- Referentiels: produits (avec tags et numeros de serie), categories, unites, marques, taxes.
+- Referentiels: produits, categories, unites, marques, taxes, tags.
 - Tiers: fournisseurs et clients.
-- Stock: entrees, sorties, transferts, ajustements, inventaires, zones et emplacements.
-- Achats: demandes d'achat convertibles en commandes, receptions partielles/totales, suivi des statuts.
-- Livraisons: bons de livraison avec numeros de serie, impression/PDF, annulation avec re-credit de stock.
-- Pilotage: dashboard KPI cliquable, exports CSV, rapports.
+- Stock: entrees, sorties, transferts, ajustements, inventaires.
+- Achats: commandes, receptions partielles/totales, suivi des statuts.
+- Pilotage: dashboard KPI, exports CSV, rapports.
 - Administration: roles, utilisateurs, audit.
 - Avance: import CSV multi-entites, pieces jointes, etiquettes/code-barres.
 
@@ -359,18 +295,13 @@ generation/hachage des jetons de session, controle d'acces par role
 - App: `http://localhost/gestion-stock/frontend/index.php`
 - API health: `http://localhost/gestion-stock/backend/public/api/v1/health`
 
----
+## Git
+Pour lier ce projet a ton propre depot Servia:
 
-## Projet initial de LM-Code 
-Site LM-Code: https://lm-code.be
-Tutoriel complet LM-Code: https://lm-code.be/tutoriel-app-gestion-stock-php-mysql/
-GitHub LM-Code: https://github.com/LM-Code-Be/
-Contact: https://lm-code.be/contact/
-Code source projet: https://github.com/LM-Code-Be/gestion-stock
-
-## Projet amélioré et finalisé par servia
-web: https://servia.fr
-Code source projet: https://github.com/defre92/Gestion-de-stock-compl-te)
-
-
----
+```bash
+git init
+git remote add origin <url-du-depot-servia>
+git add .
+git commit -m "Initialisation Gestion Stock - Servia"
+git push -u origin main
+```
