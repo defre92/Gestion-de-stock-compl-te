@@ -14,7 +14,10 @@ Application de gestion de stock professionnelle avec separation stricte Frontend
 - `backend/src/Infrastructure`: persistence, services techniques.
 - `backend/src/Presentation`: controleurs HTTP, DTO, validation.
 - `database/migrations/up|down`: scripts de migration.
-- `database/seeders/pro`: jeux de donnees initiaux.
+- `database/seeders/pro`: jeux de donnees internes LM-Code (usage interne
+  uniquement, jamais livre a un client - voir section Seed interne plus bas).
+- `database/demo/catalog-demo.sql`: donnees de demo catalogue livrables au
+  client, utilisees par `frontend/demo-data.php` (voir section dediee).
 - `config/database.php`: configuration BDD prioritaire (fichier principal).
 
 ## Fonctionnalites principales
@@ -61,7 +64,11 @@ demande:
   caracteres minimum)
 
 Il ecrit `backend/.env`, joue les migrations, cree les roles + l'entrepot par
-defaut + le compte admin, et enregistre le logo dans `frontend/assets/img/brand/`.
+defaut + le compte admin + des reglages par defaut dans `app_settings`
+(devise EUR, langue fr, fuseau Europe/Paris, stock min. 10, format de
+numerotation `{PREFIX}-{YEAR}-{SEQ}` - modifiables ensuite depuis l'ecran
+Parametres, jamais ecrases si l'installateur est relance sur une base
+existante), et enregistre le logo dans `frontend/assets/img/brand/`.
 
 ### 4. Apres l'installation - IMPORTANT
 **Supprimer `frontend/install.php` via FTP immediatement apres usage.** Tant
@@ -131,6 +138,60 @@ meme le nginx (VPS/serveur dedie) - inapplicable sur un hebergement mutualise
 classique ou tu n'as pas la main sur la conf serveur. Ce n'est pas un
 probleme: la protection ci-dessus (deja active par defaut) suffit pour ce cas
 de figure.
+
+
+## Donnees de demo pour le client (frontend/demo-data.php, sans SSH)
+
+Une fois l'installation terminee et le compte admin du client cree (voir
+section precedente), le client peut lui-meme charger des donnees d'exemple
+pour explorer l'application, ou tout reinitialiser - le tout depuis son
+navigateur, sans acces SSH ni FTP.
+
+**Acces**: `https://domaine-du-client.tld/frontend/demo-data.php`, en etant
+deja connecte avec un compte du role `ADMIN`. La page vérifie le cookie de
+session `gs_token` exactement comme le fait l'API (meme logique que
+`AuthMiddleware`/`RoleMiddleware`) - un compte non-admin ou non connecte est
+redirige/rejete (403).
+
+### Action 1 - Charger les donnees de demo
+Insere des categories, fournisseurs, produits et niveaux de stock d'exemple
+depuis `database/demo/catalog-demo.sql`. Requetes idempotentes
+(`ON DUPLICATE KEY UPDATE` / `NOT EXISTS`): le bouton peut etre cliqué
+plusieurs fois sans creer de doublons.
+
+**Ne touche jamais**: `users`, `roles`, `personal_access_tokens`. Aucun
+compte, aucun mot de passe n'est cree ou modifie par cette action -
+contrairement au seed interne LM-Code (voir plus bas), ce fichier est
+concu pour etre livre au client et ne contient aucune donnee sensible.
+
+### Action 2 - Reinitialiser les donnees
+Vide integralement le catalogue et l'activite metier: produits, categories,
+marques, unites, taxes, tags, fournisseurs, clients, entrepots (+ zones/
+emplacements), stock, mouvements de stock, alertes, commandes et demandes
+d'achat, livraisons, inventaires, numeros de serie, pieces jointes,
+compteurs de sequence documentaire, imports CSV.
+
+**Conserve volontairement**: `users`, `roles`, `personal_access_tokens`
+(personne n'est deconnecte ni supprime), `app_settings` (reglages devise/
+langue/fuseau), et `audits` (le journal d'audit garde la trace de qui a
+fait quoi, y compris de ce reset lui-meme - action journalisee sous
+`DATA_RESET`).
+
+Protection: action irreversible, doublement confirmee (popup JS +
+obligation de taper `SUPPRIMER` dans un champ texte). Techniquement,
+utilise des `DELETE FROM` dans une transaction (pas des `TRUNCATE`, qui
+provoquent un commit implicite en MySQL et demandent le privilege `DROP`,
+pas toujours accorde en mutualise) - un reset auto-increment best-effort
+est tente ensuite via `ALTER TABLE` mais echoue silencieusement si
+l'hebergement ne l'autorise pas, sans consequence sur le reset lui-meme.
+
+### A savoir avant de livrer
+`frontend/demo-data.php` peut rester en ligne en permanence (contrairement
+a `install.php`, qui doit etre supprime apres usage) : il est protege par
+l'authentification admin de l'application elle-meme, pas par une cle
+statique. Si tu preferes que le client n'y ait pas acces du tout, il suffit
+de ne pas inclure `frontend/demo-data.php` ni `database/demo/` dans son
+paquet de livraison - l'application fonctionne normalement sans.
 
 
 ## Installation locale WAMP (pour dev/demo uniquement, BDD jamais creee)
@@ -236,10 +297,12 @@ En plus de ce qui precede:
   apres coup.
 - **Journal d'audit** consultable dans l'UI (admin uniquement): qui a fait
   quoi, filtrable par utilisateur/action.
-- **Seed de demo** (`database/seeders/`, mot de passe admin partage entre
-  environnements de demo LM-Code): a **exclure systematiquement des
+- **Seed interne LM-Code** (`database/seeders/`, mot de passe admin partage
+  entre environnements de demo LM-Code): a **exclure systematiquement des
   livraisons clients** - reserve a l'usage interne, voir avertissement en
-  tete de `database/seeders/pro/202602270001_seed_core_data.sql`.
+  tete de `database/seeders/pro/202602270001_seed_core_data.sql`. A ne pas
+  confondre avec `database/demo/` + `frontend/demo-data.php`, concus au
+  contraire pour etre livres au client (voir section dediee).
 - **Suite de tests automatises** sur les briques d'authentification/securite
   (voir section Tests plus bas).
 - **Compatibilite hebergement mutualise**: `PasswordService` et
@@ -248,7 +311,11 @@ En plus de ce qui precede:
   bas de gamme) - sans ce fallback, la creation du premier compte admin
   plantait avec une erreur fatale sur ce type d'hebergement.
 
-## Migrations et seed (dev/demo uniquement)
+## Migrations et seed interne LM-Code (dev interne uniquement - PAS pour un client)
+**A ne pas confondre avec `frontend/demo-data.php` (section dediee plus haut),
+qui est le bon outil pour donner de la demo a un client.** Ce qui suit est
+reserve au dev interne LM-Code sur un environnement jetable.
+
 Depuis la racine du projet:
 
 ```bash
@@ -261,12 +328,15 @@ et un compte admin dont le mot de passe est fixe et partage entre tous les
 environnements de demo LM-Code (voir avertissement en tete de
 `database/seeders/pro/202602270001_seed_core_data.sql`): **a n'utiliser que
 pour du dev/demo local, jamais pour un client reel** (utiliser
-`frontend/install.php` pour ca, voir plus haut). `seed.php` refuse de
-s'executer si `APP_ENV=production` sauf a forcer avec `--force`.
+`frontend/install.php` pour l'installation client, voir plus haut, et
+`frontend/demo-data.php` pour lui donner des donnees de demo une fois
+installe). `seed.php` refuse de s'executer si `APP_ENV=production` sauf a
+forcer avec `--force`.
 
-**Important**: le dossier `database/seeders/` est un outil interne. Il ne
-doit **jamais** faire partie d'une livraison a un client final - a exclure
-systematiquement de tout export/zip destine a un tiers.
+**Important**: le dossier `database/seeders/` (a ne pas confondre avec
+`database/demo/`, qui lui est concu pour etre livre) est un outil interne. Il
+ne doit **jamais** faire partie d'une livraison a un client final - a
+exclure systematiquement de tout export/zip destine a un tiers.
 
 Commandes utiles:
 

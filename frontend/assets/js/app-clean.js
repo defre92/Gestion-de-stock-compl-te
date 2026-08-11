@@ -400,6 +400,7 @@ function applyNavAccess() {
         const btn = document.querySelector(`[data-module="${module}"]`);
         btn?.remove();
     });
+    document.getElementById('demoDataNavLink')?.remove();
 }
 
 function setupNavigation() {

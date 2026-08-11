@@ -58,6 +58,7 @@ require_once __DIR__ . '/route-frontend.php';
                 <button data-module="users" class="nav-item"><i class="bi bi-person-gear"></i><span>Utilisateurs</span></button>
                 <button data-module="audits" class="nav-item"><i class="bi bi-clock-history"></i><span>Journal d'audit</span></button>
                 <button data-module="settings" class="nav-item"><i class="bi bi-sliders2"></i><span>Parametres</span></button>
+                <a href="<?= FRONTEND_BASE_URL ?>/demo-data.php" class="nav-item" id="demoDataNavLink" style="text-decoration:none"><i class="bi bi-magic"></i><span>Donnees de demo</span></a>
                 <button data-module="imports" class="nav-item"><i class="bi bi-upload"></i><span>Importations CSV</span></button>
                 <button data-module="reports" class="nav-item"><i class="bi bi-graph-up-arrow"></i><span>Rapports</span></button>
             </nav>
