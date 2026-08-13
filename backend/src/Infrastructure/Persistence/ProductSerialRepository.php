@@ -54,10 +54,12 @@ final class ProductSerialRepository
         $total = (int)$countStmt->fetchColumn();
 
         $sql = "
-            SELECT ps.*, p.sku, p.name AS product_name, w.name AS warehouse_name
+            SELECT ps.*, p.sku, p.name AS product_name, w.name AS warehouse_name,
+                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color
             FROM product_serials ps
             INNER JOIN products p ON p.id = ps.product_id
             LEFT JOIN warehouses w ON w.id = ps.warehouse_id
+            LEFT JOIN product_variants v ON v.id = ps.variant_id
             {$where}
             ORDER BY ps.id DESC
             LIMIT :limit OFFSET :offset
@@ -85,10 +87,12 @@ final class ProductSerialRepository
     public function findById(int $id): ?array
     {
         $stmt = $this->pdo->prepare('
-            SELECT ps.*, p.sku, p.name AS product_name, w.name AS warehouse_name
+            SELECT ps.*, p.sku, p.name AS product_name, w.name AS warehouse_name,
+                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color
             FROM product_serials ps
             INNER JOIN products p ON p.id = ps.product_id
             LEFT JOIN warehouses w ON w.id = ps.warehouse_id
+            LEFT JOIN product_variants v ON v.id = ps.variant_id
             WHERE ps.id = :id
             LIMIT 1
         ');
@@ -101,10 +105,12 @@ final class ProductSerialRepository
     public function findBySerialNumber(string $serialNumber): ?array
     {
         $stmt = $this->pdo->prepare('
-            SELECT ps.*, p.sku, p.name AS product_name, w.name AS warehouse_name
+            SELECT ps.*, p.sku, p.name AS product_name, w.name AS warehouse_name,
+                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color
             FROM product_serials ps
             INNER JOIN products p ON p.id = ps.product_id
             LEFT JOIN warehouses w ON w.id = ps.warehouse_id
+            LEFT JOIN product_variants v ON v.id = ps.variant_id
             WHERE ps.serial_number = :serial_number
             LIMIT 1
         ');
@@ -142,20 +148,21 @@ final class ProductSerialRepository
      * produit/entrepot. Retourne les ids crees. Toute la liste echoue en bloc
      * si un seul SN est deja utilise (evite un enregistrement partiel silencieux).
      */
-    public function createMany(int $productId, ?int $warehouseId, array $serialNumbers, ?int $createdBy): array
+    public function createMany(int $productId, ?int $warehouseId, array $serialNumbers, ?int $createdBy, ?int $variantId = null): array
     {
         $this->pdo->beginTransaction();
 
         try {
             $stmt = $this->pdo->prepare('
-                INSERT INTO product_serials (product_id, serial_number, warehouse_id, status, created_by, created_at, updated_at)
-                VALUES (:product_id, :serial_number, :warehouse_id, \'IN_STOCK\', :created_by, NOW(), NOW())
+                INSERT INTO product_serials (product_id, variant_id, serial_number, warehouse_id, status, created_by, created_at, updated_at)
+                VALUES (:product_id, :variant_id, :serial_number, :warehouse_id, \'IN_STOCK\', :created_by, NOW(), NOW())
             ');
 
             $ids = [];
             foreach ($serialNumbers as $serialNumber) {
                 $stmt->execute([
                     ':product_id' => $productId,
+                    ':variant_id' => $variantId,
                     ':serial_number' => $serialNumber,
                     ':warehouse_id' => $warehouseId,
                     ':created_by' => $createdBy,

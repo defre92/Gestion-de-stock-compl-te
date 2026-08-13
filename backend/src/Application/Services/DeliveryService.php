@@ -5,6 +5,7 @@ namespace App\Application\Services;
 
 use App\Infrastructure\Persistence\AuditRepository;
 use App\Infrastructure\Persistence\DeliveryRepository;
+use App\Infrastructure\Persistence\ProductRepository;
 use App\Infrastructure\Persistence\ProductSerialRepository;
 use App\Shared\Database\Database;
 use App\Shared\Http\HttpException;
@@ -16,7 +17,8 @@ final class DeliveryService
         private readonly DeliveryRepository $repository,
         private readonly StockService $stockService,
         private readonly AuditRepository $auditRepository,
-        private readonly ProductSerialRepository $productSerialRepository
+        private readonly ProductSerialRepository $productSerialRepository,
+        private readonly ProductRepository $productRepository
     ) {
     }
 
@@ -51,6 +53,7 @@ final class DeliveryService
         $totalAmount = 0.0;
         foreach ($lines as $index => $line) {
             $productId = (int)($line['product_id'] ?? 0);
+            $variantId = !empty($line['variant_id']) ? (int)$line['variant_id'] : null;
             $qty = (int)($line['quantity'] ?? 0);
             $unitPrice = (float)($line['unit_price'] ?? 0);
             $serialId = isset($line['serial_id']) && $line['serial_id'] !== '' && $line['serial_id'] !== null
@@ -60,6 +63,12 @@ final class DeliveryService
             if ($productId <= 0 || $qty <= 0 || $unitPrice < 0) {
                 throw new HttpException("Invalid line at index {$index}", 422);
             }
+
+            $product = $this->productRepository->findById($productId);
+            if ($product && (int)($product['has_variants'] ?? 0) === 1 && $variantId === null) {
+                throw new HttpException("Ce produit utilise des variantes : precise laquelle a la ligne {$index}", 422);
+            }
+            $lines[$index]['variant_id'] = $variantId;
 
             if ($serialId !== null) {
                 $serial = $this->productSerialRepository->findById($serialId);
@@ -106,6 +115,7 @@ final class DeliveryService
             foreach ($lines as $line) {
                 $this->stockService->createMovement([
                     'product_id' => (int)$line['product_id'],
+                    'variant_id' => $line['variant_id'] ?? null,
                     'warehouse_id' => $warehouseId,
                     'type' => 'OUT',
                     'quantity' => (int)$line['quantity'],
@@ -155,6 +165,7 @@ final class DeliveryService
             foreach ($delivery['lines'] as $line) {
                 $this->stockService->createMovement([
                     'product_id' => (int)$line['product_id'],
+                    'variant_id' => $line['variant_id'] ?? null,
                     'warehouse_id' => (int)$delivery['warehouse_id'],
                     'type' => 'IN',
                     'quantity' => (int)$line['quantity'],

@@ -446,6 +446,7 @@ function applyNavAccess() {
         btn?.remove();
     });
     document.getElementById('demoDataNavLink')?.remove();
+    document.getElementById('migrateNavLink')?.remove();
 }
 
 function setupNavigation() {
@@ -1682,7 +1683,7 @@ async function renderDeliveries() {
             </form>
             <div class="table-wrap">
                 <table class="data-table" id="deliveryLinesTable">
-                    <thead><tr><th>Produit</th><th>N° Serie (optionnel)</th><th>Quantite</th><th>Prix unitaire</th><th></th></tr></thead>
+                    <thead><tr><th>Produit</th><th>Variante</th><th>N° Serie (optionnel)</th><th>Quantite</th><th>Prix unitaire</th><th></th></tr></thead>
                     <tbody id="deliveryLinesBody"></tbody>
                 </table>
             </div>
@@ -1718,6 +1719,7 @@ async function renderDeliveries() {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${selectField('line_product_id', '', products, 'id', 'name', true)}</td>
+            <td><select class="line-variant-id"><option value="">-</option></select></td>
             <td>
                 <select class="line-serial-id">
                     <option value="">Aucun (sortie standard)</option>
@@ -1729,8 +1731,32 @@ async function renderDeliveries() {
         `;
 
         const productSelect = row.querySelector('select[name="line_product_id"]');
+        const variantSelect = row.querySelector('.line-variant-id');
         const serialSelect = row.querySelector('.line-serial-id');
         const quantityInput = row.querySelector('.line-quantity');
+
+        const refreshVariantsForProduct = async () => {
+            const productId = productSelect?.value;
+            const product = products.find((p) => String(p.id) === String(productId));
+            const hasVariants = Number(product?.has_variants) === 1;
+            variantSelect.classList.toggle('hidden', !hasVariants);
+            variantSelect.required = hasVariants;
+            variantSelect.innerHTML = '<option value="">-</option>';
+            if (!hasVariants || !productId) {
+                return;
+            }
+            variantSelect.innerHTML = '<option value="">Choisir...</option>';
+            try {
+                const response = await apiRequest(`/product-variants?product_id=${productId}&is_active=1&per_page=200`);
+                const variants = normalizeRows(response);
+                variantSelect.innerHTML = '<option value="">Choisir...</option>' + variants.map((v) => {
+                    const descriptors = [v.size, v.color].filter(Boolean).join(' / ') || v.sku;
+                    return `<option value="${v.id}">${sanitize(descriptors)} (stock: ${v.stock_total ?? 0})</option>`;
+                }).join('');
+            } catch (error) {
+                // Pas bloquant.
+            }
+        };
 
         // Un numero de serie identifie un exemplaire unique: des qu'on en
         // choisit un, la quantite est forcement 1 (et se debloque si on
@@ -1753,6 +1779,7 @@ async function renderDeliveries() {
         };
 
         productSelect?.addEventListener('change', refreshSerialsForProduct);
+        productSelect?.addEventListener('change', refreshVariantsForProduct);
         serialSelect.addEventListener('change', () => {
             if (serialSelect.value) {
                 quantityInput.value = '1';
@@ -1765,6 +1792,7 @@ async function renderDeliveries() {
         row.querySelector('.remove-line-btn')?.addEventListener('click', () => row.remove());
         linesBody?.appendChild(row);
         refreshSerialsForProduct();
+        refreshVariantsForProduct();
     };
 
     document.getElementById('addDeliveryLineBtn')?.addEventListener('click', addLineRow);
@@ -1782,6 +1810,9 @@ async function renderDeliveries() {
         const data = new FormData(form);
         const lines = [...linesBody.querySelectorAll('tr')].map((row) => ({
             product_id: Number(row.querySelector('select[name="line_product_id"]')?.value),
+            variant_id: row.querySelector('.line-variant-id')?.value
+                ? Number(row.querySelector('.line-variant-id').value)
+                : null,
             serial_id: row.querySelector('.line-serial-id')?.value
                 ? Number(row.querySelector('.line-serial-id').value)
                 : null,
@@ -1791,6 +1822,16 @@ async function renderDeliveries() {
 
         if (lines.length === 0 || lines.some((line) => !line.product_id || !line.quantity)) {
             feedback.textContent = 'Ajoute au moins une ligne valide (produit + quantite).';
+            feedback.classList.add('is-error');
+            return;
+        }
+
+        const missingVariant = lines.some((line) => {
+            const product = products.find((p) => Number(p.id) === line.product_id);
+            return Number(product?.has_variants) === 1 && !line.variant_id;
+        });
+        if (missingVariant) {
+            feedback.textContent = 'Un produit a variantes est present sans variante choisie.';
             feedback.classList.add('is-error');
             return;
         }
@@ -2227,6 +2268,7 @@ async function renderPurchaseRequests() {
             <hr>
             <form id="requestLineForm" class="form-grid">
                 ${selectField('product_id', 'Produit', state.lookups.products, 'id', 'name', true)}
+                <select name="variant_id" id="requestLineVariant" class="hidden"><option value="">-</option></select>
                 <label><span>Quantite demandee</span><input type="number" name="quantity_requested" min="1" required></label>
                 <label><span>Cout prefere</span><input type="number" name="preferred_unit_cost" min="0" step="0.01"></label>
                 <button type="submit" class="btn btn-soft">Ajouter la ligne</button>
@@ -2250,6 +2292,29 @@ async function renderPurchaseRequests() {
     `;
 
     const lineForm = document.getElementById('requestLineForm');
+    const lineProductSelect = lineForm?.elements.namedItem('product_id');
+    const lineVariantSelect = document.getElementById('requestLineVariant');
+
+    const refreshLineVariants = async () => {
+        const productId = lineProductSelect?.value;
+        const product = (state.lookups.products ?? []).find((p) => String(p.id) === String(productId));
+        const hasVariants = Number(product?.has_variants) === 1;
+        lineVariantSelect.classList.toggle('hidden', !hasVariants);
+        lineVariantSelect.required = hasVariants;
+        lineVariantSelect.innerHTML = '<option value="">-</option>';
+        if (!hasVariants || !productId) {
+            return;
+        }
+        lineVariantSelect.innerHTML = '<option value="">Choisir...</option>';
+        const response = await apiRequest(`/product-variants?product_id=${productId}&is_active=1&per_page=200`);
+        const variants = normalizeRows(response);
+        lineVariantSelect.innerHTML = '<option value="">Choisir...</option>' + variants.map((v) => {
+            const descriptors = [v.size, v.color].filter(Boolean).join(' / ') || v.sku;
+            return `<option value="${v.id}">${sanitize(descriptors)} (stock: ${v.stock_total ?? 0})</option>`;
+        }).join('');
+    };
+    lineProductSelect?.addEventListener('change', refreshLineVariants);
+
     lineForm?.addEventListener('submit', (event) => {
         event.preventDefault();
         const data = new FormData(lineForm);
@@ -2259,15 +2324,25 @@ async function renderPurchaseRequests() {
             return;
         }
         const product = (state.lookups.products ?? []).find((p) => Number(p.id) === productId);
+        if (Number(product?.has_variants) === 1 && !lineVariantSelect.value) {
+            window.alert('Ce produit a des variantes : choisis-en une.');
+            return;
+        }
+        const variantId = lineVariantSelect.value ? Number(lineVariantSelect.value) : null;
+        const variantLabel = variantId
+            ? ` (${sanitize(lineVariantSelect.options[lineVariantSelect.selectedIndex].textContent.split(' (stock:')[0])})`
+            : '';
         const cost = data.get('preferred_unit_cost') ? Number(data.get('preferred_unit_cost')) : null;
         draftItems.push({
             product_id: productId,
+            variant_id: variantId,
             quantity_requested: quantity,
             preferred_unit_cost: cost,
-            product_label: product?.name ?? `#${productId}`,
+            product_label: (product?.name ?? `#${productId}`) + variantLabel,
         });
         document.getElementById('requestItemsPreview').innerHTML = renderDraftItemsTable();
         lineForm.reset();
+        refreshLineVariants();
     });
 
     document.getElementById('requestItemsPreview')?.addEventListener('click', (event) => {
@@ -2301,6 +2376,7 @@ async function renderPurchaseRequests() {
                     notes: String(data.get('notes') ?? ''),
                     items: draftItems.map((item) => ({
                         product_id: item.product_id,
+                        variant_id: item.variant_id ?? null,
                         quantity_requested: item.quantity_requested,
                         preferred_unit_cost: item.preferred_unit_cost,
                     })),
@@ -2395,6 +2471,7 @@ async function renderPurchaseOrders() {
             <hr>
             <form id="orderLineForm" class="form-grid">
                 ${selectField('product_id', 'Produit', state.lookups.products, 'id', 'name', true)}
+                <select name="variant_id" id="orderLineVariant" class="hidden"><option value="">-</option></select>
                 <label><span>Quantite</span><input type="number" name="quantity_ordered" min="1" required></label>
                 <label><span>Prix unitaire</span><input type="number" name="unit_cost" min="0" step="0.01" required></label>
                 <button type="submit" class="btn btn-soft">Ajouter la ligne</button>
@@ -2441,6 +2518,28 @@ async function renderPurchaseOrders() {
 
     const lineForm = document.getElementById('orderLineForm');
     const itemsPreview = document.getElementById('orderItemsPreview');
+    const orderLineProductSelect = lineForm?.elements.namedItem('product_id');
+    const orderLineVariantSelect = document.getElementById('orderLineVariant');
+
+    const refreshOrderLineVariants = async () => {
+        const productId = orderLineProductSelect?.value;
+        const product = (state.lookups.products ?? []).find((p) => String(p.id) === String(productId));
+        const hasVariants = Number(product?.has_variants) === 1;
+        orderLineVariantSelect.classList.toggle('hidden', !hasVariants);
+        orderLineVariantSelect.required = hasVariants;
+        orderLineVariantSelect.innerHTML = '<option value="">-</option>';
+        if (!hasVariants || !productId) {
+            return;
+        }
+        orderLineVariantSelect.innerHTML = '<option value="">Choisir...</option>';
+        const response = await apiRequest(`/product-variants?product_id=${productId}&is_active=1&per_page=200`);
+        const variants = normalizeRows(response);
+        orderLineVariantSelect.innerHTML = '<option value="">Choisir...</option>' + variants.map((v) => {
+            const descriptors = [v.size, v.color].filter(Boolean).join(' / ') || v.sku;
+            return `<option value="${v.id}">${sanitize(descriptors)} (stock: ${v.stock_total ?? 0})</option>`;
+        }).join('');
+    };
+    orderLineProductSelect?.addEventListener('change', refreshOrderLineVariants);
 
     lineForm?.addEventListener('submit', (event) => {
         event.preventDefault();
@@ -2452,14 +2551,24 @@ async function renderPurchaseOrders() {
             return;
         }
         const product = (state.lookups.products ?? []).find((p) => Number(p.id) === productId);
+        if (Number(product?.has_variants) === 1 && !orderLineVariantSelect.value) {
+            window.alert('Ce produit a des variantes : choisis-en une.');
+            return;
+        }
+        const variantId = orderLineVariantSelect.value ? Number(orderLineVariantSelect.value) : null;
+        const variantLabel = variantId
+            ? ` (${sanitize(orderLineVariantSelect.options[orderLineVariantSelect.selectedIndex].textContent.split(' (stock:')[0])})`
+            : '';
         draftItems.push({
             product_id: productId,
+            variant_id: variantId,
             quantity_ordered: quantity,
             unit_cost: unitCost,
-            product_label: product?.name ?? `#${productId}`,
+            product_label: (product?.name ?? `#${productId}`) + variantLabel,
         });
         itemsPreview.innerHTML = renderDraftItemsTable();
         lineForm.reset();
+        refreshOrderLineVariants();
     });
 
     itemsPreview?.addEventListener('click', (event) => {
@@ -2496,13 +2605,17 @@ async function renderPurchaseOrders() {
             draftItems.length = 0;
             for (const item of items) {
                 const product = (state.lookups.products ?? []).find((p) => Number(p.id) === Number(item.product_id));
+                const variantLabel = item.variant_id
+                    ? ` (${[item.variant_size, item.variant_color].filter(Boolean).join(' / ') || item.variant_sku})`
+                    : '';
                 draftItems.push({
                     product_id: Number(item.product_id),
+                    variant_id: item.variant_id ? Number(item.variant_id) : null,
                     quantity_ordered: Number(item.quantity_requested),
                     unit_cost: item.preferred_unit_cost !== null && item.preferred_unit_cost !== undefined
                         ? Number(item.preferred_unit_cost)
                         : 0,
-                    product_label: product?.name ?? sanitize(item.product_name ?? `#${item.product_id}`),
+                    product_label: (product?.name ?? sanitize(item.product_name ?? `#${item.product_id}`)) + variantLabel,
                 });
             }
             itemsPreview.innerHTML = renderDraftItemsTable();
@@ -2531,6 +2644,7 @@ async function renderPurchaseOrders() {
             notes: String(data.get('notes') ?? ''),
             items: draftItems.map((item) => ({
                 product_id: item.product_id,
+                variant_id: item.variant_id ?? null,
                 quantity_ordered: item.quantity_ordered,
                 unit_cost: item.unit_cost,
             })),

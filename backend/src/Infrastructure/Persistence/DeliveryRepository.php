@@ -92,10 +92,12 @@ final class DeliveryRepository
         }
 
         $lineStmt = $this->pdo->prepare('
-            SELECT dl.*, p.sku, p.name AS product_name, ps.serial_number
+            SELECT dl.*, p.sku, p.name AS product_name, ps.serial_number,
+                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color
             FROM delivery_lines dl
             INNER JOIN products p ON p.id = dl.product_id
             LEFT JOIN product_serials ps ON ps.id = dl.serial_id
+            LEFT JOIN product_variants v ON v.id = dl.variant_id
             WHERE dl.delivery_id = :delivery_id
             ORDER BY dl.id ASC
         ');
@@ -132,14 +134,15 @@ final class DeliveryRepository
             $deliveryId = (int)$this->pdo->lastInsertId();
 
             $lineStmt = $this->pdo->prepare('
-                INSERT INTO delivery_lines (delivery_id, product_id, serial_id, quantity, unit_price, line_total)
-                VALUES (:delivery_id, :product_id, :serial_id, :quantity, :unit_price, :line_total)
+                INSERT INTO delivery_lines (delivery_id, product_id, variant_id, serial_id, quantity, unit_price, line_total)
+                VALUES (:delivery_id, :product_id, :variant_id, :serial_id, :quantity, :unit_price, :line_total)
             ');
 
             foreach ($payload['lines'] as $line) {
                 $lineStmt->execute([
                     ':delivery_id' => $deliveryId,
                     ':product_id' => $line['product_id'],
+                    ':variant_id' => $line['variant_id'] ?? null,
                     ':serial_id' => $line['serial_id'] ?? null,
                     ':quantity' => $line['quantity'],
                     ':unit_price' => $line['unit_price'],

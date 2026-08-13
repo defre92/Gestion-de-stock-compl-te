@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Application\Services;
 
 use App\Infrastructure\Persistence\AuditRepository;
+use App\Infrastructure\Persistence\ProductRepository;
 use App\Infrastructure\Persistence\PurchaseOrderRepository;
 use App\Infrastructure\Persistence\PurchaseRequestRepository;
 use App\Shared\Database\Database;
@@ -16,7 +17,8 @@ final class PurchaseOrderService
         private readonly PurchaseOrderRepository $repository,
         private readonly StockService $stockService,
         private readonly AuditRepository $auditRepository,
-        private readonly PurchaseRequestRepository $purchaseRequestRepository
+        private readonly PurchaseRequestRepository $purchaseRequestRepository,
+        private readonly ProductRepository $productRepository
     ) {
     }
 
@@ -62,11 +64,19 @@ final class PurchaseOrderService
 
         $totalAmount = 0.0;
         foreach ($items as $index => $item) {
+            $productId = (int)($item['product_id'] ?? 0);
             $qty = (int)($item['quantity_ordered'] ?? 0);
             $unitCost = (float)($item['unit_cost'] ?? 0);
 
             if ($qty <= 0 || $unitCost < 0) {
                 throw new HttpException("Invalid item at index {$index}", 422);
+            }
+
+            if ($productId > 0) {
+                $product = $this->productRepository->findById($productId);
+                if ($product && (int)($product['has_variants'] ?? 0) === 1 && empty($item['variant_id'])) {
+                    throw new HttpException("Ce produit utilise des variantes : precise laquelle a la ligne {$index}", 422);
+                }
             }
 
             $lineTotal = $qty * $unitCost;
@@ -175,6 +185,7 @@ final class PurchaseOrderService
 
                 $this->stockService->createMovement([
                     'product_id' => (int)$orderItem['product_id'],
+                    'variant_id' => $orderItem['variant_id'] ?? null,
                     'warehouse_id' => (int)$order['warehouse_id'],
                     'type' => 'IN',
                     'quantity' => $receivedQty,

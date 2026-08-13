@@ -84,11 +84,13 @@ final class InventoryRepository
         }
 
         $items = $this->pdo->prepare('
-            SELECT isi.*, p.sku, p.name AS product_name, l.code AS location_code, u.full_name AS counted_by_name
+            SELECT isi.*, p.sku, p.name AS product_name, l.code AS location_code, u.full_name AS counted_by_name,
+                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color
             FROM inventory_session_items isi
             INNER JOIN products p ON p.id = isi.product_id
             LEFT JOIN warehouse_locations l ON l.id = isi.location_id
             LEFT JOIN users u ON u.id = isi.counted_by
+            LEFT JOIN product_variants v ON v.id = isi.variant_id
             WHERE isi.session_id = :session_id
             ORDER BY isi.id DESC
         ');
@@ -98,15 +100,20 @@ final class InventoryRepository
         return $session;
     }
 
-    public function expectedQuantity(int $warehouseId, int $productId): int
+    public function expectedQuantity(int $warehouseId, int $productId, ?int $variantId = null): int
     {
-        $stmt = $this->pdo->prepare('
+        $sql = '
             SELECT COALESCE(quantity, 0)
             FROM stock_levels
-            WHERE warehouse_id = :warehouse_id AND product_id = :product_id
+            WHERE warehouse_id = :warehouse_id AND product_id = :product_id AND variant_id ' . ($variantId !== null ? '= :variant_id' : 'IS NULL') . '
             LIMIT 1
-        ');
-        $stmt->execute([':warehouse_id' => $warehouseId, ':product_id' => $productId]);
+        ';
+        $stmt = $this->pdo->prepare($sql);
+        $params = [':warehouse_id' => $warehouseId, ':product_id' => $productId];
+        if ($variantId !== null) {
+            $params[':variant_id'] = $variantId;
+        }
+        $stmt->execute($params);
         return (int)($stmt->fetchColumn() ?: 0);
     }
 
@@ -114,13 +121,14 @@ final class InventoryRepository
     {
         $stmt = $this->pdo->prepare('
             INSERT INTO inventory_session_items
-                (session_id, product_id, expected_qty, counted_qty, difference_qty, location_id, counted_by, counted_at, notes)
+                (session_id, product_id, variant_id, expected_qty, counted_qty, difference_qty, location_id, counted_by, counted_at, notes)
             VALUES
-                (:session_id, :product_id, :expected_qty, :counted_qty, :difference_qty, :location_id, :counted_by, NOW(), :notes)
+                (:session_id, :product_id, :variant_id, :expected_qty, :counted_qty, :difference_qty, :location_id, :counted_by, NOW(), :notes)
         ');
         $stmt->execute([
             ':session_id' => $payload['session_id'],
             ':product_id' => $payload['product_id'],
+            ':variant_id' => $payload['variant_id'] ?? null,
             ':expected_qty' => $payload['expected_qty'],
             ':counted_qty' => $payload['counted_qty'],
             ':difference_qty' => $payload['difference_qty'],

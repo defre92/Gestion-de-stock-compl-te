@@ -73,9 +73,11 @@ final class PurchaseOrderRepository
         }
 
         $itemStmt = $this->pdo->prepare('
-            SELECT poi.*, p.sku, p.name AS product_name
+            SELECT poi.*, p.sku, p.name AS product_name,
+                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color
             FROM purchase_order_items poi
             INNER JOIN products p ON p.id = poi.product_id
+            LEFT JOIN product_variants v ON v.id = poi.variant_id
             WHERE poi.purchase_order_id = :order_id
             ORDER BY poi.id ASC
         ');
@@ -112,15 +114,16 @@ final class PurchaseOrderRepository
 
             $itemStmt = $this->pdo->prepare('
                 INSERT INTO purchase_order_items
-                    (purchase_order_id, product_id, quantity_ordered, quantity_received, unit_cost, line_total)
+                    (purchase_order_id, product_id, variant_id, quantity_ordered, quantity_received, unit_cost, line_total)
                 VALUES
-                    (:purchase_order_id, :product_id, :quantity_ordered, :quantity_received, :unit_cost, :line_total)
+                    (:purchase_order_id, :product_id, :variant_id, :quantity_ordered, :quantity_received, :unit_cost, :line_total)
             ');
 
             foreach ($payload['items'] as $item) {
                 $itemStmt->execute([
                     ':purchase_order_id' => $orderId,
                     ':product_id' => $item['product_id'],
+                    ':variant_id' => $item['variant_id'] ?? null,
                     ':quantity_ordered' => $item['quantity_ordered'],
                     ':quantity_received' => $item['quantity_received'] ?? 0,
                     ':unit_cost' => $item['unit_cost'],

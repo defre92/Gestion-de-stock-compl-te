@@ -64,18 +64,25 @@ final class InventoryService
         }
 
         $productId = (int)($payload['product_id'] ?? 0);
+        $variantId = !empty($payload['variant_id']) ? (int)$payload['variant_id'] : null;
         $countedQty = (int)($payload['counted_qty'] ?? 0);
 
         if ($productId <= 0 || $countedQty < 0) {
             throw new HttpException('Invalid count payload', 422);
         }
 
-        $expectedQty = $this->repository->expectedQuantity((int)$session['warehouse_id'], $productId);
+        $product = $this->productRepository->findById($productId);
+        if ($product && (int)($product['has_variants'] ?? 0) === 1 && $variantId === null) {
+            throw new HttpException('Ce produit utilise des variantes : precise laquelle', 422);
+        }
+
+        $expectedQty = $this->repository->expectedQuantity((int)$session['warehouse_id'], $productId, $variantId);
         $differenceQty = $countedQty - $expectedQty;
 
         $id = $this->repository->addCount([
             'session_id' => $sessionId,
             'product_id' => $productId,
+            'variant_id' => $variantId,
             'expected_qty' => $expectedQty,
             'counted_qty' => $countedQty,
             'difference_qty' => $differenceQty,
@@ -105,11 +112,14 @@ final class InventoryService
         // comptages, juste pas appliquees).
         $latestPerProduct = [];
         foreach ($session['items'] as $item) {
-            $productId = (int)$item['product_id'];
-            $isNewer = !isset($latestPerProduct[$productId])
-                || (int)$item['id'] > (int)$latestPerProduct[$productId]['id'];
+            // Cle produit+variante: sans le variant_id ici, deux variantes
+            // du meme produit comptees dans la meme session s'ecraseraient
+            // l'une l'autre et une seule generait un ajustement.
+            $key = $item['product_id'] . '-' . ($item['variant_id'] ?? '0');
+            $isNewer = !isset($latestPerProduct[$key])
+                || (int)$item['id'] > (int)$latestPerProduct[$key]['id'];
             if ($isNewer) {
-                $latestPerProduct[$productId] = $item;
+                $latestPerProduct[$key] = $item;
             }
         }
 
@@ -121,6 +131,7 @@ final class InventoryService
 
             $this->stockService->createMovement([
                 'product_id' => (int)$item['product_id'],
+                'variant_id' => $item['variant_id'] ?? null,
                 'warehouse_id' => (int)$session['warehouse_id'],
                 'type' => 'ADJUSTMENT',
                 'quantity' => (int)$item['counted_qty'],

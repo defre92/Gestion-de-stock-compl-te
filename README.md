@@ -23,12 +23,51 @@ Application de gestion de stock professionnelle avec separation stricte Frontend
 ## Fonctionnalites principales
 
 - Referentiels: produits, categories, unites, marques, taxes, tags.
+- Variantes produit (optionnel): taille/couleur par produit, stock et
+  mouvements suivis par variante. Voir section dediee plus bas.
 - Tiers: fournisseurs et clients.
 - Stock: entrees, sorties, transferts, ajustements, inventaires.
 - Achats: commandes, receptions partielles/totales, suivi des statuts.
 - Pilotage: dashboard KPI, exports CSV, rapports.
 - Administration: roles, utilisateurs, audit.
 - Avance: import CSV multi-entites, pieces jointes, etiquettes/code-barres.
+
+## Variantes produit (stock vetement, taille/couleur) - optionnel
+
+Fonctionnalite optionnelle pour les catalogues avec variantes (taille,
+couleur...), typiquement le pret-a-porter. Desactivee par defaut, elle ne
+change rien pour un client qui n'en a pas besoin.
+
+**Activation** : cle `app_settings` `clothing_variants_enabled` = `1`
+(ecran Parametres). Une fois activee, l'entree "Variantes" apparait dans le
+menu Admin.
+
+**Par produit** : chaque produit choisit individuellement s'il utilise des
+variantes (case "Ce produit a des variantes" sur sa fiche,
+`products.has_variants`). Un catalogue mixte (certains produits avec
+variantes, d'autres sans) est le cas normal.
+
+**Modele de donnees** : table `product_variants` (SKU propre, code-barre,
+taille, couleur, prix optionnel qui surcharge celui du produit,
+`attributes_json` en reserve pour d'autres attributs futurs sans nouvelle
+migration). `stock_levels`, `stock_movements` et `stock_alerts` ont tous
+une colonne `variant_id` nullable : le stock, l'historique des mouvements
+et les alertes de stock bas sont donc suivis par variante quand elle est
+renseignee.
+
+**Ce qui est deja variant-aware** : creation/edition de variantes (module
+dedie), mouvements de stock (IN/OUT/ADJUSTMENT/TRANSFER), alertes de stock
+bas par variante, livraisons (creation + annulation), demandes et
+commandes d'achat (creation + reception), sessions d'inventaire (comptage +
+finalisation - le calcul d'ecart distingue bien deux variantes du meme
+produit comptees dans la meme session).
+
+**Pas encore variant-aware (limitation connue)** : les formulaires frontend
+de livraisons, achats et inventaires n'exposent pas encore de selecteur de
+variante (le backend l'accepte via `variant_id` dans le payload JSON, mais
+l'interface ne le propose pas encore) - seul le formulaire de mouvement de
+stock (`movements`) le fait cote UI pour l'instant. A completer si le
+besoin se confirme.
 
 ## Prerequis
 - WAMP (Apache + MySQL) actif.
@@ -142,6 +181,21 @@ de figure.
 
 ## Donnees de demo pour le client (frontend/demo-data.php, sans SSH)
 
+### Migrations sans SSH (frontend/migrate.php)
+Meme principe que `demo-data.php` : accessible depuis le navigateur, reserve
+aux comptes ADMIN, pas de terminal necessaire. Reprend exactement la logique
+de `backend/bin/migrate.php` (meme table `schema_migrations`, meme dossiers
+`database/migrations/up|down`) - les deux sont interchangeables et se
+partagent le meme etat, tu peux utiliser l'un ou l'autre selon ce qui est
+disponible sur l'hebergement du moment.
+
+Affiche l'etat de chaque migration (appliquee/en attente), un bouton pour
+appliquer les migrations en attente, et un bouton d'annulation du dernier
+lot (protege par confirmation textuelle "ANNULER", a n'utiliser qu'en cas
+d'erreur juste apres une migration - peut supprimer des colonnes/tables et
+leurs donnees).
+
+
 Une fois l'installation terminee et le compte admin du client cree (voir
 section precedente), le client peut lui-meme charger des donnees d'exemple
 pour explorer l'application, ou tout reinitialiser - le tout depuis son
@@ -192,6 +246,30 @@ l'authentification admin de l'application elle-meme, pas par une cle
 statique. Si tu preferes que le client n'y ait pas acces du tout, il suffit
 de ne pas inclure `frontend/demo-data.php` ni `database/demo/` dans son
 paquet de livraison - l'application fonctionne normalement sans.
+
+### Reset automatique nocturne de l'instance de demo PUBLIQUE
+Distinct de ce qui precede : c'est pour l'instance de demo publique
+annoncee sur `vente.html` (identifiants `demo@gestion-stock-pro.fr`), pas
+pour une instance client. Cette instance doit se reinitialiser seule chaque
+nuit (4h, promesse affichee sur la page de vente), sans qu'un admin ait a
+cliquer sur les boutons de `demo-data.php`.
+
+`backend/bin/reset-demo-cron.php` fait exactement ce que font les 2
+boutons de `demo-data.php`, dans l'ordre (vide puis recharge), en ligne de
+commande - aucune session/cookie necessaire, donc utilisable depuis une
+tache planifiee.
+
+A configurer dans cPanel > Cron Jobs (ou equivalent chez l'hebergeur) sur
+l'hebergement de l'instance de demo, tous les jours a 4h :
+```
+php /chemin/absolu/vers/le/projet/backend/bin/reset-demo-cron.php
+```
+
+**Ne jamais pointer ce cron vers la base d'un client reel** - il efface
+tout sans aucune confirmation (normal pour un cron, mais destructeur). Il
+reutilise `config/demo-reset-tables.php` (liste des tables videes, partagee
+avec `demo-data.php` pour eviter que les deux listes divergent) et
+`database/demo/catalog-demo.sql`.
 
 
 ## Installation locale WAMP (pour dev/demo uniquement, BDD jamais creee)

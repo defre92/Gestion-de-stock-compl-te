@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Application\Services;
 
 use App\Infrastructure\Persistence\AuditRepository;
+use App\Infrastructure\Persistence\ProductRepository;
 use App\Infrastructure\Persistence\PurchaseRequestRepository;
 use App\Shared\Http\HttpException;
 
@@ -11,7 +12,8 @@ final class PurchaseRequestService
 {
     public function __construct(
         private readonly PurchaseRequestRepository $repository,
-        private readonly AuditRepository $auditRepository
+        private readonly AuditRepository $auditRepository,
+        private readonly ProductRepository $productRepository
     ) {
     }
 
@@ -43,8 +45,13 @@ final class PurchaseRequestService
         }
 
         foreach ($items as $idx => $item) {
-            if ((int)($item['product_id'] ?? 0) <= 0 || (int)($item['quantity_requested'] ?? 0) <= 0) {
+            $productId = (int)($item['product_id'] ?? 0);
+            if ($productId <= 0 || (int)($item['quantity_requested'] ?? 0) <= 0) {
                 throw new HttpException("Invalid item at index {$idx}", 422);
+            }
+            $product = $this->productRepository->findById($productId);
+            if ($product && (int)($product['has_variants'] ?? 0) === 1 && empty($item['variant_id'])) {
+                throw new HttpException("Ce produit utilise des variantes : precise laquelle a la ligne {$idx}", 422);
             }
         }
 
