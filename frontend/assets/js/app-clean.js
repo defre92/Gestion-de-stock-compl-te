@@ -18,6 +18,7 @@ const dashboardCharts = {
 const moduleTitles = {
     dashboard: 'Tableau de bord',
     products: 'Produits',
+    'product-variants': 'Variantes (taille/couleur)',
     categories: 'Categories',
     brands: 'Marques',
     units: 'Unites',
@@ -194,6 +195,10 @@ const crudModules = {
                 { value: '1', label: 'Oui' },
                 { value: '0', label: 'Non' },
             ] },
+            { key: 'has_variants', label: 'Ce produit a des variantes (taille/couleur)', type: 'select', options: [
+                { value: '0', label: 'Non' },
+                { value: '1', label: 'Oui - gerer les variantes dans le module dedie' },
+            ] },
             { key: 'tag_ids', label: 'Tags', type: 'multiselect', optionsFrom: 'tags', optionLabel: 'name', valueFrom: 'tags' },
         ],
         columns: [
@@ -209,7 +214,34 @@ const crudModules = {
             { key: 'unit_price', label: 'Prix', format: (value) => formatMoney(value) },
             { key: 'tax_rate', label: 'TVA', format: (value) => (value !== null && value !== undefined ? `${Number(value)}%` : '-') },
             { key: 'valuation_method', label: 'Valorisation' },
+            { key: 'has_variants', label: 'Variantes', format: (v) => (Number(v) === 1 ? 'Oui' : 'Non') },
             { key: 'tags', label: 'Tags', format: (value) => renderTagBadges(value) },
+        ],
+    },
+    'product-variants': {
+        endpoint: '/product-variants',
+        label: 'variante',
+        fields: [
+            { key: 'product_id', label: 'Produit', type: 'select', optionsFrom: 'products', optionLabel: 'name', required: true },
+            { key: 'sku', label: 'SKU variante', type: 'text', required: true },
+            { key: 'barcode', label: 'Code barre', type: 'text' },
+            { key: 'size', label: 'Taille', type: 'text' },
+            { key: 'color', label: 'Couleur', type: 'text' },
+            { key: 'unit_price', label: 'Prix (vide = prix du produit)', type: 'number', step: '0.01' },
+            { key: 'is_active', label: 'Actif', type: 'select', options: [
+                { value: '1', label: 'Oui' },
+                { value: '0', label: 'Non' },
+            ] },
+        ],
+        columns: [
+            { key: 'id', label: 'ID' },
+            { key: 'product_name', label: 'Produit' },
+            { key: 'sku', label: 'SKU variante' },
+            { key: 'size', label: 'Taille' },
+            { key: 'color', label: 'Couleur' },
+            { key: 'stock_total', label: 'Stock' },
+            { key: 'unit_price', label: 'Prix', format: (value) => (value !== null && value !== undefined && value !== '' ? formatMoney(value) : '-') },
+            { key: 'is_active', label: 'Actif', format: (v) => (Number(v) === 1 ? 'Oui' : 'Non') },
         ],
     },
     customers: {
@@ -364,13 +396,16 @@ boot().catch((error) => {
 });
 
 async function boot() {
-    const [meResponse, lookupResponse] = await Promise.all([
+    const [meResponse, lookupResponse, variantsSettingResponse] = await Promise.all([
         apiRequest('/auth/me'),
         apiRequest('/lookups/options'),
+        apiRequest('/settings?setting_key=clothing_variants_enabled').catch(() => null),
     ]);
 
     state.user = meResponse.data;
     state.lookups = lookupResponse.data;
+    const variantsRow = normalizeRows(variantsSettingResponse)[0];
+    state.clothingVariantsEnabled = String(variantsRow?.setting_value ?? '0') === '1';
 
     const userPill = document.getElementById('userPill');
     userPill.textContent = `${state.user.full_name} | ${state.user.role}`;
@@ -381,12 +416,22 @@ async function boot() {
 
     setupNavigation();
     applyNavAccess();
+    applyVariantsVisibility();
     setupGlobalSearch();
     const params = new URLSearchParams(window.location.search);
     const requestedModule = params.get('module') ?? 'dashboard';
     const initialModule = normalizeModule(requestedModule);
     setActiveNav(initialModule);
     await renderModule(initialModule, false);
+}
+
+function applyVariantsVisibility() {
+    // Module optionnel (stock vetement: taille/couleur) : masque le lien de
+    // navigation tant que l'admin ne l'a pas active dans Parametres
+    // (cle app_settings 'clothing_variants_enabled' = '1').
+    if (!state.clothingVariantsEnabled) {
+        document.querySelector('[data-module="product-variants"]')?.remove();
+    }
 }
 
 function applyNavAccess() {
@@ -443,8 +488,8 @@ function canWrite(module) {
 
     const matrix = {
         BUYER: ['suppliers', 'customers', 'purchase-requests', 'purchase-orders'],
-        STOREKEEPER: ['movements', 'product-serials', 'deliveries', 'inventories', 'alerts'],
-        MANAGER: ['movements', 'product-serials', 'deliveries', 'inventories', 'alerts', 'purchase-requests', 'purchase-orders', 'suppliers'],
+        STOREKEEPER: ['movements', 'product-serials', 'product-variants', 'deliveries', 'inventories', 'alerts'],
+        MANAGER: ['movements', 'product-serials', 'product-variants', 'deliveries', 'inventories', 'alerts', 'purchase-requests', 'purchase-orders', 'suppliers'],
     };
 
     return Boolean(matrix[role]?.includes(module));
@@ -1182,6 +1227,10 @@ async function renderMovements() {
             ${writable ? `
             <form id="movementForm" class="form-grid">
                 ${selectField('product_id', 'Produit', state.lookups.products, 'id', 'name', true)}
+                <div class="full hidden" id="movementVariantWrap">
+                    <label><span>Variante (taille/couleur)</span><select name="variant_id" id="movementVariantSelect"></select></label>
+                    <small class="field-hint">Ce produit utilise des variantes : choisis celle concernee par ce mouvement.</small>
+                </div>
                 ${selectField('warehouse_id', 'Entrepot source', state.lookups.warehouses, 'id', 'name', true)}
                 ${selectField('destination_warehouse_id', 'Entrepot destination', state.lookups.warehouses, 'id', 'name', false)}
                 <label><span>Type</span><select name="type" required>
@@ -1218,6 +1267,10 @@ async function renderMovements() {
                 ['created_at', 'Date'],
                 ['type', 'Type'],
                 ['product_name', 'Produit'],
+                ['variant_sku', 'Variante', (v, row) => {
+                    const descriptors = [row.variant_size, row.variant_color].filter(Boolean);
+                    return descriptors.length > 0 ? sanitize(descriptors.join(' / ')) : (v ? sanitize(v) : '-');
+                }],
                 ['quantity', 'Quantite'],
                 ['balance_after', 'Stock apres'],
                 ['warehouse_name', 'Source'],
@@ -1237,7 +1290,35 @@ async function renderMovements() {
     const serialsInWrap = document.getElementById('movementSerialsInWrap');
     const serialsOutWrap = document.getElementById('movementSerialsOutWrap');
     const serialOutList = document.getElementById('movementSerialOutList');
+    const variantWrap = document.getElementById('movementVariantWrap');
+    const variantSelect = document.getElementById('movementVariantSelect');
     let availableOutSerialCount = 0;
+
+    const loadVariantOptions = async () => {
+        if (!variantWrap || !variantSelect) {
+            return;
+        }
+        const productId = productSelect?.value;
+        const product = state.lookups.products.find((p) => String(p.id) === String(productId));
+        const hasVariants = Number(product?.has_variants) === 1;
+        variantWrap.classList.toggle('hidden', !hasVariants);
+        variantSelect.required = hasVariants;
+
+        if (!hasVariants || !productId) {
+            variantSelect.innerHTML = '';
+            return;
+        }
+
+        variantSelect.innerHTML = '<option value="">Chargement...</option>';
+        const response = await apiRequest(`/product-variants?product_id=${productId}&is_active=1&per_page=200`);
+        const variants = normalizeRows(response);
+        variantSelect.innerHTML = variants.length === 0
+            ? '<option value="">Aucune variante active pour ce produit</option>'
+            : variants.map((v) => {
+                const descriptors = [v.size, v.color].filter(Boolean).join(' / ') || v.sku;
+                return `<option value="${v.id}">${sanitize(descriptors)} (stock: ${v.stock_total ?? 0})</option>`;
+            }).join('');
+    };
 
     const loadOutSerialOptions = async () => {
         if (!serialOutList || typeSelect?.value !== 'OUT') {
@@ -1280,6 +1361,8 @@ async function renderMovements() {
     typeSelect?.addEventListener('change', toggleSerialsWrap);
     productSelect?.addEventListener('change', loadOutSerialOptions);
     warehouseSelect?.addEventListener('change', loadOutSerialOptions);
+    productSelect?.addEventListener('change', loadVariantOptions);
+    loadVariantOptions();
 
     form?.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -1328,9 +1411,18 @@ async function renderMovements() {
             }
         }
 
+        const variantId = variantSelect && !variantWrap?.classList.contains('hidden') && variantSelect.value
+            ? Number(variantSelect.value)
+            : null;
+        if (variantSelect && !variantWrap?.classList.contains('hidden') && !variantSelect.value) {
+            feedback.textContent = 'Ce produit utilise des variantes : choisis-en une.';
+            feedback.classList.add('is-error');
+            return;
+        }
 
         const payload = {
             product_id: productId,
+            variant_id: variantId,
             warehouse_id: warehouseId,
             destination_warehouse_id: data.get('destination_warehouse_id') ? Number(data.get('destination_warehouse_id')) : null,
             type,

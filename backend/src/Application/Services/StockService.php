@@ -44,6 +44,7 @@ final class StockService
     public function createMovement(array $payload, int $actorId, ?string $ip): int
     {
         $productId = (int)($payload['product_id'] ?? 0);
+        $variantId = !empty($payload['variant_id']) ? (int)$payload['variant_id'] : null;
         $warehouseId = (int)($payload['warehouse_id'] ?? 0);
         $type = strtoupper((string)($payload['type'] ?? ''));
         $quantity = (int)($payload['quantity'] ?? 0);
@@ -58,6 +59,10 @@ final class StockService
             throw new HttpException('Product not found', 404);
         }
 
+        if ((int)($product['has_variants'] ?? 0) === 1 && $variantId === null) {
+            throw new HttpException('Ce produit utilise des variantes : precise laquelle (variant_id)', 422);
+        }
+
         $warehouse = $this->warehouseRepository->findById($warehouseId);
         if (!$warehouse) {
             throw new HttpException('Warehouse not found', 404);
@@ -70,7 +75,7 @@ final class StockService
         }
 
         try {
-            $current = $this->productRepository->stockLevel($productId, $warehouseId);
+            $current = $this->productRepository->stockLevel($productId, $warehouseId, $variantId);
             $currentQty = $current['quantity'] ?? 0;
             $nextQty = $currentQty;
 
@@ -98,16 +103,17 @@ final class StockService
                     throw new HttpException('Insufficient stock for transfer', 422);
                 }
 
-                $destinationCurrent = $this->productRepository->stockLevel($productId, $destinationWarehouseId);
+                $destinationCurrent = $this->productRepository->stockLevel($productId, $destinationWarehouseId, $variantId);
                 $destinationQty = ($destinationCurrent['quantity'] ?? 0) + $quantity;
 
-                $this->productRepository->upsertStockLevel($productId, $destinationWarehouseId, $destinationQty);
+                $this->productRepository->upsertStockLevel($productId, $destinationWarehouseId, $destinationQty, $variantId);
             }
 
-            $this->productRepository->upsertStockLevel($productId, $warehouseId, $nextQty);
+            $this->productRepository->upsertStockLevel($productId, $warehouseId, $nextQty, $variantId);
 
             $movementId = $this->movementRepository->create([
                 'product_id' => $productId,
+                'variant_id' => $variantId,
                 'warehouse_id' => $warehouseId,
                 'destination_warehouse_id' => $destinationWarehouseId,
                 'source_location_id' => isset($payload['source_location_id']) ? (int)$payload['source_location_id'] : null,
@@ -125,11 +131,12 @@ final class StockService
             if ($type === 'TRANSFER' && $destinationWarehouseId) {
                 $this->movementRepository->create([
                     'product_id' => $productId,
+                    'variant_id' => $variantId,
                     'warehouse_id' => $destinationWarehouseId,
                     'destination_warehouse_id' => null,
                     'type' => 'IN',
                     'quantity' => $quantity,
-                    'balance_after' => (int)($this->productRepository->stockLevel($productId, $destinationWarehouseId)['quantity'] ?? 0),
+                    'balance_after' => (int)($this->productRepository->stockLevel($productId, $destinationWarehouseId, $variantId)['quantity'] ?? 0),
                     'reference_type' => 'TRANSFER',
                     'reference_id' => $movementId,
                     'notes' => 'Auto generated destination move',
@@ -139,7 +146,7 @@ final class StockService
             }
 
             $this->auditRepository->log($actorId, 'CREATE', 'stock_movement', $movementId, $payload, $ip);
-            $this->refreshProductAlert($productId, $warehouseId);
+            $this->refreshProductAlert($productId, $warehouseId, $variantId);
             if ($ownsTransaction) {
                 $pdo->commit();
             }
@@ -153,14 +160,30 @@ final class StockService
         }
     }
 
-    private function refreshProductAlert(int $productId, int $warehouseId): void
+    private function refreshProductAlert(int $productId, int $warehouseId, ?int $variantId = null): void
     {
         $product = $this->productRepository->findById($productId);
         if (!$product) {
             return;
         }
 
-        $stock = (int)($product['stock_total'] ?? 0);
+        $variantLabel = '';
+        if ($variantId !== null) {
+            $variant = Database::connection()->prepare('SELECT sku, size, color FROM product_variants WHERE id = :id');
+            $variant->execute([':id' => $variantId]);
+            $variantRow = $variant->fetch();
+            if ($variantRow) {
+                $descriptors = array_filter([$variantRow['size'] ?? null, $variantRow['color'] ?? null]);
+                $variantLabel = $descriptors !== [] ? ' (' . implode('/', $descriptors) . ')' : ' (' . $variantRow['sku'] . ')';
+            }
+
+            $stockStmt = Database::connection()->prepare('SELECT COALESCE(SUM(quantity), 0) FROM stock_levels WHERE variant_id = :variant_id');
+            $stockStmt->execute([':variant_id' => $variantId]);
+            $stock = (int)$stockStmt->fetchColumn();
+        } else {
+            $stock = (int)($product['stock_total'] ?? 0);
+        }
+
         $threshold = max((int)($product['min_stock'] ?? 0), (int)($product['reorder_level'] ?? 0));
 
         if ($stock > $threshold) {
@@ -170,13 +193,14 @@ final class StockService
         $alertType = $stock <= 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK';
         $severity = $stock <= 0 ? 'CRITICAL' : 'WARNING';
         $message = $stock <= 0
-            ? sprintf('Rupture de stock pour %s (%s)', $product['name'], $product['sku'])
-            : sprintf('Stock bas pour %s (%s): %d', $product['name'], $product['sku'], $stock);
+            ? sprintf('Rupture de stock pour %s%s (%s)', $product['name'], $variantLabel, $product['sku'])
+            : sprintf('Stock bas pour %s%s (%s): %d', $product['name'], $variantLabel, $product['sku'], $stock);
 
         $this->alertRepository->create([
             'alert_type' => $alertType,
             'severity' => $severity,
             'product_id' => $productId,
+            'variant_id' => $variantId,
             'warehouse_id' => $warehouseId,
             'message' => $message,
             'status' => 'OPEN',

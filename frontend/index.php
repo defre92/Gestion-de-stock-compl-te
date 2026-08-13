@@ -32,6 +32,7 @@ require_once __DIR__ . '/route-frontend.php';
 
                 <p class="nav-section">Referentiels</p>
                 <button data-module="products" class="nav-item"><i class="bi bi-box-seam"></i><span>Produits</span></button>
+                <button data-module="product-variants" class="nav-item"><i class="bi bi-palette"></i><span>Variantes</span></button>
                 <button data-module="categories" class="nav-item"><i class="bi bi-diagram-3"></i><span>Categories</span></button>
                 <button data-module="brands" class="nav-item"><i class="bi bi-award"></i><span>Marques</span></button>
                 <button data-module="units" class="nav-item"><i class="bi bi-rulers"></i><span>Unites</span></button>

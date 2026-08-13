@@ -10,6 +10,7 @@ final class StockAlertRepository extends PdoCrudRepository
         'alert_type',
         'severity',
         'product_id',
+        'variant_id',
         'purchase_order_id',
         'warehouse_id',
         'message',
@@ -17,5 +18,5 @@ final class StockAlertRepository extends PdoCrudRepository
         'resolved_at',
         'resolved_by',
     ];
-    protected array $filterable = ['alert_type', 'severity', 'status', 'warehouse_id'];
+    protected array $filterable = ['alert_type', 'severity', 'status', 'warehouse_id', 'variant_id'];
 }

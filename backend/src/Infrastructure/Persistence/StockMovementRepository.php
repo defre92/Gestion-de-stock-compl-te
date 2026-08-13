@@ -19,15 +19,16 @@ final class StockMovementRepository
     {
         $stmt = $this->pdo->prepare('
             INSERT INTO stock_movements
-                (product_id, warehouse_id, destination_warehouse_id, source_location_id, destination_location_id,
+                (product_id, variant_id, warehouse_id, destination_warehouse_id, source_location_id, destination_location_id,
                  type, quantity, balance_after, reference_type, reference_id, notes, reason_code, moved_by, created_at)
             VALUES
-                (:product_id, :warehouse_id, :destination_warehouse_id, :source_location_id, :destination_location_id,
+                (:product_id, :variant_id, :warehouse_id, :destination_warehouse_id, :source_location_id, :destination_location_id,
                  :type, :quantity, :balance_after, :reference_type, :reference_id, :notes, :reason_code, :moved_by, NOW())
         ');
 
         $stmt->execute([
             ':product_id' => $payload['product_id'],
+            ':variant_id' => $payload['variant_id'] ?? null,
             ':warehouse_id' => $payload['warehouse_id'],
             ':destination_warehouse_id' => $payload['destination_warehouse_id'] ?? null,
             ':source_location_id' => $payload['source_location_id'] ?? null,
@@ -62,6 +63,10 @@ final class StockMovementRepository
             $clauses[] = 'sm.product_id = :product_id';
             $params[':product_id'] = (int)$filters['product_id'];
         }
+        if (!empty($filters['variant_id'])) {
+            $clauses[] = 'sm.variant_id = :variant_id';
+            $params[':variant_id'] = (int)$filters['variant_id'];
+        }
         if (!empty($filters['warehouse_id'])) {
             $clauses[] = '(sm.warehouse_id = :warehouse_id OR sm.destination_warehouse_id = :warehouse_id)';
             $params[':warehouse_id'] = (int)$filters['warehouse_id'];
@@ -90,12 +95,14 @@ final class StockMovementRepository
 
         $stmt = $this->pdo->prepare('
             SELECT sm.*, p.sku, p.name AS product_name,
+                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color,
                    w.name AS warehouse_name,
                    dw.name AS destination_warehouse_name,
                    u.full_name AS moved_by_name,
                    c.name AS customer_name
             FROM stock_movements sm
             INNER JOIN products p ON p.id = sm.product_id
+            LEFT JOIN product_variants v ON v.id = sm.variant_id
             INNER JOIN warehouses w ON w.id = sm.warehouse_id
             LEFT JOIN warehouses dw ON dw.id = sm.destination_warehouse_id
             LEFT JOIN users u ON u.id = sm.moved_by

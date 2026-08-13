@@ -34,6 +34,7 @@ final class ProductRepository extends PdoCrudRepository
         'safety_stock',
         'valuation_method',
         'status',
+        'has_variants',
         'is_active',
     ];
     protected array $filterable = ['category_id', 'supplier_id', 'status', 'is_active', 'brand_id', 'unit_id'];
@@ -142,6 +143,19 @@ final class ProductRepository extends PdoCrudRepository
         $tagStmt->execute([':id' => $id]);
         $result['tags'] = $tagStmt->fetchAll();
 
+        if ((int)($result['has_variants'] ?? 0) === 1) {
+            $variantStmt = $this->pdo->prepare('
+                SELECT v.*, COALESCE(SUM(sl.quantity), 0) AS stock_total
+                FROM product_variants v
+                LEFT JOIN stock_levels sl ON sl.variant_id = v.id
+                WHERE v.product_id = :id
+                GROUP BY v.id
+                ORDER BY v.size ASC, v.color ASC
+            ');
+            $variantStmt->execute([':id' => $id]);
+            $result['variants'] = $variantStmt->fetchAll();
+        }
+
         return $result;
     }
 
@@ -211,10 +225,16 @@ final class ProductRepository extends PdoCrudRepository
         return $this->pdo->query($sql)->fetchAll();
     }
 
-    public function stockLevel(int $productId, int $warehouseId): ?array
+    public function stockLevel(int $productId, int $warehouseId, ?int $variantId = null): ?array
     {
-        $stmt = $this->pdo->prepare('SELECT warehouse_id, quantity FROM stock_levels WHERE product_id = :product_id AND warehouse_id = :warehouse_id LIMIT 1');
-        $stmt->execute([':product_id' => $productId, ':warehouse_id' => $warehouseId]);
+        $sql = 'SELECT warehouse_id, quantity FROM stock_levels WHERE product_id = :product_id AND warehouse_id = :warehouse_id AND variant_id '
+            . ($variantId !== null ? '= :variant_id' : 'IS NULL') . ' LIMIT 1';
+        $stmt = $this->pdo->prepare($sql);
+        $params = [':product_id' => $productId, ':warehouse_id' => $warehouseId];
+        if ($variantId !== null) {
+            $params[':variant_id'] = $variantId;
+        }
+        $stmt->execute($params);
         $row = $stmt->fetch();
 
         if (!$row) {
@@ -224,16 +244,41 @@ final class ProductRepository extends PdoCrudRepository
         return ['warehouse_id' => (int)$row['warehouse_id'], 'quantity' => (int)$row['quantity']];
     }
 
-    public function upsertStockLevel(int $productId, int $warehouseId, int $quantity): void
+    public function upsertStockLevel(int $productId, int $warehouseId, int $quantity, ?int $variantId = null): void
     {
+        // ON DUPLICATE KEY UPDATE s'appuie sur uq_stock_level (product_id,
+        // warehouse_id, variant_id). MySQL ne considere pas deux NULL comme
+        // egaux dans un index unique : pour un produit SANS variante
+        // (variant_id NULL), on verifie donc d'abord manuellement si une
+        // ligne existe deja, plutot que de compter sur ON DUPLICATE KEY.
+        if ($variantId === null) {
+            $existing = $this->stockLevel($productId, $warehouseId, null);
+            if ($existing === null) {
+                $stmt = $this->pdo->prepare('
+                    INSERT INTO stock_levels (product_id, warehouse_id, variant_id, quantity, updated_at)
+                    VALUES (:product_id, :warehouse_id, NULL, :quantity, NOW())
+                ');
+                $stmt->execute([':product_id' => $productId, ':warehouse_id' => $warehouseId, ':quantity' => $quantity]);
+                return;
+            }
+
+            $stmt = $this->pdo->prepare('
+                UPDATE stock_levels SET quantity = :quantity, updated_at = NOW()
+                WHERE product_id = :product_id AND warehouse_id = :warehouse_id AND variant_id IS NULL
+            ');
+            $stmt->execute([':product_id' => $productId, ':warehouse_id' => $warehouseId, ':quantity' => $quantity]);
+            return;
+        }
+
         $stmt = $this->pdo->prepare('
-            INSERT INTO stock_levels (product_id, warehouse_id, quantity, updated_at)
-            VALUES (:product_id, :warehouse_id, :quantity, NOW())
+            INSERT INTO stock_levels (product_id, warehouse_id, variant_id, quantity, updated_at)
+            VALUES (:product_id, :warehouse_id, :variant_id, :quantity, NOW())
             ON DUPLICATE KEY UPDATE quantity = VALUES(quantity), updated_at = NOW()
         ');
         $stmt->execute([
             ':product_id' => $productId,
             ':warehouse_id' => $warehouseId,
+            ':variant_id' => $variantId,
             ':quantity' => $quantity,
         ]);
     }

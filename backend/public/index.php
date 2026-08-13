@@ -31,6 +31,7 @@ use App\Infrastructure\Persistence\ImportJobRepository;
 use App\Infrastructure\Persistence\InventoryRepository;
 use App\Infrastructure\Persistence\ProductMediaRepository;
 use App\Infrastructure\Persistence\ProductRepository;
+use App\Infrastructure\Persistence\ProductVariantRepository;
 use App\Infrastructure\Persistence\PurchaseOrderRepository;
 use App\Infrastructure\Persistence\PurchaseRequestRepository;
 use App\Infrastructure\Persistence\ReportRepository;
@@ -117,6 +118,7 @@ $authController = new AuthController($authService);
 $categoryController = new CrudController(new CrudService(new CategoryRepository(), $auditRepository, 'category', ['name']));
 $supplierController = new CrudController(new CrudService(new SupplierRepository(), $auditRepository, 'supplier', ['name', 'status']));
 $productController = new CrudController(new CrudService(new ProductRepository(), $auditRepository, 'product', ['sku', 'name', 'category_id', 'status']));
+$productVariantController = new CrudController(new CrudService(new ProductVariantRepository(), $auditRepository, 'product_variant', ['product_id', 'sku']));
 $userController = new UserController(new UserService($userRepository, $roleRepository, $passwordService, $auditRepository, $authTokenRepository));
 $auditController = new AuditController($auditRepository);
 
@@ -196,6 +198,12 @@ $router->add('GET', '/api/v1/products/{id}', static fn (Request $req, array $p) 
 $router->add('POST', '/api/v1/products', static fn (Request $req) => $productController->store($req), [$authMiddleware, $adminRolesMiddleware]);
 $router->add('PUT', '/api/v1/products/{id}', static fn (Request $req, array $p) => $productController->update($req, (int)$p['id']), [$authMiddleware, $adminRolesMiddleware]);
 $router->add('DELETE', '/api/v1/products/{id}', static fn (Request $req, array $p) => $productController->destroy($req, (int)$p['id']), [$authMiddleware, $adminRolesMiddleware]);
+
+$router->add('GET', '/api/v1/product-variants', static fn (Request $req) => $productVariantController->index($req), [$authMiddleware]);
+$router->add('GET', '/api/v1/product-variants/{id}', static fn (Request $req, array $p) => $productVariantController->show((int)$p['id']), [$authMiddleware]);
+$router->add('POST', '/api/v1/product-variants', static fn (Request $req) => $productVariantController->store($req), [$authMiddleware, $stockRolesMiddleware]);
+$router->add('PUT', '/api/v1/product-variants/{id}', static fn (Request $req, array $p) => $productVariantController->update($req, (int)$p['id']), [$authMiddleware, $stockRolesMiddleware]);
+$router->add('DELETE', '/api/v1/product-variants/{id}', static fn (Request $req, array $p) => $productVariantController->destroy($req, (int)$p['id']), [$authMiddleware, $adminRolesMiddleware]);
 $router->add('GET', '/api/v1/product-media', static fn (Request $req) => $productMediaController->index($req), [$authMiddleware]);
 $router->add('POST', '/api/v1/product-media', static fn (Request $req) => $productMediaController->store($req), [$authMiddleware]);
 $router->add('POST', '/api/v1/products/{id}/media/upload', static fn (Request $req, array $p) => $productMediaUploadController->upload($req, (int)$p['id']), [$authMiddleware, $adminRolesMiddleware]);
