@@ -93,7 +93,7 @@ final class DeliveryRepository
 
         $lineStmt = $this->pdo->prepare('
             SELECT dl.*, p.sku, p.name AS product_name, ps.serial_number,
-                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color
+                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl
             FROM delivery_lines dl
             INNER JOIN products p ON p.id = dl.product_id
             LEFT JOIN product_serials ps ON ps.id = dl.serial_id

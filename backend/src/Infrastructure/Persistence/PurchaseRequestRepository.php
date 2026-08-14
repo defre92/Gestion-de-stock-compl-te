@@ -66,7 +66,7 @@ final class PurchaseRequestRepository
 
         $items = $this->pdo->prepare('
             SELECT pri.*, p.sku, p.name AS product_name,
-                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color
+                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl
             FROM purchase_request_items pri
             INNER JOIN products p ON p.id = pri.product_id
             LEFT JOIN product_variants v ON v.id = pri.variant_id

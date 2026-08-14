@@ -12,6 +12,8 @@ final class ProductVariantRepository extends PdoCrudRepository
         'barcode',
         'size',
         'color',
+        'vintage',
+        'volume_cl',
         'attributes_json',
         'unit_price',
         'is_active',

@@ -32,42 +32,59 @@ Application de gestion de stock professionnelle avec separation stricte Frontend
 - Administration: roles, utilisateurs, audit.
 - Avance: import CSV multi-entites, pieces jointes, etiquettes/code-barres.
 
-## Variantes produit (stock vetement, taille/couleur) - optionnel
+## Variantes produit - optionnel, 2 "saveurs" disponibles
 
-Fonctionnalite optionnelle pour les catalogues avec variantes (taille,
-couleur...), typiquement le pret-a-porter. Desactivee par defaut, elle ne
-change rien pour un client qui n'en a pas besoin.
+Fonctionnalite optionnelle pour les catalogues avec variantes. Desactivee
+par defaut, elle ne change rien pour un client qui n'en a pas besoin.
+**Deux options independantes**, chacune activable ou non selon le metier
+du client :
 
-**Activation** : cle `app_settings` `clothing_variants_enabled` = `1`
-(ecran Parametres). Une fois activee, l'entree "Variantes" apparait dans le
-menu Admin.
+- `clothing_variants_enabled` = `1` : taille + couleur (pret-a-porter).
+- `bottle_variants_enabled` = `1` : millesime + contenance en cl (vins,
+  spiritueux, boissons).
+
+Les deux cles se creent dans l'ecran Parametres. Des qu'au moins une des
+deux est activee, l'entree "Variantes" apparait dans le menu Admin - avec
+un seul et meme module (pas deux ecrans separes) : chaque variante ne
+remplit que les champs qui la concernent (taille/couleur OU
+millesime/contenance), les autres restent vides. Le module reste masque
+si aucune des deux n'est activee.
+
+**Pourquoi une seule table plutot que deux** : le stock, les mouvements,
+les alertes, les livraisons, les achats et les inventaires ne raisonnent
+tous qu'en `variant_id` - ils sont deja entierement agnostiques du type
+d'attribut. Reutiliser `product_variants` pour les deux "saveurs" evite de
+dupliquer toute cette mecanique (et donc tous les bugs potentiels) pour
+chaque nouveau type de variante qu'on voudrait ajouter plus tard (ex:
+pointure pour la chaussure, format pour l'electromenager...).
 
 **Par produit** : chaque produit choisit individuellement s'il utilise des
 variantes (case "Ce produit a des variantes" sur sa fiche,
 `products.has_variants`). Un catalogue mixte (certains produits avec
-variantes, d'autres sans) est le cas normal.
+variantes, d'autres sans, voire un melange vetement/bouteille) est le cas
+normal.
 
 **Modele de donnees** : table `product_variants` (SKU propre, code-barre,
-taille, couleur, prix optionnel qui surcharge celui du produit,
-`attributes_json` en reserve pour d'autres attributs futurs sans nouvelle
-migration). `stock_levels`, `stock_movements` et `stock_alerts` ont tous
-une colonne `variant_id` nullable : le stock, l'historique des mouvements
-et les alertes de stock bas sont donc suivis par variante quand elle est
-renseignee.
+taille, couleur, millesime, contenance en cl, prix optionnel qui surcharge
+celui du produit, `attributes_json` en reserve pour d'autres attributs
+futurs sans nouvelle migration). `stock_levels`, `stock_movements` et
+`stock_alerts` ont tous une colonne `variant_id` nullable : le stock,
+l'historique des mouvements et les alertes de stock bas sont donc suivis
+par variante quand elle est renseignee.
 
 **Ce qui est deja variant-aware** : creation/edition de variantes (module
-dedie), mouvements de stock (IN/OUT/ADJUSTMENT/TRANSFER), alertes de stock
-bas par variante, livraisons (creation + annulation), demandes et
-commandes d'achat (creation + reception), sessions d'inventaire (comptage +
-finalisation - le calcul d'ecart distingue bien deux variantes du meme
-produit comptees dans la meme session).
+dedie), mouvements de stock (IN/OUT/ADJUSTMENT/TRANSFER, y compris depuis
+la fiche produit), alertes de stock bas par variante, livraisons (creation
++ annulation, selecteur de variante dans le formulaire), demandes et
+commandes d'achat (creation + reception, selecteur de variante dans le
+formulaire), sessions d'inventaire (comptage + finalisation cote backend -
+le calcul d'ecart distingue bien deux variantes du meme produit comptees
+dans la meme session).
 
-**Pas encore variant-aware (limitation connue)** : les formulaires frontend
-de livraisons, achats et inventaires n'exposent pas encore de selecteur de
+**Pas encore variant-aware (limitation connue)** : le formulaire frontend
+de saisie d'un comptage d'inventaire n'expose pas encore de selecteur de
 variante (le backend l'accepte via `variant_id` dans le payload JSON, mais
-l'interface ne le propose pas encore) - seul le formulaire de mouvement de
-stock (`movements`) le fait cote UI pour l'instant. A completer si le
-besoin se confirme.
+l'ecran ne le propose pas encore). A completer si le besoin se confirme.
 
 ## Prerequis
 - WAMP (Apache + MySQL) actif.

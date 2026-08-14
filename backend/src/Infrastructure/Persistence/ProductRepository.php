@@ -124,14 +124,23 @@ final class ProductRepository extends PdoCrudRepository
         $result['media'] = $mediaStmt->fetchAll();
 
         $whStmt = $this->pdo->prepare('
-            SELECT sl.warehouse_id, w.code AS warehouse_code, w.name AS warehouse_name, sl.quantity, sl.reserved_quantity
+            SELECT sl.warehouse_id, sl.variant_id, w.code AS warehouse_code, w.name AS warehouse_name,
+                   sl.quantity, sl.reserved_quantity,
+                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl
             FROM stock_levels sl
             INNER JOIN warehouses w ON w.id = sl.warehouse_id
+            LEFT JOIN product_variants v ON v.id = sl.variant_id
             WHERE sl.product_id = :id
-            ORDER BY w.name ASC
+            ORDER BY w.name ASC, v.size ASC, v.color ASC
         ');
         $whStmt->execute([':id' => $id]);
-        $result['stock_by_warehouse'] = $whStmt->fetchAll();
+        $result['stock_by_warehouse'] = array_map(static function (array $row): array {
+            $descriptors = array_filter([$row['variant_size'] ?? null, $row['variant_color'] ?? null]);
+            $row['variant_label'] = $row['variant_id'] !== null
+                ? ($descriptors !== [] ? implode(' / ', $descriptors) : ($row['variant_sku'] ?? '-'))
+                : null;
+            return $row;
+        }, $whStmt->fetchAll());
 
         $tagStmt = $this->pdo->prepare('
             SELECT t.id, t.name, t.color

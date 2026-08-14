@@ -55,7 +55,7 @@ final class ProductSerialRepository
 
         $sql = "
             SELECT ps.*, p.sku, p.name AS product_name, w.name AS warehouse_name,
-                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color
+                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl
             FROM product_serials ps
             INNER JOIN products p ON p.id = ps.product_id
             LEFT JOIN warehouses w ON w.id = ps.warehouse_id
@@ -88,7 +88,7 @@ final class ProductSerialRepository
     {
         $stmt = $this->pdo->prepare('
             SELECT ps.*, p.sku, p.name AS product_name, w.name AS warehouse_name,
-                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color
+                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl
             FROM product_serials ps
             INNER JOIN products p ON p.id = ps.product_id
             LEFT JOIN warehouses w ON w.id = ps.warehouse_id
@@ -106,7 +106,7 @@ final class ProductSerialRepository
     {
         $stmt = $this->pdo->prepare('
             SELECT ps.*, p.sku, p.name AS product_name, w.name AS warehouse_name,
-                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color
+                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl
             FROM product_serials ps
             INNER JOIN products p ON p.id = ps.product_id
             LEFT JOIN warehouses w ON w.id = ps.warehouse_id

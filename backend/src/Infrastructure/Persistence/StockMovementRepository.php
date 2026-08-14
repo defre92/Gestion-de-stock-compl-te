@@ -95,7 +95,7 @@ final class StockMovementRepository
 
         $stmt = $this->pdo->prepare('
             SELECT sm.*, p.sku, p.name AS product_name,
-                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color,
+                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl,
                    w.name AS warehouse_name,
                    dw.name AS destination_warehouse_name,
                    u.full_name AS moved_by_name,

@@ -169,11 +169,21 @@ final class StockService
 
         $variantLabel = '';
         if ($variantId !== null) {
-            $variant = Database::connection()->prepare('SELECT sku, size, color FROM product_variants WHERE id = :id');
+            $variant = Database::connection()->prepare('SELECT sku, size, color, vintage, volume_cl FROM product_variants WHERE id = :id');
             $variant->execute([':id' => $variantId]);
             $variantRow = $variant->fetch();
             if ($variantRow) {
                 $descriptors = array_filter([$variantRow['size'] ?? null, $variantRow['color'] ?? null]);
+                if ($descriptors === []) {
+                    $bottleDescriptors = [];
+                    if (!empty($variantRow['vintage'])) {
+                        $bottleDescriptors[] = 'Millesime ' . $variantRow['vintage'];
+                    }
+                    if (!empty($variantRow['volume_cl'])) {
+                        $bottleDescriptors[] = $variantRow['volume_cl'] . 'cl';
+                    }
+                    $descriptors = $bottleDescriptors;
+                }
                 $variantLabel = $descriptors !== [] ? ' (' . implode('/', $descriptors) . ')' : ' (' . $variantRow['sku'] . ')';
             }
 
