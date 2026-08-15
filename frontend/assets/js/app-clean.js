@@ -446,6 +446,32 @@ async function boot() {
     await renderModule(initialModule, false);
 }
 
+function syncVariantsSettingState(settingKey, settingValue) {
+    const enabled = String(settingValue ?? '0') === '1';
+    if (settingKey === 'clothing_variants_enabled') {
+        state.clothingVariantsEnabled = enabled;
+    } else if (settingKey === 'bottle_variants_enabled') {
+        state.bottleVariantsEnabled = enabled;
+    }
+
+    // Reaffiche/masque immediatement le lien "Variantes" sans attendre un
+    // rechargement complet de la page.
+    const hasEitherEnabled = state.clothingVariantsEnabled || state.bottleVariantsEnabled;
+    const existingLink = document.querySelector('[data-module="product-variants"]');
+    if (hasEitherEnabled && !existingLink) {
+        const productsLink = document.querySelector('[data-module="products"]');
+        if (productsLink) {
+            const link = document.createElement('button');
+            link.dataset.module = 'product-variants';
+            link.className = 'nav-item';
+            link.innerHTML = '<i class="bi bi-palette"></i><span>Variantes</span>';
+            productsLink.insertAdjacentElement('afterend', link);
+        }
+    } else if (!hasEitherEnabled && existingLink) {
+        existingLink.remove();
+    }
+}
+
 function applyVariantsVisibility() {
     // Module optionnel (vetement: taille/couleur, OU bouteille:
     // millesime/contenance) : masque le lien de navigation tant qu'aucune
@@ -1135,10 +1161,17 @@ async function renderCrud(module) {
                     return;
                 }
 
+                const deletedSettingKey = module === 'settings'
+                    ? rows.find((r) => Number(r.id) === id)?.setting_key
+                    : null;
+
                 deleteBtn.disabled = true;
                 try {
                     await apiRequest(`${config.endpoint}/${id}`, { method: 'DELETE' });
                     await refreshLookups();
+                    if (['clothing_variants_enabled', 'bottle_variants_enabled'].includes(deletedSettingKey)) {
+                        syncVariantsSettingState(deletedSettingKey, '0');
+                    }
                     await renderCrud(module);
                 } catch (error) {
                     feedback.textContent = error.message;
@@ -1195,6 +1228,9 @@ async function renderCrud(module) {
             try {
                 await apiRequest(path, { method, body: payload });
                 await refreshLookups();
+                if (module === 'settings' && ['clothing_variants_enabled', 'bottle_variants_enabled'].includes(payload.setting_key)) {
+                    syncVariantsSettingState(payload.setting_key, payload.setting_value);
+                }
                 await renderCrud(module);
                 // renderCrud reconstruit tout le panneau (dont le formulaire),
                 // on recupere donc le nouveau champ de feedback pour y
