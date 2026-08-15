@@ -14,10 +14,10 @@ Application de gestion de stock professionnelle avec separation stricte Frontend
 - `backend/src/Infrastructure`: persistence, services techniques.
 - `backend/src/Presentation`: controleurs HTTP, DTO, validation.
 - `database/migrations/up|down`: scripts de migration.
-- `database/seeders/pro`: jeux de donnees internes LM-Code (usage interne
-  uniquement, jamais livre a un client - voir section Seed interne plus bas).
-- `database/demo/catalog-demo.sql`: donnees de demo catalogue livrables au
-  client, utilisees par `frontend/demo-data.php` (voir section dediee).
+- `database/seeders/pro`: jeux de donnees internes de developpement (usage
+  interne uniquement, jamais deploye - voir section Seed interne plus bas).
+- `database/demo/catalog-demo.sql`: donnees de demo catalogue, utilisees par
+  `frontend/demo-data.php` (voir section dediee).
 - `config/database.php`: configuration BDD prioritaire (fichier principal).
 
 ## Fonctionnalites principales
@@ -35,11 +35,13 @@ Application de gestion de stock professionnelle avec separation stricte Frontend
 ## Variantes produit - optionnel, 2 "saveurs" disponibles
 
 Fonctionnalite optionnelle pour les catalogues avec variantes. Desactivee
-par defaut, elle ne change rien pour un client qui n'en a pas besoin.
-**Deux options independantes**, chacune activable ou non selon le metier
-du client :
+par defaut, elle ne change rien pour une installation qui n'en a pas besoin.
+**Deux options independantes**, chacune activable ou non selon l'activite
+concernee :
 
-- `clothing_variants_enabled` = `1` : taille + couleur (pret-a-porter).
+- `clothing_variants_enabled` = `1` : taille + couleur — couvre le
+  pret-a-porter **et** la chaussure (la pointure va simplement dans le
+  champ "Taille / Pointure", pas besoin d'une option separee).
 - `bottle_variants_enabled` = `1` : millesime + contenance en cl (vins,
   spiritueux, boissons).
 
@@ -92,13 +94,13 @@ l'ecran ne le propose pas encore). A completer si le besoin se confirme.
 - MySQL 8.x (ou compatible).
 - Extension PDO MySQL active.
 
-## Installation chez un client (hebergement mutualise, FTP uniquement, sans SSH)
+## Installation (hebergement mutualise, FTP uniquement, sans SSH)
 
-Chaque client a son propre hebergement independant (pas de multi-tenant partage).
+Chaque installation a son propre hebergement independant (pas de multi-tenant partage).
 Tout se fait par navigateur, aucun acces SSH n'est necessaire.
 
 ### 1. Uploader le projet
-Envoyer tout le contenu du zip a la racine du document root du client (via FTP,
+Envoyer tout le contenu du zip a la racine du document root cible (via FTP,
 gestionnaire de fichiers cPanel, etc.). Le fichier `.htaccess` a la racine bloque
 deja l'acces direct a `config/`, `database/`, `backend/src/`, `backend/bin/`,
 `backend/.env` etc. - seuls `frontend/` et `backend/public/` restent accessibles
@@ -106,15 +108,15 @@ depuis le web.
 
 ### 2. Creer la cle d'installation
 Toujours via FTP, creer le fichier `config/install.key` contenant une phrase
-secrete de ton choix (une seule ligne, ex: `abc-client-2026-xyz`). Cette cle
+secrete de ton choix (une seule ligne, ex: `abc-install-2026-xyz`). Cette cle
 empeche qu'un tiers tombant sur la page d'installation avant toi puisse creer
 un compte admin a ta place.
 
 ### 3. Lancer l'installation
-Visiter `https://domaine-du-client.tld/frontend/install.php`. Le formulaire
+Visiter `https://ton-domaine.tld/frontend/install.php`. Le formulaire
 demande:
 - les acces MySQL (host/port/base/utilisateur/mot de passe) - teste la connexion
-- les infos du client final: nom, couleur, email de support, logo (upload direct)
+- les infos de l'organisation: nom, couleur, email de support, logo (upload direct)
 - l'URL publique du site (pour le CORS et les liens generes)
 - le nom/email/mot de passe de l'administrateur (choisi directement, 10
   caracteres minimum)
@@ -122,7 +124,8 @@ demande:
 Il ecrit `backend/.env`, joue les migrations, cree les roles + l'entrepot par
 defaut + le compte admin + des reglages par defaut dans `app_settings`
 (devise EUR, langue fr, fuseau Europe/Paris, stock min. 10, format de
-numerotation `{PREFIX}-{YEAR}-{SEQ}` - modifiables ensuite depuis l'ecran
+numerotation `{PREFIX}-{YEAR}-{SEQ}`, variantes vetement/chaussure et
+bouteille desactivees par defaut - modifiables ensuite depuis l'ecran
 Parametres, jamais ecrases si l'installateur est relance sur une base
 existante), et enregistre le logo dans `frontend/assets/img/brand/`.
 
@@ -143,7 +146,7 @@ du fichier arrive.
   et `https://domaine/README.md` renvoient bien une erreur 403 (pas le contenu).
 - Tester qu'une requete en `http://` (sans s) redirige bien en 301 vers `https://`
   (force par le `.htaccess` racine, ou par `nginx-gestion-stock.conf.example`
-  sous Nginx). Necessite un certificat SSL valide sur le domaine du client
+  sous Nginx). Necessite un certificat SSL valide sur le domaine cible
   (Let's Encrypt, ou fourni par l'hebergeur).
 - Sur Apache: `backend/public/uploads/.htaccess` doit etre pris en compte,
   le vhost doit avoir `AllowOverride All` (quasi toujours le cas en mutualise
@@ -154,7 +157,7 @@ du fichier arrive.
   projet, fourni comme reference/modele) contient la conf complete
   (blocage des dossiers sensibles, execution PHP interdite dans
   `backend/public/uploads/`, routage API, HTTPS force + HSTS), testee en local
-  (nginx + php-fpm reels) avant livraison.
+  (nginx + php-fpm reels) avant deploiement.
 
   **Important: ce fichier ne "s'active" pas juste en le laissant dans le
   projet** (contrairement au `.htaccess` Apache, qui est lu automatiquement).
@@ -166,16 +169,16 @@ du fichier arrive.
       mariadb-server certbot python3-certbot-nginx
 
   # 2. Copier la conf dans le dossier nginx (pas dans le projet)
-  cp nginx-gestion-stock.conf.example /etc/nginx/sites-available/gestion-stock-client.conf
+  cp nginx-gestion-stock.conf.example /etc/nginx/sites-available/gestion-stock.conf
   # editer: server_name, root (chemin reel de deploiement), socket php-fpm
 
   # 3. Activer le site
-  ln -s /etc/nginx/sites-available/gestion-stock-client.conf /etc/nginx/sites-enabled/
+  ln -s /etc/nginx/sites-available/gestion-stock.conf /etc/nginx/sites-enabled/
   rm -f /etc/nginx/sites-enabled/default
   nginx -t && systemctl reload nginx
 
   # 4. Domaine + SSL: DNS (enregistrement A vers l'IP du VPS) puis
-  certbot --nginx -d domaine-du-client.tld
+  certbot --nginx -d ton-domaine.tld
   ```
   `certbot` s'occupe de generer le certificat et d'ajuster les chemins
   `ssl_certificate`/`ssl_certificate_key` dans la conf automatiquement.
@@ -196,7 +199,7 @@ probleme: la protection ci-dessus (deja active par defaut) suffit pour ce cas
 de figure.
 
 
-## Donnees de demo pour le client (frontend/demo-data.php, sans SSH)
+## Donnees de demo (frontend/demo-data.php, sans SSH)
 
 ### Migrations sans SSH (frontend/migrate.php)
 Meme principe que `demo-data.php` : accessible depuis le navigateur, reserve
@@ -213,12 +216,12 @@ d'erreur juste apres une migration - peut supprimer des colonnes/tables et
 leurs donnees).
 
 
-Une fois l'installation terminee et le compte admin du client cree (voir
-section precedente), le client peut lui-meme charger des donnees d'exemple
-pour explorer l'application, ou tout reinitialiser - le tout depuis son
+Une fois l'installation terminee et le compte admin cree (voir
+section precedente), on peut charger soi-meme des donnees d'exemple
+pour explorer l'application, ou tout reinitialiser - le tout depuis le
 navigateur, sans acces SSH ni FTP.
 
-**Acces**: `https://domaine-du-client.tld/frontend/demo-data.php`, en etant
+**Acces**: `https://ton-domaine.tld/frontend/demo-data.php`, en etant
 deja connecte avec un compte du role `ADMIN`. La page vérifie le cookie de
 session `gs_token` exactement comme le fait l'API (meme logique que
 `AuthMiddleware`/`RoleMiddleware`) - un compte non-admin ou non connecte est
@@ -232,8 +235,8 @@ plusieurs fois sans creer de doublons.
 
 **Ne touche jamais**: `users`, `roles`, `personal_access_tokens`. Aucun
 compte, aucun mot de passe n'est cree ou modifie par cette action -
-contrairement au seed interne LM-Code (voir plus bas), ce fichier est
-concu pour etre livre au client et ne contient aucune donnee sensible.
+contrairement au seed interne (voir plus bas), ce fichier ne contient
+aucune donnee sensible et peut etre deploye sans risque.
 
 ### Action 2 - Reinitialiser les donnees
 Vide integralement le catalogue et l'activite metier: produits, categories,
@@ -256,20 +259,19 @@ pas toujours accorde en mutualise) - un reset auto-increment best-effort
 est tente ensuite via `ALTER TABLE` mais echoue silencieusement si
 l'hebergement ne l'autorise pas, sans consequence sur le reset lui-meme.
 
-### A savoir avant de livrer
+### A savoir
 `frontend/demo-data.php` peut rester en ligne en permanence (contrairement
 a `install.php`, qui doit etre supprime apres usage) : il est protege par
 l'authentification admin de l'application elle-meme, pas par une cle
-statique. Si tu preferes que le client n'y ait pas acces du tout, il suffit
-de ne pas inclure `frontend/demo-data.php` ni `database/demo/` dans son
-paquet de livraison - l'application fonctionne normalement sans.
+statique. Si tu preferes qu'aucun utilisateur n'y ait acces, il suffit
+de ne pas inclure `frontend/demo-data.php` ni `database/demo/` dans le
+deploiement - l'application fonctionne normalement sans.
 
-### Reset automatique nocturne de l'instance de demo PUBLIQUE
-Distinct de ce qui precede : c'est pour l'instance de demo publique
-annoncee sur `vente.html` (identifiants `demo@gestion-stock-pro.fr`), pas
-pour une instance client. Cette instance doit se reinitialiser seule chaque
-nuit (4h, promesse affichee sur la page de vente), sans qu'un admin ait a
-cliquer sur les boutons de `demo-data.php`.
+### Reset automatique nocturne d'une instance de demo separee (optionnel)
+Si tu maintiens une instance de demo publique separee des installations
+normales (par exemple pour presenter l'application), elle peut se
+reinitialiser seule chaque nuit sans qu'un admin ait a cliquer sur les
+boutons de `demo-data.php`.
 
 `backend/bin/reset-demo-cron.php` fait exactement ce que font les 2
 boutons de `demo-data.php`, dans l'ordre (vide puis recharge), en ligne de
@@ -277,12 +279,12 @@ commande - aucune session/cookie necessaire, donc utilisable depuis une
 tache planifiee.
 
 A configurer dans cPanel > Cron Jobs (ou equivalent chez l'hebergeur) sur
-l'hebergement de l'instance de demo, tous les jours a 4h :
+l'hebergement de cette instance de demo, par exemple tous les jours a 4h :
 ```
 php /chemin/absolu/vers/le/projet/backend/bin/reset-demo-cron.php
 ```
 
-**Ne jamais pointer ce cron vers la base d'un client reel** - il efface
+**Ne jamais pointer ce cron vers une base de production** - il efface
 tout sans aucune confirmation (normal pour un cron, mais destructeur). Il
 reutilise `config/demo-reset-tables.php` (liste des tables videes, partagee
 avec `demo-data.php` pour eviter que les deux listes divergent) et

@@ -222,20 +222,36 @@ const crudModules = {
     'product-variants': {
         endpoint: '/product-variants',
         label: 'variante',
-        fields: [
-            { key: 'product_id', label: 'Produit', type: 'select', optionsFrom: 'products', optionLabel: 'name', required: true },
-            { key: 'sku', label: 'SKU variante', type: 'text', required: true },
-            { key: 'barcode', label: 'Code barre', type: 'text' },
-            { key: 'size', label: 'Taille / Pointure (vetement, chaussure)', type: 'text' },
-            { key: 'color', label: 'Couleur', type: 'text' },
-            { key: 'vintage', label: 'Millesime (bouteille)', type: 'number' },
-            { key: 'volume_cl', label: 'Contenance en cl (bouteille)', type: 'number' },
-            { key: 'unit_price', label: 'Prix (vide = prix du produit)', type: 'number', step: '0.01' },
-            { key: 'is_active', label: 'Actif', type: 'select', options: [
-                { value: '1', label: 'Oui' },
-                { value: '0', label: 'Non' },
-            ] },
-        ],
+        get fields() {
+            const fields = [
+                { key: 'product_id', label: 'Produit', type: 'select', optionsFrom: 'products', optionLabel: 'name', required: true },
+                { key: 'sku', label: 'SKU variante', type: 'text', required: true },
+                { key: 'barcode', label: 'Code barre', type: 'text' },
+            ];
+            // N'affiche que les champs correspondant aux options reellement
+            // activees (Parametres) - si aucune des deux n'est active, ce
+            // module est de toute facon masque du menu (voir applyVariantsVisibility).
+            if (state.clothingVariantsEnabled) {
+                fields.push(
+                    { key: 'size', label: 'Taille / Pointure', type: 'text' },
+                    { key: 'color', label: 'Couleur', type: 'text' },
+                );
+            }
+            if (state.bottleVariantsEnabled) {
+                fields.push(
+                    { key: 'vintage', label: 'Millesime', type: 'number' },
+                    { key: 'volume_cl', label: 'Contenance en cl', type: 'number' },
+                );
+            }
+            fields.push(
+                { key: 'unit_price', label: 'Prix (vide = prix du produit)', type: 'number', step: '0.01' },
+                { key: 'is_active', label: 'Actif', type: 'select', options: [
+                    { value: '1', label: 'Oui' },
+                    { value: '0', label: 'Non' },
+                ] },
+            );
+            return fields;
+        },
         columns: [
             { key: 'id', label: 'ID' },
             { key: 'product_name', label: 'Produit' },

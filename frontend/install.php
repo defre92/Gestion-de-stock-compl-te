@@ -349,18 +349,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
 
             // Reglages generaux par defaut : sans ca, l'ecran "Parametres"
-            // reste vide apres l'installation et le client doit les saisir
-            // a la main un par un. idempotent (ON DUPLICATE KEY UPDATE), donc
+            // reste vide apres l'installation et il faut les saisir a la
+            // main un par un. idempotent (ON DUPLICATE KEY UPDATE), donc
             // sans risque si l'installateur est relance sur une base existante
-            // (n'ecrase pas une valeur que le client aurait deja personnalisee
-            // depuis l'ecran Parametres, sauf a vouloir la remettre au defaut).
+            // (n'ecrase pas une valeur deja personnalisee depuis l'ecran
+            // Parametres, sauf a vouloir la remettre au defaut).
+            // clothing_variants_enabled / bottle_variants_enabled: options a
+            // 0 par defaut (desactivees) - voir section "Variantes produit"
+            // du README pour les activer.
             $pdo->exec("
                 INSERT INTO app_settings (setting_key, setting_value) VALUES
                 ('default_currency', 'EUR'),
                 ('default_language', 'fr'),
                 ('default_timezone', 'Europe/Paris'),
                 ('default_min_stock', '10'),
-                ('document_number_format', '{PREFIX}-{YEAR}-{SEQ}')
+                ('document_number_format', '{PREFIX}-{YEAR}-{SEQ}'),
+                ('clothing_variants_enabled', '0'),
+                ('bottle_variants_enabled', '0')
                 ON DUPLICATE KEY UPDATE setting_key = setting_key
             ");
 
@@ -436,7 +441,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <p><?= $success['migrated'] ?> migration(s) appliquee(s).</p>
     <p>Connexion : <a href="<?= e($success['site_url']) ?>/frontend/login.php"><?= e($success['site_url']) ?>/frontend/login.php</a></p>
     <p>Compte admin : <code><?= e($success['admin_email']) ?></code> avec le mot de passe que tu viens de choisir.</p>
-    <p>Reglages par defaut appliques (modifiables ensuite dans Parametres) : devise EUR, langue fr, fuseau Europe/Paris, stock min. 10, numerotation documents <code>{PREFIX}-{YEAR}-{SEQ}</code>.</p>
+    <p>Reglages par defaut appliques (modifiables ensuite dans Parametres) : devise EUR, langue fr, fuseau Europe/Paris, stock min. 10, numerotation documents <code>{PREFIX}-{YEAR}-{SEQ}</code>, variantes vetement/chaussure et bouteille desactivees.</p>
   </div>
   <div class="warn-box">
     <strong>Derniere etape importante :</strong> supprime maintenant le fichier
@@ -497,7 +502,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
     </fieldset>
 
-    <button type="submit">Installer - 2 à 10 mns max</button>
+    <button type="submit">Installer</button>
   </form>
 <?php endif; ?>
 </div>
