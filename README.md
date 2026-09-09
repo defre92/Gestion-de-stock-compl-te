@@ -598,6 +598,25 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+### Recherche produit instantanee
+
+- **Recherche au fil de la frappe** sur l'ecran Produits : plus besoin de
+  valider par Entree. Un delai de 300 ms evite une requete par touche.
+  Depuis un autre ecran, la touche Entree reste necessaire pour basculer sur
+  Produits - basculer des la premiere lettre serait deroutant si on est en
+  train de remplir un formulaire. La touche Echap vide la recherche.
+- **Les rendus sont serialises.** Deux requetes lancees a 300 ms d'intervalle
+  peuvent revenir dans le desordre : la reponse lente pour "vel" repeindrait
+  l'ecran apres la reponse rapide pour "velo", affichant des resultats qui ne
+  correspondent plus a la saisie. Une saisie arrivee pendant un chargement est
+  memorisee et traitee juste apres, donc l'affichage se termine toujours sur
+  la derniere valeur tapee.
+- **La recherche se vide en quittant Produits.** Elle ne filtre que cet ecran :
+  le mot restait ecrit dans la barre pendant qu'on consultait Fournisseurs ou
+  Mouvements, ou il ne s'appliquait pas, et on revenait sur Produits avec une
+  liste toujours filtree sans comprendre pourquoi. Le filtre par tag est remis
+  a zero en meme temps.
+
 ### 8e passe - tests de bout en bout import / exports / pieces jointes
 
 Campagne de tests contre l'API reelle (MariaDB 10.11, serveur PHP demarre,

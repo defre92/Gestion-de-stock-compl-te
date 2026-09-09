@@ -561,20 +561,77 @@ function setupNavigation() {
     });
 }
 
+let globalSearchTimer = null;
+// Un seul rendu de recherche a la fois. Sans cette serialisation, deux
+// requetes lancees a 300 ms d'intervalle peuvent revenir dans le desordre :
+// la reponse lente pour "vel" repeint l'ecran APRES la reponse rapide pour
+// "velo", et la liste affichee ne correspond plus a ce qui est tape.
+// Ici, une saisie arrivee pendant un chargement est simplement memorisee et
+// traitee juste apres - la boucle se termine donc toujours sur la derniere
+// valeur saisie.
+let globalSearchRunning = false;
+let globalSearchPending = null;
+
+async function runGlobalSearch(rawValue) {
+    globalSearchPending = String(rawValue ?? '').trim();
+    if (globalSearchRunning) {
+        return;
+    }
+
+    globalSearchRunning = true;
+    try {
+        while (globalSearchPending !== null) {
+            const value = globalSearchPending;
+            globalSearchPending = null;
+
+            state.globalQuery = value;
+            // Nouvelle recherche = nouveau jeu de resultats : rester page 3
+            // afficherait une page vide.
+            state.crudPages.products = 1;
+            setActiveNav('products');
+            await renderModule('products');
+        }
+    } finally {
+        globalSearchRunning = false;
+    }
+}
+
 function setupGlobalSearch() {
     const input = document.getElementById('globalSearch');
+
+    // Recherche au fil de la frappe. Le delai evite une requete par touche :
+    // on n'interroge l'API qu'une fois la saisie stabilisee.
+    input?.addEventListener('input', () => {
+        // Depuis un autre ecran, on ne bascule pas sur Produits des la
+        // premiere lettre - ce serait deroutant si l'utilisateur est en train
+        // de remplir un formulaire. La touche Entree reste la pour ca.
+        if (state.module !== 'products') {
+            return;
+        }
+
+        window.clearTimeout(globalSearchTimer);
+        globalSearchTimer = window.setTimeout(() => {
+            runGlobalSearch(input.value);
+        }, 300);
+    });
+
     input?.addEventListener('keydown', async (event) => {
+        if (event.key === 'Escape') {
+            input.value = '';
+            window.clearTimeout(globalSearchTimer);
+            if (state.module === 'products') {
+                await runGlobalSearch('');
+            }
+            return;
+        }
+
         if (event.key !== 'Enter') {
             return;
         }
 
         event.preventDefault();
-        state.globalQuery = String(input.value ?? '').trim();
-        // Nouvelle recherche = nouveau jeu de resultats : rester page 3
-        // afficherait une page vide.
-        state.crudPages.products = 1;
-        setActiveNav('products');
-        await renderModule('products');
+        window.clearTimeout(globalSearchTimer);
+        await runGlobalSearch(input.value);
     });
 }
 
@@ -626,6 +683,22 @@ function syncUrlModule(module) {
 async function renderModule(module, updateUrl = true) {
     // On normalise toujours le module pour eviter les routes UI invalides.
     const normalized = normalizeModule(module);
+
+    // La recherche globale ne filtre que les produits. En quittant cet ecran
+    // on la vide, champ compris : sinon on revenait sur Produits avec "velo"
+    // toujours ecrit et la liste toujours filtree, sans comprendre pourquoi -
+    // et pire, le mot restait affiche pendant qu'on consultait Fournisseurs ou
+    // Mouvements, ou il ne s'appliquait pas.
+    if (state.module === 'products' && normalized !== 'products') {
+        state.globalQuery = '';
+        state.tagFilter = '';
+        state.crudPages.products = 1;
+        const searchInput = document.getElementById('globalSearch');
+        if (searchInput) {
+            searchInput.value = '';
+        }
+    }
+
     state.module = normalized;
 
     if (updateUrl) {
