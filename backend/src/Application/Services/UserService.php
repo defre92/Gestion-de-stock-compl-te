@@ -43,7 +43,7 @@ final class UserService
     {
         foreach (['full_name', 'email', 'password', 'role'] as $field) {
             if (empty($payload[$field])) {
-                throw new HttpException("Field '{$field}' is required", 422);
+                throw new HttpException("Le champ '{$field}' est obligatoire", 422);
             }
         }
 

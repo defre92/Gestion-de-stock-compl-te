@@ -75,7 +75,10 @@ final class StockService
         }
 
         try {
-            $current = $this->productRepository->stockLevel($productId, $warehouseId, $variantId);
+            // FOR UPDATE : on verrouille la ligne de stock le temps de la
+            // lire, la recalculer et la reecrire, pour que deux mouvements
+            // simultanes sur le meme article ne s'ecrasent pas l'un l'autre.
+            $current = $this->productRepository->stockLevel($productId, $warehouseId, $variantId, true);
             $currentQty = $current['quantity'] ?? 0;
             $nextQty = $currentQty;
 
@@ -103,7 +106,7 @@ final class StockService
                     throw new HttpException('Stock insuffisant pour ce transfert', 422);
                 }
 
-                $destinationCurrent = $this->productRepository->stockLevel($productId, $destinationWarehouseId, $variantId);
+                $destinationCurrent = $this->productRepository->stockLevel($productId, $destinationWarehouseId, $variantId, true);
                 $destinationQty = ($destinationCurrent['quantity'] ?? 0) + $quantity;
 
                 $this->productRepository->upsertStockLevel($productId, $destinationWarehouseId, $destinationQty, $variantId);
@@ -139,7 +142,7 @@ final class StockService
                     'balance_after' => (int)($this->productRepository->stockLevel($productId, $destinationWarehouseId, $variantId)['quantity'] ?? 0),
                     'reference_type' => 'TRANSFER',
                     'reference_id' => $movementId,
-                    'notes' => 'Auto generated destination move',
+                    'notes' => 'Mouvement d\'entree genere automatiquement par le transfert',
                     'reason_code' => $payload['reason_code'] ?? 'TRANSFER',
                     'moved_by' => $actorId,
                 ]);

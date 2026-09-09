@@ -18,6 +18,13 @@ abstract class PdoCrudRepository implements CrudRepositoryInterface
     /** @var array<int, string> */
     protected array $filterable = [];
 
+    /**
+     * Colonne de tri des listes deroulantes (voir allForLookup()). 'name' pour
+     * les referentiels qui en ont une, 'code' sinon : un menu deroulant se lit
+     * dans l'ordre alphabetique, pas dans l'ordre de creation.
+     */
+    protected string $lookupOrderColumn = 'id';
+
     public function __construct()
     {
         $this->pdo = Database::connection();
@@ -52,6 +59,30 @@ abstract class PdoCrudRepository implements CrudRepositoryInterface
                 'last_page' => (int)max(1, ceil($total / $perPage)),
             ],
         ];
+    }
+
+    /**
+     * Referentiel complet destine aux listes deroulantes des formulaires.
+     *
+     * paginate() plafonne volontairement a 100 lignes : c'est un garde-fou
+     * anti-abus sur le parametre HTTP ?per_page. Mais LookupController n'est
+     * pas pilote par l'utilisateur, il demande 200 a 1000 lignes selon le
+     * referentiel - et se retrouvait donc silencieusement tronque a 100,
+     * rendant introuvables a la saisie le 101e fournisseur, le 101e client,
+     * etc. Cette methode sert ce cas precis, sans toucher au plafond HTTP.
+     */
+    public function allForLookup(int $limit = 2000): array
+    {
+        $limit = max(1, min(5000, $limit));
+        // $lookupOrderColumn est une propriete de classe codee en dur, jamais
+        // une valeur issue de la requete : son interpolation est sans risque.
+        $stmt = $this->pdo->prepare(
+            "SELECT * FROM {$this->table} ORDER BY {$this->lookupOrderColumn} ASC LIMIT :limit"
+        );
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return $stmt->fetchAll();
     }
 
     public function findById(int $id): ?array

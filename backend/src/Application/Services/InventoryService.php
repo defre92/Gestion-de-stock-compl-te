@@ -6,7 +6,9 @@ namespace App\Application\Services;
 use App\Infrastructure\Persistence\AuditRepository;
 use App\Infrastructure\Persistence\InventoryRepository;
 use App\Infrastructure\Persistence\ProductRepository;
+use App\Shared\Database\Database;
 use App\Shared\Http\HttpException;
+use Throwable;
 
 final class InventoryService
 {
@@ -123,26 +125,48 @@ final class InventoryService
             }
         }
 
-        foreach ($latestPerProduct as $item) {
-            $diff = (int)$item['difference_qty'];
-            if ($diff === 0) {
-                continue;
-            }
-
-            $this->stockService->createMovement([
-                'product_id' => (int)$item['product_id'],
-                'variant_id' => $item['variant_id'] ?? null,
-                'warehouse_id' => (int)$session['warehouse_id'],
-                'type' => 'ADJUSTMENT',
-                'quantity' => (int)$item['counted_qty'],
-                'reason_code' => 'INVENTORY',
-                'reference_type' => 'INVENTORY_SESSION',
-                'reference_id' => $sessionId,
-                'notes' => 'Inventory adjustment generated from session',
-            ], $actorId, $ip);
+        // Transaction englobante : sans elle, chaque ajustement etait commite
+        // individuellement par createMovement(). Un echec au 5e produit d'une
+        // session de 10 laissait 4 ajustements de stock appliques, la session
+        // toujours ouverte et aucun moyen simple de savoir ou l'operation
+        // s'etait arretee. C'est tout ou rien.
+        $pdo = Database::connection();
+        $ownsTransaction = !$pdo->inTransaction();
+        if ($ownsTransaction) {
+            $pdo->beginTransaction();
         }
 
-        $this->repository->markSessionCompleted($sessionId);
-        $this->auditRepository->log($actorId, 'FINALIZE', 'inventory_session', $sessionId, [], $ip);
+        try {
+            foreach ($latestPerProduct as $item) {
+                $diff = (int)$item['difference_qty'];
+                if ($diff === 0) {
+                    continue;
+                }
+
+                $this->stockService->createMovement([
+                    'product_id' => (int)$item['product_id'],
+                    'variant_id' => $item['variant_id'] ?? null,
+                    'warehouse_id' => (int)$session['warehouse_id'],
+                    'type' => 'ADJUSTMENT',
+                    'quantity' => (int)$item['counted_qty'],
+                    'reason_code' => 'INVENTORY',
+                    'reference_type' => 'INVENTORY_SESSION',
+                    'reference_id' => $sessionId,
+                    'notes' => 'Ajustement genere par la session d\'inventaire',
+                ], $actorId, $ip);
+            }
+
+            $this->repository->markSessionCompleted($sessionId);
+            $this->auditRepository->log($actorId, 'FINALIZE', 'inventory_session', $sessionId, [], $ip);
+
+            if ($ownsTransaction) {
+                $pdo->commit();
+            }
+        } catch (Throwable $exception) {
+            if ($ownsTransaction && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $exception;
+        }
     }
 }

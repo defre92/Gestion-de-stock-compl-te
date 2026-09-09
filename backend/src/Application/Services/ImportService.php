@@ -58,11 +58,14 @@ final class ImportService
                     $success++;
                 } catch (Throwable $exception) {
                     $failed++;
-                    $errors[] = "line {$line}: " . $exception->getMessage();
+                    $errors[] = "ligne {$line} : " . $exception->getMessage();
                 }
             }
 
-            $status = $failed > 0 ? 'FAILED' : 'DONE';
+            // Un import de 500 lignes dont 1 est rejetee reste un import
+            // reussi : il ne doit pas s'afficher "FAILED" dans l'historique.
+            // Seul un import ou AUCUNE ligne n'est passee est un echec.
+            $status = ($failed > 0 && $success === 0) ? 'FAILED' : 'DONE';
             $this->jobRepository->update($jobId, [
                 'status' => $status,
                 'total_rows' => $total,
@@ -103,7 +106,7 @@ final class ImportService
         if ($entity === 'suppliers') {
             $name = trim((string)($row['name'] ?? ''));
             if ($name === '') {
-                throw new \RuntimeException('name is required');
+                throw new \RuntimeException('La colonne "name" est obligatoire');
             }
 
             $stmt = $pdo->prepare('
@@ -129,7 +132,7 @@ final class ImportService
         if ($entity === 'customers') {
             $name = trim((string)($row['name'] ?? ''));
             if ($name === '') {
-                throw new \RuntimeException('name is required');
+                throw new \RuntimeException('La colonne "name" est obligatoire');
             }
 
             $code = trim((string)($row['code'] ?? ''));
@@ -174,7 +177,7 @@ final class ImportService
             $name = trim((string)($row['name'] ?? ''));
             $categoryName = trim((string)($row['category_name'] ?? ''));
             if ($sku === '' || $name === '' || $categoryName === '') {
-                throw new \RuntimeException('sku, name, category_name are required');
+                throw new \RuntimeException('Les colonnes "sku", "name" et "category_name" sont obligatoires');
             }
 
             $categoryId = $this->resolveCategoryId($pdo, $categoryName);
@@ -221,16 +224,37 @@ final class ImportService
             $warehouseCode = trim((string)($row['warehouse_code'] ?? ''));
             $quantity = (int)($row['quantity'] ?? 0);
             if ($sku === '' || $warehouseCode === '') {
-                throw new \RuntimeException('sku and warehouse_code are required');
+                throw new \RuntimeException('Les colonnes "sku" et "warehouse_code" sont obligatoires');
             }
 
             $productId = $this->resolveProductId($pdo, $sku);
             $warehouseId = $this->resolveWarehouseId($pdo, $warehouseCode);
 
+            // ATTENTION : pas de ON DUPLICATE KEY UPDATE ici. La cle unique
+            // uq_stock_level porte sur (product_id, warehouse_id, variant_id),
+            // et MySQL n'applique PAS l'unicite quand une colonne de la cle
+            // vaut NULL - ce qui est le cas d'un stock sans variante. Avec
+            // ON DUPLICATE KEY, reimporter le meme fichier n'ecrasait donc pas
+            // la ligne existante : il en ajoutait une nouvelle, et le stock
+            // total (calcule par SUM(quantity)) gonflait a chaque import.
+            // On cible donc explicitement la ligne "sans variante".
+            $existing = $pdo->prepare('
+                SELECT id FROM stock_levels
+                WHERE product_id = :product_id AND warehouse_id = :warehouse_id AND variant_id IS NULL
+                LIMIT 1
+            ');
+            $existing->execute([':product_id' => $productId, ':warehouse_id' => $warehouseId]);
+            $stockId = $existing->fetchColumn();
+
+            if ($stockId) {
+                $stmt = $pdo->prepare('UPDATE stock_levels SET quantity = :quantity, updated_at = NOW() WHERE id = :id');
+                $stmt->execute([':quantity' => $quantity, ':id' => (int)$stockId]);
+                return;
+            }
+
             $stmt = $pdo->prepare('
                 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity, updated_at)
                 VALUES (:product_id, :warehouse_id, :quantity, 0, NOW())
-                ON DUPLICATE KEY UPDATE quantity = VALUES(quantity), updated_at = NOW()
             ');
             $stmt->execute([
                 ':product_id' => $productId,
@@ -246,7 +270,7 @@ final class ImportService
     {
         $handle = fopen($path, 'rb');
         if ($handle === false) {
-            throw new \RuntimeException('Cannot open csv file');
+            throw new \RuntimeException('Impossible d\'ouvrir le fichier CSV');
         }
 
         try {
@@ -259,7 +283,7 @@ final class ImportService
 
             $headers = fgetcsv($handle, 0, $delimiter, '"', '\\');
             if (!is_array($headers) || $headers === []) {
-                throw new \RuntimeException('Invalid CSV header');
+                throw new \RuntimeException('En-tete CSV invalide ou illisible');
             }
 
             $headers = array_map(static function ($value): string {
@@ -320,7 +344,7 @@ final class ImportService
         $stmt->execute([':sku' => $sku]);
         $id = $stmt->fetchColumn();
         if (!$id) {
-            throw new \RuntimeException("Unknown sku: {$sku}");
+            throw new \RuntimeException("SKU introuvable : {$sku}");
         }
         return (int)$id;
     }
@@ -331,7 +355,7 @@ final class ImportService
         $stmt->execute([':code' => $code]);
         $id = $stmt->fetchColumn();
         if (!$id) {
-            throw new \RuntimeException("Unknown warehouse_code: {$code}");
+            throw new \RuntimeException("Code entrepot introuvable : {$code}");
         }
         return (int)$id;
     }

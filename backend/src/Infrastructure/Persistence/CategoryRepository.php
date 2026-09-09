@@ -16,4 +16,5 @@ final class CategoryRepository extends PdoCrudRepository
         'tags_json',
     ];
     protected array $filterable = ['name', 'parent_id', 'default_tax_id'];
+    protected string $lookupOrderColumn = 'name';
 }

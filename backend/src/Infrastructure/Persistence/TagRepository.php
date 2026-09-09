@@ -8,4 +8,5 @@ final class TagRepository extends PdoCrudRepository
     protected string $table = 'tags';
     protected array $fillable = ['name', 'color'];
     protected array $filterable = ['name'];
+    protected string $lookupOrderColumn = 'name';
 }

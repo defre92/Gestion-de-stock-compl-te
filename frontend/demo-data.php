@@ -107,6 +107,13 @@ const RESET_TABLES = [
     'inventory_adjustments',
     'stock_alerts', 'stock_movements', 'stock_levels',
     'product_serials', 'product_media', 'product_price_history', 'product_tags',
+    // product_variants manquait a cette liste. Le reset desactive les
+    // contraintes (SET FOREIGN_KEY_CHECKS = 0), donc le ON DELETE CASCADE de
+    // product_variants -> products ne se declenchait PAS : les variantes
+    // survivaient au reset en pointant vers des produits supprimes, puis se
+    // rattachaient silencieusement aux nouveaux produits une fois les
+    // AUTO_INCREMENT remis a 1.
+    'product_variants',
     'document_attachments', 'document_sequences', 'import_jobs',
     'products',
     'warehouse_locations', 'warehouse_zones', 'warehouses',

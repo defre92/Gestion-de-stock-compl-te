@@ -360,6 +360,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // clothing_variants_enabled / bottle_variants_enabled: options a
             // 0 par defaut (desactivees) - voir section "Variantes produit"
             // du README pour les activer.
+            // default_valuation_method: methode pre-selectionnee a la creation
+            // d'un produit (CUMP ou FIFO), modifiable produit par produit.
             $pdo->exec("
                 INSERT INTO app_settings (setting_key, setting_value) VALUES
                 ('default_currency', 'EUR'),
@@ -367,6 +369,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ('default_timezone', 'Europe/Paris'),
                 ('default_min_stock', '10'),
                 ('document_number_format', '{PREFIX}-{YEAR}-{SEQ}'),
+                ('default_valuation_method', 'CUMP'),
                 ('clothing_variants_enabled', '0'),
                 ('bottle_variants_enabled', '0')
                 ON DUPLICATE KEY UPDATE setting_key = setting_key

@@ -168,8 +168,8 @@ demande:
 Il ecrit `backend/.env`, joue les migrations, cree les roles + l'entrepot par
 defaut + le compte admin + des reglages par defaut dans `app_settings`
 (devise EUR, langue fr, fuseau Europe/Paris, stock min. 10, format de
-numerotation `{PREFIX}-{YEAR}-{SEQ}`, variantes vetement/chaussure et
-bouteille desactivees par defaut - modifiables ensuite depuis l'ecran
+numerotation `{PREFIX}-{YEAR}-{SEQ}`, valorisation par defaut CUMP, variantes
+vetement/chaussure et bouteille desactivees par defaut - modifiables ensuite depuis l'ecran
 Parametres, jamais ecrases si l'installateur est relance sur une base
 existante), et enregistre le logo dans `frontend/assets/img/brand/`.
 
@@ -285,6 +285,23 @@ Insere des categories, fournisseurs, produits et niveaux de stock d'exemple
 depuis `database/demo/catalog-demo.sql`. Requetes idempotentes
 (`ON DUPLICATE KEY UPDATE` / `NOT EXISTS`): le bouton peut etre cliqué
 plusieurs fois sans creer de doublons.
+
+**Volume charge** (verifie sur une base MariaDB 10.11 reelle, migrations
+jouees puis fichier execute trois fois de suite) :
+
+| Element | Quantite |
+| --- | --- |
+| Produits | 144 (dont 24 a variantes, 6 desactives, 34 en FIFO) |
+| Variantes | 160 (taille/couleur, pointure, millesime/contenance) |
+| Lignes de stock | 280 (produits et variantes) |
+| Categories / fournisseurs / marques | 9 / 7 / 7 |
+| Unites / taxes / tags | 3 / 3 / 7 |
+| Scenario complet | demande d'achat, commande, livraison, inventaire, mouvements, alertes |
+
+De quoi remplir 6 pages de catalogue a 25 lignes par page, avec des articles
+volontairement sous leur seuil pour alimenter le tableau de bord et l'ecran
+Alertes. Pour voir les variantes, active `clothing_variants_enabled` et/ou
+`bottle_variants_enabled` dans l'ecran Parametres.
 
 **Ne touche jamais**: `users`, `roles`, `personal_access_tokens`. Aucun
 compte, aucun mot de passe n'est cree ou modifie par cette action -
@@ -485,6 +502,152 @@ En plus de ce qui precede:
   n'est pas disponible (extension `sodium` souvent absente sur du mutualise
   bas de gamme) - sans ce fallback, la creation du premier compte admin
   plantait avec une erreur fatale sur ce type d'hebergement.
+
+## Etat d'un produit et valorisation
+
+### Un seul champ d'activation
+Le schema initial portait une colonne `products.status` (ACTIVE/INACTIVE) et
+la migration `202602270002` a ajoute `is_active` juste apres, sans retirer la
+premiere : deux champs pour la meme idee, dont un (`status`) qui n'etait lu
+par aucune requete du projet.
+
+Le formulaire produit n'expose desormais que **`is_active`**, et ce champ a un
+effet reel :
+
+- un produit inactif reste visible et modifiable dans l'ecran Produits, et
+  tout son historique (mouvements, livraisons, achats) est conserve ;
+- il disparait des listes deroulantes de saisie (mouvements de stock,
+  livraisons, demandes et commandes d'achat) : on ne peut plus lui passer de
+  nouvelle operation ;
+- il est exclu des alertes de stock bas du tableau de bord.
+
+C'est exactement le comportement deja applique aux variantes. La colonne
+`status` reste en base et l'import CSV continue de la remplir : rien n'est
+casse pour l'existant, elle n'est simplement plus proposee a la saisie.
+
+Cote technique, `ProductRepository::selectableForLookup()` remplace l'appel
+`paginate(1, 500)` du `LookupController`. Au passage cela corrige une
+troncature silencieuse : `paginate()` plafonne a 100 lignes (garde-fou
+anti-abus sur `?per_page`), donc au-dela de 100 produits les listes
+deroulantes n'en proposaient que 100. Les produits y sont maintenant tries
+par nom plutot que par date de creation decroissante.
+
+### Methode de valorisation par defaut
+Le reglage `default_valuation_method` (ecran Parametres, valeurs `CUMP` ou
+`FIFO`, `CUMP` par defaut) pre-selectionne la methode de valorisation a la
+**creation** d'un produit. Elle reste modifiable produit par produit : un
+catalogue majoritairement CUMP avec quelques references en FIFO reste
+possible, sans avoir a corriger le champ a chaque saisie.
+
+En edition, la valeur enregistree du produit prime toujours sur le reglage
+global - changer le reglage ne modifie retroactivement aucun produit
+existant.
+
+### 6e passe - audit approfondi (concurrence, import, exports)
+
+Passe de relecture ligne a ligne des zones qui n'avaient pas encore ete
+auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
+10.11 reelle, API demarree et endpoints appeles.
+
+- **Course sur le stock (correctness).** `StockService::createMovement()`
+  lisait le stock puis le reecrivait sans verrou. Deux sorties simultanees sur
+  le meme article lisaient toutes les deux l'ancienne quantite : reproduit ici
+  avec un stock de 5 et deux sorties de 3, **les deux etaient acceptees** et le
+  stock ne descendait que de 3 - 6 unites sorties, 3 decomptees. Ajout de
+  `SELECT ... FOR UPDATE` (`ProductRepository::stockLevel($..., forUpdate: true)`)
+  sur la ligne source et sur la ligne de destination d'un transfert. Apres
+  correctif, la seconde sortie est correctement refusee.
+- **Import de stock initial qui gonflait le stock.** L'import
+  `initial-stocks` utilisait `ON DUPLICATE KEY UPDATE` sur `stock_levels`,
+  dont la cle unique contient `variant_id`. MySQL n'appliquant pas l'unicite
+  quand une colonne de la cle est NULL, **reimporter le meme fichier
+  n'ecrasait pas la ligne : il en ajoutait une**. Trois imports de 50, 75 puis
+  90 donnaient un stock de 215 au lieu de 90 (`stock_total` etant un
+  `SUM(quantity)`). Remplace par un SELECT cible puis UPDATE ou INSERT.
+- **Finalisation d'inventaire sans transaction.** Chaque ajustement etait
+  commite individuellement : un echec au 5e produit d'une session de 10
+  laissait 4 ajustements appliques et la session toujours ouverte. La
+  finalisation est desormais tout ou rien.
+- **Listes deroulantes tronquees a 100 entrees.** `paginate()` plafonne a 100
+  lignes (garde-fou anti-abus sur `?per_page`), mais `LookupController` s'en
+  servait pour charger des referentiels entiers. Ajout de
+  `PdoCrudRepository::allForLookup()`, utilise pour les entrepots, zones,
+  emplacements, categories, fournisseurs, clients, unites, taxes, marques et
+  tags - avec tri alphabetique (`$lookupOrderColumn`) plutot que par date de
+  creation. Verifie avec 157 fournisseurs : les 157 remontent.
+- **Injection de formule dans les exports CSV.** Un nom de produit saisi comme
+  `=cmd|'/c calc'!A1` ou `=HYPERLINK(...)` s'executait a l'ouverture du
+  fichier dans Excel chez le destinataire. Les valeurs commencant par
+  `= + - @`, tabulation ou retour chariot sont prefixees d'une apostrophe -
+  sauf les nombres, pour qu'un ecart negatif reste un nombre exploitable.
+  Ajout au passage du **BOM UTF-8**, sans lequel Excel sous Windows lit le
+  fichier en ANSI et massacre les accents.
+- **Comptage d'inventaire par variante.** La limitation connue est levee : le
+  formulaire propose un selecteur de variante quand le produit en utilise, le
+  tableau des comptages affiche une colonne Variante, et l'ecart est calcule
+  par variante. Verifie de bout en bout : deux variantes du meme produit
+  comptees dans une meme session, ajustements appliques separement.
+- **En-tetes de telechargement.** Les caracteres de controle sont retires du
+  nom de fichier avant de le placer dans `Content-Disposition` (pieces jointes
+  et medias produit), le nom venant de l'utilisateur qui a televerse.
+- **Derniers messages techniques en anglais** traduits : messages de
+  `FileStorageService`, erreurs d'import, et les notes stockees en base par
+  les mouvements automatiques (`Auto generated destination move`,
+  `PO receipt`, `Inventory adjustment generated from session`).
+- **Statut des jobs d'import.** Un import de 500 lignes dont une seule est
+  rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
+  est desormais un echec.
+
+### 5e passe - jeu de demonstration etendu
+
+- **`database/demo/catalog-demo.sql` etoffe** : le catalogue passe de 2 a 144
+  produits, avec 160 variantes, un melange CUMP/FIFO, des articles desactives,
+  des marques, unites, taxes et tags. Objectif : pouvoir eprouver la
+  pagination, le module Variantes et les alertes de stock sans saisir quoi que
+  ce soit a la main.
+- **`product_variants` manquait dans `RESET_TABLES`** (`frontend/demo-data.php`).
+  Le reset desactive les contraintes (`SET FOREIGN_KEY_CHECKS = 0`), donc le
+  `ON DELETE CASCADE` de `product_variants` vers `products` ne se declenchait
+  pas : les variantes **survivaient au reset** en pointant vers des produits
+  supprimes, puis se rattachaient silencieusement aux nouveaux produits une
+  fois les `AUTO_INCREMENT` remis a 1. Corrige.
+- **Deux inserts de stock non idempotents** dans le fichier de demo : ils
+  utilisaient `ON DUPLICATE KEY UPDATE` sur `stock_levels`, dont la cle unique
+  contient `variant_id`. MySQL n'applique pas l'unicite quand une colonne de la
+  cle vaut NULL, donc chaque rechargement de la demo ajoutait une ligne de
+  stock en double pour ces deux produits. Passes en `NOT EXISTS`.
+
+### 4e passe - pagination et erreurs d'integrite
+
+- **Pagination des ecrans CRUD.** Le frontend n'envoyait ni `page` ni
+  `per_page` : l'API appliquait son defaut (`per_page = 20`) et **chaque ecran
+  de gestion n'affichait que les 20 enregistrements les plus recents**, sans
+  bouton page suivante ni compteur - le reste du catalogue etait simplement
+  inaccessible en navigation (seule la recherche globale permettait de le
+  retrouver). Ajout d'une barre sous chaque tableau : nombre total de
+  resultats, plage affichee, page courante sur nombre de pages, boutons
+  Precedent/Suivant et choix 25/50/100 lignes par page. La page revient a 1
+  quand la recherche, le filtre par tag ou la taille de page change, et apres
+  une creation (la nouvelle ligne apparait en tete de liste). Si la page
+  courante n'existe plus apres des suppressions, l'ecran se replie sur la
+  derniere page disponible au lieu d'afficher une liste vide.
+- **Listes deroulantes tronquees a 100 entrees.** `LookupController`
+  demandait 200 a 1000 lignes selon les referentiels, mais
+  `PdoCrudRepository::paginate()` plafonne a 100 (garde-fou anti-abus sur
+  `?per_page`). Corrige pour les produits via
+  `ProductRepository::selectableForLookup()` (voir section precedente).
+- **Erreurs d'integrite de la base traduites en messages metier.** Les
+  violations de contrainte tombaient dans le `catch (Throwable)` generique et
+  l'utilisateur recevait un `500 Erreur serveur` sans explication. Un
+  `catch (PDOException)` dedie renvoie desormais un **409** avec un message
+  clair : suppression d'un element encore reference (MySQL 1451, cas typique
+  d'un produit deja present dans des mouvements de stock), reference vers une
+  ligne inexistante (1452), et surtout **doublon sur un index unique** (1062,
+  cas d'un SKU deja pris - qui affichait lui aussi "Erreur serveur").
+- **4 derniers messages en anglais** traduits : ils etaient construits par
+  interpolation en guillemets doubles (`"Field '{$field}' is required"`,
+  `"Unknown PO item: {$itemId}"`...) et avaient echappe a la passe
+  precedente, qui ne visait que les chaines en guillemets simples.
 
 ### 3e passe - francisation et durcissement complementaire
 

@@ -730,3 +730,31 @@ td.is-positive {
     font-size: 0.85rem;
     font-weight: 600;
 }
+
+/* Barre de pagination sous les tableaux CRUD */
+.pagination-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.pagination-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pagination-actions select {
+    width: auto;
+    min-width: 130px;
+}
+
+.pagination-bar .btn[disabled] {
+    opacity: 0.45;
+    cursor: not-allowed;
+}

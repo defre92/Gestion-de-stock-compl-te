@@ -33,7 +33,7 @@ final class FileStorageService
     {
         $error = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
         if ($error !== UPLOAD_ERR_OK) {
-            throw new RuntimeException('File upload failed');
+            throw new RuntimeException('Le televersement du fichier a echoue');
         }
 
         $tmpName = (string)($file['tmp_name'] ?? '');
@@ -41,16 +41,16 @@ final class FileStorageService
         $size = (int)($file['size'] ?? 0);
 
         if ($tmpName === '' || !is_file($tmpName) || !is_uploaded_file($tmpName)) {
-            throw new RuntimeException('Uploaded file is missing');
+            throw new RuntimeException('Fichier televerse manquant');
         }
 
         if ($size <= 0 || $size > self::MAX_SIZE_BYTES) {
-            throw new RuntimeException('Uploaded file size is invalid');
+            throw new RuntimeException('Taille de fichier invalide (fichier vide ou trop volumineux)');
         }
 
         $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
         if (!isset(self::ALLOWED_TYPES[$extension])) {
-            throw new RuntimeException('File type not allowed: .' . $extension);
+            throw new RuntimeException('Type de fichier non autorise : .' . $extension);
         }
 
         // Le type declare par le navigateur (Content-Type) n'est jamais fiable: on verifie
@@ -62,7 +62,7 @@ final class FileStorageService
             finfo_close($finfo);
         }
         if ($realMime === '' || !in_array($realMime, self::ALLOWED_TYPES[$extension], true)) {
-            throw new RuntimeException('File content does not match its extension');
+            throw new RuntimeException('Le contenu du fichier ne correspond pas a son extension');
         }
         $mimeType = $realMime;
 
@@ -71,7 +71,7 @@ final class FileStorageService
         $targetDir = rtrim($this->basePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativeDir);
 
         if (!is_dir($targetDir) && !mkdir($targetDir, 0775, true) && !is_dir($targetDir)) {
-            throw new RuntimeException('Cannot create upload directory');
+            throw new RuntimeException('Impossible de creer le dossier de destination');
         }
 
         $unique = bin2hex(random_bytes(8));

@@ -56,7 +56,11 @@ final class AttachmentController
         header('X-Content-Type-Options: nosniff');
         header('Content-Type: ' . $mime);
         header('Content-Length: ' . (string)filesize($path));
-        header('Content-Disposition: ' . $disposition . '; filename="' . addslashes($name) . '"');
+        // Retrait des caracteres de controle (dont \r et \n) avant de placer le
+        // nom dans un en-tete HTTP : un nom de fichier vient de l'utilisateur
+        // qui a televerse la piece jointe.
+        $headerName = preg_replace('/[\x00-\x1F\x7F]/', '', $name) ?? 'fichier';
+        header('Content-Disposition: ' . $disposition . '; filename="' . addslashes($headerName) . '"');
         readfile($path);
     }
 }

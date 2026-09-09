@@ -21,7 +21,7 @@ final class JsonResponse
         try {
             echo json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         } catch (JsonException) {
-            echo '{"message":"JSON encoding error"}';
+            echo '{"message":"Erreur d\u0027encodage JSON"}';
         }
     }
 

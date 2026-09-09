@@ -67,7 +67,7 @@ final class CrudService
     {
         foreach ($this->requiredFields as $field) {
             if (!array_key_exists($field, $payload) || $payload[$field] === '') {
-                throw new HttpException("Field '{$field}' is required", 422);
+                throw new HttpException("Le champ '{$field}' est obligatoire", 422);
             }
         }
     }

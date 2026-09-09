@@ -325,6 +325,38 @@ try {
     $router->dispatch($request);
 } catch (HttpException $exception) {
     JsonResponse::send(['message' => $exception->getMessage()], $exception->status());
+} catch (PDOException $exception) {
+    // Les contraintes d'integrite de la base (cle etrangere, unicite) sont des
+    // erreurs previsibles cote metier, pas des pannes : sans ce bloc elles
+    // tombaient dans le catch generique ci-dessous et l'utilisateur recevait un
+    // "Erreur serveur" 500 sans la moindre explication - typiquement en
+    // supprimant un produit deja utilise dans des mouvements, ou en saisissant
+    // un SKU deja pris.
+    $sqlState = $exception->errorInfo[0] ?? null;
+    $driverCode = (int)($exception->errorInfo[1] ?? 0);
+
+    if ($sqlState === '23000') {
+        // 1451: suppression d'une ligne encore referencee ailleurs.
+        // 1452: reference vers une ligne inexistante.
+        // 1062: violation d'un index unique (SKU, code, email...).
+        $message = match ($driverCode) {
+            1451 => "Impossible de supprimer : cet element est encore utilise ailleurs dans l'application (mouvements de stock, commandes, inventaires...). Desactive-le plutot que de le supprimer.",
+            1452 => "Reference invalide : l'element lie n'existe pas ou plus.",
+            1062 => "Cette valeur existe deja (SKU, code ou email en doublon).",
+            default => "Operation refusee par la base de donnees : elle romprait la coherence des donnees.",
+        };
+
+        // JsonResponse::send() n'interrompt pas le script : sans ce exit, la
+        // reponse 500 ci-dessous serait concatenee a celle-ci et le JSON recu
+        // par le frontend serait invalide.
+        JsonResponse::send([
+            'message' => $message,
+            'error' => $appConfig['debug'] ? $exception->getMessage() : null,
+        ], 409);
+        exit;
+    }
+
+    JsonResponse::send(['message' => 'Erreur serveur', 'error' => $appConfig['debug'] ? $exception->getMessage() : null], 500);
 } catch (Throwable $exception) {
     JsonResponse::send(['message' => 'Erreur serveur', 'error' => $appConfig['debug'] ? $exception->getMessage() : null], 500);
 }

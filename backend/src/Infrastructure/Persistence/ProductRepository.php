@@ -234,10 +234,21 @@ final class ProductRepository extends PdoCrudRepository
         return $this->pdo->query($sql)->fetchAll();
     }
 
-    public function stockLevel(int $productId, int $warehouseId, ?int $variantId = null): ?array
+    /**
+     * @param bool $forUpdate Pose un verrou de ligne (SELECT ... FOR UPDATE).
+     *
+     * Indispensable des qu'on lit un stock pour le recalculer et le reecrire :
+     * sans verrou, deux sorties simultanees sur le meme article lisent toutes
+     * les deux l'ancienne quantite, et la seconde ecrase la premiere - le
+     * stock ne descend que d'une sortie au lieu de deux, et le controle
+     * "stock insuffisant" peut laisser passer une quantite indisponible.
+     * Sans effet hors transaction, ce qui est le cas des simples lectures.
+     */
+    public function stockLevel(int $productId, int $warehouseId, ?int $variantId = null, bool $forUpdate = false): ?array
     {
         $sql = 'SELECT warehouse_id, quantity FROM stock_levels WHERE product_id = :product_id AND warehouse_id = :warehouse_id AND variant_id '
-            . ($variantId !== null ? '= :variant_id' : 'IS NULL') . ' LIMIT 1';
+            . ($variantId !== null ? '= :variant_id' : 'IS NULL') . ' LIMIT 1'
+            . ($forUpdate ? ' FOR UPDATE' : '');
         $stmt = $this->pdo->prepare($sql);
         $params = [':product_id' => $productId, ':warehouse_id' => $warehouseId];
         if ($variantId !== null) {
@@ -394,6 +405,46 @@ final class ProductRepository extends PdoCrudRepository
         }
 
         return [$clauses !== [] ? 'WHERE ' . implode(' AND ', $clauses) : '', $params];
+    }
+
+    /**
+     * Produits proposables a la saisie (mouvements, livraisons, achats).
+     *
+     * Un produit desactive (`is_active = 0`) reste visible et modifiable dans
+     * l'ecran Produits, mais disparait des listes deroulantes : on ne peut plus
+     * lui passer de mouvement ni le commander, sans pour autant toucher a son
+     * historique. C'est exactement le comportement deja applique aux variantes
+     * (`ProductVariantRepository`, filtre `is_active=1` cote frontend).
+     *
+     * La colonne `is_active` vient d'une migration posterieure au schema
+     * initial : on verifie sa presence pour ne pas casser une base qui ne
+     * l'aurait pas encore (meme precaution que lowStock()).
+     */
+    public function selectableForLookup(int $limit = 2000): array
+    {
+        // Requete dediee plutot que paginate() : celui-ci plafonne a 100 lignes
+        // (garde-fou anti-abus sur ?per_page), ce qui tronquait silencieusement
+        // les listes deroulantes au-dela de 100 produits. On ne selectionne ici
+        // que les colonnes reellement utilisees par les formulaires, sans les
+        // jointures de stock ni les tags : c'est aussi nettement plus leger.
+        $where = $this->columnExists('products', 'is_active') ? 'WHERE p.is_active = 1' : '';
+        // Meme precaution pour has_variants (migration 202602270009).
+        $variantsColumn = $this->columnExists('products', 'has_variants')
+            ? 'p.has_variants'
+            : '0 AS has_variants';
+        $limit = max(1, min(5000, $limit));
+
+        $stmt = $this->pdo->prepare("
+            SELECT p.id, p.sku, p.name, p.unit_price, p.cost_price, {$variantsColumn}
+            FROM products p
+            {$where}
+            ORDER BY p.name ASC
+            LIMIT :limit
+        ");
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return $stmt->fetchAll();
     }
 
     private function columnExists(string $table, string $column): bool

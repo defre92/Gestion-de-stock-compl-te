@@ -174,13 +174,13 @@ final class PurchaseOrderService
                 }
 
                 if (!isset($indexedItems[$itemId])) {
-                    throw new HttpException("Unknown PO item: {$itemId}", 422);
+                    throw new HttpException("Ligne de commande inconnue : {$itemId}", 422);
                 }
 
                 $orderItem = $indexedItems[$itemId];
                 $remaining = (int)$orderItem['quantity_ordered'] - (int)$orderItem['quantity_received'];
                 if ($receivedQty > $remaining) {
-                    throw new HttpException("Received quantity exceeds remaining qty for item {$itemId}", 422);
+                    throw new HttpException("La quantite recue depasse le reste a livrer pour la ligne {$itemId}", 422);
                 }
 
                 $this->stockService->createMovement([
@@ -192,7 +192,7 @@ final class PurchaseOrderService
                     'reason_code' => 'PO_RECEIPT',
                     'reference_type' => 'PURCHASE_ORDER',
                     'reference_id' => $id,
-                    'notes' => 'PO receipt ' . (string)$order['order_number'],
+                    'notes' => 'Reception commande ' . (string)$order['order_number'],
                 ], $actorId, $ip);
 
                 $this->repository->receiveItemQuantity($id, $itemId, $receivedQty);

@@ -38,19 +38,23 @@ final class LookupController
     public function options(): void
     {
         JsonResponse::send([
+            // allForLookup() et selectableForLookup() servent des referentiels
+            // complets pour les listes deroulantes : ils ne subissent pas le
+            // plafond de 100 lignes de paginate(), qui protege le parametre
+            // HTTP ?per_page et tronquait ces listes sans le dire.
             'data' => [
                 'roles' => $this->roleRepository->all(),
-                'warehouses' => $this->warehouseRepository->paginate(1, 200)['data'],
-                'warehouse_zones' => $this->warehouseZoneRepository->paginate(1, 500)['data'],
-                'warehouse_locations' => $this->warehouseLocationRepository->paginate(1, 1000)['data'],
-                'categories' => $this->categoryRepository->paginate(1, 300)['data'],
-                'suppliers' => $this->supplierRepository->paginate(1, 300)['data'],
-                'products' => $this->productRepository->paginate(1, 500)['data'],
-                'units' => $this->unitRepository->paginate(1, 200)['data'],
-                'taxes' => $this->taxRepository->paginate(1, 200)['data'],
-                'brands' => $this->brandRepository->paginate(1, 200)['data'],
-                'customers' => $this->customerRepository->paginate(1, 200)['data'],
-                'tags' => $this->tagRepository->paginate(1, 200)['data'],
+                'warehouses' => $this->warehouseRepository->allForLookup(),
+                'warehouse_zones' => $this->warehouseZoneRepository->allForLookup(),
+                'warehouse_locations' => $this->warehouseLocationRepository->allForLookup(),
+                'categories' => $this->categoryRepository->allForLookup(),
+                'suppliers' => $this->supplierRepository->allForLookup(),
+                'products' => $this->productRepository->selectableForLookup(500),
+                'units' => $this->unitRepository->allForLookup(),
+                'taxes' => $this->taxRepository->allForLookup(),
+                'brands' => $this->brandRepository->allForLookup(),
+                'customers' => $this->customerRepository->allForLookup(),
+                'tags' => $this->tagRepository->allForLookup(),
             ],
         ]);
     }

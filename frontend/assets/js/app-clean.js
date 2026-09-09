@@ -9,6 +9,16 @@ const state = {
     activeProductId: null,
     pendingSerialProductId: null,
     pendingVariantProductId: null,
+    // Methode de valorisation proposee par defaut a la creation d'un produit
+    // (reglage `default_valuation_method` de l'ecran Parametres). Reste
+    // modifiable produit par produit : ce n'est qu'une pre-selection.
+    defaultValuationMethod: 'CUMP',
+    // Page courante de chaque ecran CRUD, et nombre de lignes par page commun
+    // a tous. Sans pagination, l'API appliquait son defaut (per_page = 20) et
+    // chaque ecran ne montrait que les 20 enregistrements les plus recents,
+    // sans aucun moyen de voir les suivants.
+    crudPages: {},
+    crudPerPage: 25,
 };
 
 const dashboardCharts = {
@@ -185,15 +195,17 @@ const crudModules = {
             { key: 'min_stock', label: 'Stock mini', type: 'number' },
             { key: 'max_stock', label: 'Stock maxi', type: 'number' },
             { key: 'safety_stock', label: 'Stock securite', type: 'number' },
-            { key: 'valuation_method', label: 'Valorisation', type: 'select', options: [
-                { value: 'CUMP', label: 'CUMP' },
-                { value: 'FIFO', label: 'FIFO' },
+            { key: 'valuation_method', label: 'Valorisation', type: 'select', defaultValue: state.defaultValuationMethod, options: [
+                { value: 'CUMP', label: 'CUMP (cout moyen pondere)' },
+                { value: 'FIFO', label: 'FIFO (premier entre, premier sorti)' },
             ] },
-            { key: 'status', label: 'Statut', type: 'select', required: true, options: [
-                { value: 'ACTIVE', label: 'ACTIVE' },
-                { value: 'INACTIVE', label: 'INACTIVE' },
-            ] },
-            { key: 'is_active', label: 'Actif', type: 'select', options: [
+            // Champ unique de mise en service du produit. La colonne
+            // `products.status` (ACTIVE/INACTIVE) du schema initial faisait
+            // doublon avec `is_active` (migration 202602270002, ajoutee juste
+            // apres) et n'etait lue nulle part : elle est retiree du formulaire.
+            // La colonne reste en base et l'import CSV continue de la remplir,
+            // rien n'est casse pour l'existant.
+            { key: 'is_active', label: 'Produit actif (un produit inactif reste consultable mais disparait des listes de saisie)', type: 'select', options: [
                 { value: '1', label: 'Oui' },
                 { value: '0', label: 'Non' },
             ] },
@@ -226,6 +238,7 @@ const crudModules = {
             { key: 'unit_price', label: 'Prix', format: (value) => formatMoney(value) },
             { key: 'tax_rate', label: 'TVA', format: (value) => (value !== null && value !== undefined ? `${Number(value)}%` : '-') },
             { key: 'valuation_method', label: 'Valorisation' },
+            { key: 'is_active', label: 'Actif', format: (v) => (Number(v) === 1 ? 'Oui' : 'Non') },
             { key: 'has_variants', label: 'Variantes', format: (v) => (Number(v) === 1 ? 'Oui' : 'Non') },
             { key: 'tags', label: 'Tags', format: (value) => renderTagBadges(value) },
         ],
@@ -425,11 +438,12 @@ boot().catch((error) => {
 });
 
 async function boot() {
-    const [meResponse, lookupResponse, clothingSettingResponse, bottleSettingResponse] = await Promise.all([
+    const [meResponse, lookupResponse, clothingSettingResponse, bottleSettingResponse, valuationSettingResponse] = await Promise.all([
         apiRequest('/auth/me'),
         apiRequest('/lookups/options'),
         apiRequest('/settings?setting_key=clothing_variants_enabled').catch(() => null),
         apiRequest('/settings?setting_key=bottle_variants_enabled').catch(() => null),
+        apiRequest('/settings?setting_key=default_valuation_method').catch(() => null),
     ]);
 
     state.user = meResponse.data;
@@ -438,6 +452,7 @@ async function boot() {
     const bottleRow = normalizeRows(bottleSettingResponse)[0];
     state.clothingVariantsEnabled = String(clothingRow?.setting_value ?? '0') === '1';
     state.bottleVariantsEnabled = String(bottleRow?.setting_value ?? '0') === '1';
+    syncValuationSettingState(normalizeRows(valuationSettingResponse)[0]?.setting_value);
 
     const userPill = document.getElementById('userPill');
     userPill.textContent = `${state.user.full_name} | ${localizeValue(state.user.role)}`;
@@ -455,6 +470,14 @@ async function boot() {
     const initialModule = normalizeModule(requestedModule);
     setActiveNav(initialModule);
     await renderModule(initialModule, false);
+}
+
+function syncValuationSettingState(settingValue) {
+    // Seules deux valeurs sont exploitables (contrainte de la colonne
+    // products.valuation_method) : toute autre saisie retombe sur CUMP plutot
+    // que de proposer un choix invalide dans le formulaire produit.
+    const value = String(settingValue ?? '').trim().toUpperCase();
+    state.defaultValuationMethod = value === 'FIFO' ? 'FIFO' : 'CUMP';
 }
 
 function variantsAttributesLabel() {
@@ -547,6 +570,9 @@ function setupGlobalSearch() {
 
         event.preventDefault();
         state.globalQuery = String(input.value ?? '').trim();
+        // Nouvelle recherche = nouveau jeu de resultats : rester page 3
+        // afficherait une page vide.
+        state.crudPages.products = 1;
         setActiveNav('products');
         await renderModule('products');
     });
@@ -1044,7 +1070,10 @@ async function renderCrud(module) {
     const root = document.getElementById('appContent');
     const writable = canWrite(module);
 
-    const query = {};
+    const query = {
+        page: state.crudPages[module] ?? 1,
+        per_page: state.crudPerPage,
+    };
     if (module === 'products' && state.globalQuery !== '') {
         query.q = state.globalQuery;
     }
@@ -1054,8 +1083,23 @@ async function renderCrud(module) {
     if (module === 'product-variants' && state.pendingVariantProductId) {
         query.product_id = state.pendingVariantProductId;
         state.pendingVariantProductId = null;
+        query.page = 1;
+        state.crudPages[module] = 1;
     }
-    const response = await apiRequest(config.endpoint + toQueryString(query));
+
+    let response = await apiRequest(config.endpoint + toQueryString(query));
+    let meta = response?.meta ?? null;
+
+    // Apres des suppressions, la page courante peut ne plus exister (on etait
+    // page 3 et il ne reste que 2 pages) : l'API renverrait une liste vide.
+    // On se replie alors sur la derniere page reellement disponible.
+    if (meta && query.page > 1 && normalizeRows(response).length === 0 && meta.last_page >= 1) {
+        query.page = meta.last_page;
+        state.crudPages[module] = meta.last_page;
+        response = await apiRequest(config.endpoint + toQueryString(query));
+        meta = response?.meta ?? null;
+    }
+
     const rows = normalizeRows(response);
 
     const tagFilterOptions = module === 'products'
@@ -1077,6 +1121,7 @@ async function renderCrud(module) {
             <div id="crudFeedback" class="feedback"></div>
 
             ${renderCrudTable(config, rows, writable, module)}
+            ${renderPaginationBar(meta, rows.length)}
         </section>
         ${module === 'products' ? '<section class="panel" id="productDetailPane"><h4>Fiche produit</h4><p class="muted">Selectionne un produit pour afficher sa fiche detaillee.</p></section>' : ''}
         ${module === 'product-variants' && writable ? renderVariantGenerator() : ''}
@@ -1090,12 +1135,14 @@ async function renderCrud(module) {
     if (module === 'products') {
         document.getElementById('productTagFilter')?.addEventListener('change', async (event) => {
             state.tagFilter = event.target.value;
+            state.crudPages.products = 1;
             await renderCrud('products');
         });
 
         document.getElementById('clearProductSearch')?.addEventListener('click', async () => {
             state.globalQuery = '';
             state.tagFilter = '';
+            state.crudPages.products = 1;
             const input = document.getElementById('globalSearch');
             if (input) {
                 input.value = '';
@@ -1103,6 +1150,8 @@ async function renderCrud(module) {
             await renderCrud('products');
         });
     }
+
+    setupPagination(module, meta);
 
     if (module === 'product-variants' && writable) {
         setupVariantGenerator();
@@ -1260,6 +1309,9 @@ async function renderCrud(module) {
                 if (module === 'settings' && ['clothing_variants_enabled', 'bottle_variants_enabled'].includes(payload.setting_key)) {
                     syncVariantsSettingState(payload.setting_key, payload.setting_value);
                 }
+                if (module === 'settings' && payload.setting_key === 'default_valuation_method') {
+                    syncValuationSettingState(payload.setting_value);
+                }
 
                 // Un produit "a variantes" fraichement cree n'a encore aucune
                 // variante : il est inutilisable en mouvement tant qu'on n'est
@@ -1272,6 +1324,12 @@ async function renderCrud(module) {
                     : null;
 
                 const wasCreate = editId === null;
+                if (wasCreate) {
+                    // La nouvelle ligne apparait en tete de liste (tri par id
+                    // decroissant) : rester sur une page interieure la rendrait
+                    // invisible juste apres l'avoir creee.
+                    state.crudPages[module] = 1;
+                }
                 await renderCrud(module);
                 // renderCrud reconstruit tout le panneau (dont le formulaire),
                 // on recupere donc le nouveau champ de feedback pour y
@@ -2212,6 +2270,7 @@ async function renderInventorySessionDetail(sessionId) {
             <tr>
                 <td>${sanitize(item.sku)}</td>
                 <td>${sanitize(item.product_name)}</td>
+                <td>${item.variant_id ? sanitize(variantDescriptor({ ...item, sku: item.variant_sku })) : '-'}</td>
                 <td>${Number(item.expected_qty)}</td>
                 <td>${Number(item.counted_qty)}</td>
                 <td class="${diffClass}">${diffLabel}</td>
@@ -2243,17 +2302,27 @@ async function renderInventorySessionDetail(sessionId) {
             <p class="muted">Si un produit est compte plusieurs fois, seul le dernier comptage saisi pour ce produit sera applique a la finalisation.</p>
             <div class="table-wrap">
                 <table class="data-table">
-                    <thead><tr><th>SKU</th><th>Produit</th><th>Attendu</th><th>Compte</th><th>Ecart</th><th>Emplacement</th><th>Compte par</th><th>Date</th></tr></thead>
-                    <tbody>${itemsHtml || '<tr><td colspan="8">Aucun comptage saisi pour le moment.</td></tr>'}</tbody>
+                    <thead><tr><th>SKU</th><th>Produit</th><th>Variante</th><th>Attendu</th><th>Compte</th><th>Ecart</th><th>Emplacement</th><th>Compte par</th><th>Date</th></tr></thead>
+                    <tbody>${itemsHtml || '<tr><td colspan="9">Aucun comptage saisi pour le moment.</td></tr>'}</tbody>
                 </table>
             </div>
         </section>
 
         ${writable && isEditable ? `
         <section class="panel">
-            <div class="panel-head"><h4>Ajouter un comptage</h4></div>
+            <div class="panel-head"><h4>Ajouter un comptage - entrepot ${sanitize(session.warehouse_name)}</h4></div>
+            <p class="muted">
+                Un inventaire ne porte que sur un entrepot. La quantite attendue
+                est celle du produit <strong>dans ${sanitize(session.warehouse_name)}</strong> :
+                un produit stocke ailleurs y apparait donc a 0.
+            </p>
             <form id="inventoryCountForm" class="form-grid">
                 ${selectField('product_id', 'Produit', state.lookups.products, 'id', 'name', true)}
+                <p class="full feedback hidden" id="inventoryStockHint"></p>
+                <div class="full hidden" id="inventoryVariantWrap">
+                    <label><span>Variante</span><select name="variant_id" id="inventoryVariantSelect"></select></label>
+                    <small class="field-hint">Ce produit utilise des variantes : compte chacune separement.</small>
+                </div>
                 <label><span>Quantite comptee</span><input type="number" name="counted_qty" min="0" required></label>
                 ${selectField('location_id', 'Emplacement', state.lookups.warehouse_locations, 'id', 'code', false)}
                 <label class="full"><span>Notes</span><textarea name="notes"></textarea></label>
@@ -2288,17 +2357,67 @@ async function renderInventorySessionDetail(sessionId) {
     });
 
     const countForm = document.getElementById('inventoryCountForm');
+    const countVariantWrap = document.getElementById('inventoryVariantWrap');
+    const countVariantSelect = document.getElementById('inventoryVariantSelect');
+
+    // Le backend acceptait deja variant_id dans le comptage, mais l'ecran ne
+    // le proposait pas : impossible de compter separement deux tailles du meme
+    // produit, alors que l'ecart d'inventaire est bien calcule par variante.
+    countForm?.elements.product_id?.addEventListener('change', async (event) => {
+        if (!countVariantWrap || !countVariantSelect) {
+            return;
+        }
+
+        const productId = Number(event.target.value);
+        const product = state.lookups.products.find((p) => String(p.id) === String(productId));
+        const hasVariants = Number(product?.has_variants) === 1;
+
+        countVariantWrap.classList.toggle('hidden', !hasVariants);
+        countVariantSelect.required = hasVariants;
+
+        // Garde-fou : compter un produit dans le mauvais entrepot est une
+        // erreur silencieuse et couteuse. L'attendu vaut alors 0, l'ecart est
+        // egal a la quantite saisie, et la finalisation CREE ce stock dans
+        // l'entrepot de la session en laissant l'autre intact. On previent
+        // avant, pendant que c'est rattrapable.
+        await warnIfStockedElsewhere(productId, session);
+
+        if (!hasVariants || !productId) {
+            countVariantSelect.innerHTML = '';
+            return;
+        }
+
+        countVariantSelect.innerHTML = '<option value="">Chargement...</option>';
+        try {
+            const variantsResponse = await apiRequest(`/product-variants?product_id=${productId}&is_active=1&per_page=200`);
+            const variants = normalizeRows(variantsResponse);
+            countVariantSelect.innerHTML = variants.length === 0
+                ? '<option value="">Aucune variante active pour ce produit</option>'
+                : variants.map((v) => `<option value="${v.id}">${sanitize(variantDescriptor(v))} - ${sanitize(v.sku)}</option>`).join('');
+        } catch (error) {
+            countVariantSelect.innerHTML = `<option value="">${sanitize(error.message)}</option>`;
+        }
+    });
+
     countForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
         const feedback = document.getElementById('inventoryCountFeedback');
         feedback.textContent = '';
         const data = new FormData(countForm);
 
+        const variantVisible = countVariantWrap && !countVariantWrap.classList.contains('hidden');
+        if (variantVisible && !countVariantSelect?.value) {
+            feedback.textContent = 'Ce produit utilise des variantes : choisis-en une.';
+            feedback.classList.add('is-error');
+            return;
+        }
+
         try {
             await apiRequest(`/inventories/${sessionId}/counts`, {
                 method: 'POST',
                 body: {
                     product_id: Number(data.get('product_id')),
+                    variant_id: variantVisible && countVariantSelect?.value ? Number(countVariantSelect.value) : null,
                     counted_qty: Number(data.get('counted_qty')),
                     location_id: data.get('location_id') ? Number(data.get('location_id')) : null,
                     notes: String(data.get('notes') ?? ''),
@@ -3806,6 +3925,124 @@ function setupVariantGenerator() {
     });
 }
 
+/**
+ * Avertit quand le produit qu'on s'apprete a compter n'a pas de stock dans
+ * l'entrepot de la session d'inventaire, alors qu'il en a ailleurs.
+ *
+ * C'est le cas ou l'utilisateur s'est trompe d'entrepot en creant la session :
+ * l'attendu affiche 0, l'ecart vaut toute la quantite saisie, et la
+ * finalisation cree ce stock dans le mauvais entrepot sans toucher au bon.
+ * Rien dans l'ecran ne le signalait.
+ */
+async function warnIfStockedElsewhere(productId, session) {
+    const hint = document.getElementById('inventoryStockHint');
+    if (!hint) {
+        return;
+    }
+
+    hint.className = 'full feedback hidden';
+    hint.textContent = '';
+    if (!productId) {
+        return;
+    }
+
+    let stockRows = [];
+    try {
+        const response = await apiRequest(`/products/${productId}`);
+        stockRows = Array.isArray(response?.data?.stock_by_warehouse) ? response.data.stock_by_warehouse : [];
+    } catch (_) {
+        // Simple aide a la saisie : si l'appel echoue, on n'empeche rien.
+        return;
+    }
+
+    const sessionWarehouseId = Number(session.warehouse_id);
+    const here = stockRows
+        .filter((row) => Number(row.warehouse_id) === sessionWarehouseId)
+        .reduce((total, row) => total + Number(row.quantity ?? 0), 0);
+
+    if (here > 0) {
+        return;
+    }
+
+    const elsewhere = stockRows.filter((row) => Number(row.warehouse_id) !== sessionWarehouseId && Number(row.quantity ?? 0) > 0);
+    if (elsewhere.length === 0) {
+        return;
+    }
+
+    const detail = elsewhere
+        .map((row) => `${sanitize(row.warehouse_name ?? row.warehouse_code ?? '?')} (${Number(row.quantity)})`)
+        .join(', ');
+
+    hint.className = 'full feedback is-error';
+    hint.innerHTML = `Attention : ce produit n'a aucun stock dans <strong>${sanitize(session.warehouse_name)}</strong>,
+        l'entrepot de cette session, mais il en a ailleurs : ${detail}.
+        L'ecart portera donc sur la totalite de la quantite saisie, et la finalisation creera ce stock
+        dans ${sanitize(session.warehouse_name)} sans toucher a l'autre entrepot.
+        Verifie que la session porte bien sur le bon entrepot.`;
+}
+
+function renderPaginationBar(meta, rowCount) {
+    // L'API renvoie toujours page / per_page / total / last_page dans `meta`.
+    // Si un endpoint n'en fournit pas, on n'affiche simplement pas de barre
+    // plutot que d'inventer des valeurs.
+    if (!meta || typeof meta.total !== 'number') {
+        return '';
+    }
+
+    const page = Number(meta.page ?? 1);
+    const lastPage = Math.max(1, Number(meta.last_page ?? 1));
+    const total = Number(meta.total ?? 0);
+    const from = total === 0 ? 0 : (page - 1) * Number(meta.per_page ?? state.crudPerPage) + 1;
+    const to = from === 0 ? 0 : from + rowCount - 1;
+
+    const perPageOptions = [25, 50, 100]
+        .map((size) => `<option value="${size}" ${size === state.crudPerPage ? 'selected' : ''}>${size} par page</option>`)
+        .join('');
+
+    return `
+        <div class="pagination-bar">
+            <span class="muted">
+                ${total === 0 ? 'Aucun resultat' : `${from} - ${to} sur ${total} resultat${total > 1 ? 's' : ''}`}
+                ${lastPage > 1 ? ` (page ${page} sur ${lastPage})` : ''}
+            </span>
+            <span class="pagination-actions">
+                <select id="crudPerPage">${perPageOptions}</select>
+                <button type="button" class="btn btn-soft" id="crudPrevPage" ${page <= 1 ? 'disabled' : ''}>Precedent</button>
+                <button type="button" class="btn btn-soft" id="crudNextPage" ${page >= lastPage ? 'disabled' : ''}>Suivant</button>
+            </span>
+        </div>
+    `;
+}
+
+function setupPagination(module, meta) {
+    const lastPage = Math.max(1, Number(meta?.last_page ?? 1));
+    const page = Number(meta?.page ?? 1);
+
+    document.getElementById('crudPrevPage')?.addEventListener('click', async () => {
+        if (page <= 1) {
+            return;
+        }
+        state.crudPages[module] = page - 1;
+        await renderCrud(module);
+    });
+
+    document.getElementById('crudNextPage')?.addEventListener('click', async () => {
+        if (page >= lastPage) {
+            return;
+        }
+        state.crudPages[module] = page + 1;
+        await renderCrud(module);
+    });
+
+    document.getElementById('crudPerPage')?.addEventListener('change', async (event) => {
+        // Changer la taille de page invalide le numero de page courant : on
+        // repart de la premiere, seule position dont le sens est garanti.
+        state.crudPerPage = Number(event.target.value) || 25;
+        state.crudPages[module] = 1;
+        await renderCrud(module);
+    });
+}
+
 function renderCrudTable(config, rows, canWrite, module = '') {
     // Tableau principal avec actions selon les droits.
     const headerCells = config.columns.map((column) => `<th>${column.label}</th>`).join('');
@@ -3846,7 +4083,10 @@ function renderCrudTable(config, rows, canWrite, module = '') {
 
 function buildFormFields(fields, item = null, editing = false) {
     return fields.map((field) => {
-        const value = item && item[field.key] !== undefined && item[field.key] !== null ? String(item[field.key]) : '';
+        // field.defaultValue ne s'applique qu'a la creation : en edition, la
+        // valeur enregistree du produit prime toujours sur le reglage global.
+        const fallback = !item && field.defaultValue !== undefined ? String(field.defaultValue) : '';
+        const value = item && item[field.key] !== undefined && item[field.key] !== null ? String(item[field.key]) : fallback;
         const required = field.required || (field.requiredOnCreate && !editing);
 
         if (field.type === 'textarea') {
