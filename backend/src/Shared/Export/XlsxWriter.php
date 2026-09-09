@@ -151,7 +151,12 @@ XML;
         $headerCells = [];
         foreach ($headers as $colIndex => $header) {
             $ref = self::columnLetter($colIndex) . '1';
-            $headerCells[] = '<c r="' . $ref . '" t="str" s="1"><v>' . self::escapeXml((string)$header) . '</v></c>';
+            // t="inlineStr" + <is><t> : c'est la facon standard d'ecrire une
+            // chaine sans table de chaines partagees. t="str" (utilise
+            // precedemment) designe en OOXML le resultat CACHE d'une formule,
+            // ce qui peut declencher chez certains clients le message
+            // "Excel a trouve un probleme avec le contenu de ce fichier".
+            $headerCells[] = '<c r="' . $ref . '" t="inlineStr" s="1"><is><t>' . self::escapeXml((string)$header) . '</t></is></c>';
         }
         $xmlRows[] = '<row r="1">' . implode('', $headerCells) . '</row>';
 
@@ -166,7 +171,7 @@ XML;
                 if (is_int($value) || is_float($value)) {
                     $cells[] = '<c r="' . $ref . '"><v>' . $value . '</v></c>';
                 } else {
-                    $cells[] = '<c r="' . $ref . '" t="str"><v>' . self::escapeXml((string)$value) . '</v></c>';
+                    $cells[] = '<c r="' . $ref . '" t="inlineStr"><is><t>' . self::escapeXml((string)$value) . '</t></is></c>';
                 }
             }
             $xmlRows[] = '<row r="' . $excelRow . '">' . implode('', $cells) . '</row>';

@@ -211,9 +211,9 @@ final class ImportService
                 ':description' => $row['description'] ?? null,
                 ':category_id' => $categoryId,
                 ':supplier_id' => $supplierId,
-                ':unit_price' => (float)($row['unit_price'] ?? 0),
-                ':cost_price' => (float)($row['cost_price'] ?? 0),
-                ':reorder_level' => (int)($row['reorder_level'] ?? 0),
+                ':unit_price' => $this->parseDecimal($row['unit_price'] ?? 0),
+                ':cost_price' => $this->parseDecimal($row['cost_price'] ?? 0),
+                ':reorder_level' => $this->parseInteger($row['reorder_level'] ?? 0),
                 ':status' => strtoupper((string)($row['status'] ?? 'ACTIVE')),
             ]);
             return;
@@ -222,7 +222,7 @@ final class ImportService
         if ($entity === 'initial-stocks') {
             $sku = trim((string)($row['sku'] ?? ''));
             $warehouseCode = trim((string)($row['warehouse_code'] ?? ''));
-            $quantity = (int)($row['quantity'] ?? 0);
+            $quantity = $this->parseInteger($row['quantity'] ?? 0);
             if ($sku === '' || $warehouseCode === '') {
                 throw new \RuntimeException('Les colonnes "sku" et "warehouse_code" sont obligatoires');
             }
@@ -263,6 +263,50 @@ final class ImportService
             ]);
             return;
         }
+    }
+
+    /**
+     * Convertit un nombre saisi dans un CSV, quelle que soit sa convention.
+     *
+     * Excel en francais exporte "19,90" et "1 234,56" ; en anglais
+     * "1,234.56". Un simple (float) sur "19,90" rend 19.0 : le prix perd
+     * ses centimes en silence, sans aucune erreur. C'est le genre de bug qui
+     * ne se voit qu'a la facturation.
+     *
+     * Regle : on retire les espaces (y compris insecables), puis si les deux
+     * separateurs sont presents, le DERNIER rencontre est le separateur
+     * decimal et l'autre un separateur de milliers.
+     */
+    private function parseDecimal(mixed $value): float
+    {
+        $raw = trim((string)$value);
+        if ($raw === '') {
+            return 0.0;
+        }
+
+        $raw = str_replace([' ', "\xC2\xA0", "\xE2\x80\xAF"], '', $raw);
+
+        $lastComma = strrpos($raw, ',');
+        $lastDot = strrpos($raw, '.');
+
+        if ($lastComma !== false && $lastDot !== false) {
+            if ($lastComma > $lastDot) {
+                $raw = str_replace('.', '', $raw);
+                $raw = str_replace(',', '.', $raw);
+            } else {
+                $raw = str_replace(',', '', $raw);
+            }
+        } elseif ($lastComma !== false) {
+            $raw = str_replace(',', '.', $raw);
+        }
+
+        return (float)$raw;
+    }
+
+    /** Meme normalisation pour les quantites entieres ("1 000" -> 1000). */
+    private function parseInteger(mixed $value): int
+    {
+        return (int)round($this->parseDecimal($value));
     }
 
     /** @return array<int, array<string, mixed>> */

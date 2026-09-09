@@ -598,6 +598,53 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+### 8e passe - tests de bout en bout import / exports / pieces jointes
+
+Campagne de tests contre l'API reelle (MariaDB 10.11, serveur PHP demarre,
+fichiers reellement televerses et telecharges). Deux bugs trouves.
+
+**Virgule decimale francaise perdue a l'import.** Excel en francais exporte
+`19,90` ; `(float)"19,90"` vaut `19.0`. Un prix importe perdait donc ses
+centimes **en silence**, sans aucune erreur - visible seulement a la
+facturation. `ImportService::parseDecimal()` gere desormais les quatre
+conventions (`19,90`, `19.90`, `1 234,56`, `1,234.56`, espaces insecables
+inclus) et `parseInteger()` fait de meme pour les quantites et les seuils.
+13 cas de test.
+
+**Fichier rejete = "Erreur serveur" 500.** Les erreurs de validation d'upload
+(mauvaise extension, contenu ne correspondant pas, fichier vide) etaient des
+`RuntimeException` qui tombaient dans le `catch (Throwable)` generique :
+l'utilisateur recevait un 500 sans explication. `FileStorageService` leve
+desormais des `HttpException` **422** avec le motif exact. `HttpException`
+etendant `RuntimeException`, le changement reste compatible avec tout code qui
+attraperait encore ce type.
+
+**Export XLSX : `t="str"` remplace par `t="inlineStr"`.** En OOXML, `t="str"`
+designe le resultat *cache d'une formule* ; la facon standard d'ecrire une
+chaine sans table partagee est `inlineStr` avec `<is><t>`. Le fichier
+s'ouvrait, mais autant ne pas risquer le message "Excel a trouve un probleme
+avec le contenu de ce fichier" devant un client. Verifie en rouvrant le
+fichier genere avec openpyxl : 3 lignes, 8 colonnes, entiers typés comme
+entiers.
+
+**Ce qui a ete verifie et fonctionne** : import des 4 entites (produits,
+fournisseurs, clients, stocks initiaux) ; separateurs `,` et `;` detectes
+automatiquement ; BOM UTF-8 en entete retire ; accents et guillemets
+echappes preserves jusqu'en base (`Cle a molette, 12" chromee`) ; categories
+et fournisseurs inconnus crees a la volee ; lignes invalides rejetees une par
+une avec leur numero de ligne, sans bloquer les autres ; les trois exports CSV
+avec BOM et accents relus sans erreur ; export XLSX ouvert par une vraie
+bibliotheque tableur.
+
+**Pieces jointes** : PNG legitime accepte, `.php` refuse, PHP renomme en
+`.png` refuse par la verification du contenu reel (fileinfo). Un fichier
+"polyglotte" (vrai en-tete PNG suivi de code PHP) est **accepte** - c'est
+attendu, aucune detection de contenu ne peut faire mieux - mais il n'est pas
+exploitable : il est stocke sous un nom aleatoire avec l'extension `.png`,
+dans un dossier ou `.htaccess` coupe le moteur PHP, interdit `ExecCGI` et
+sert les scripts en `text/plain`. Le telechargement renvoie
+`X-Content-Type-Options: nosniff`.
+
 ### Modes d'inventaire : Global et Tournant
 
 Le champ `counting_mode` d'une session existait mais n'etait lu par aucune

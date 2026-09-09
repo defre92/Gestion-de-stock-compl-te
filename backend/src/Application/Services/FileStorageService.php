@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Application\Services;
 
-use RuntimeException;
+use App\Shared\Http\HttpException;
 
 final class FileStorageService
 {
@@ -33,7 +33,7 @@ final class FileStorageService
     {
         $error = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
         if ($error !== UPLOAD_ERR_OK) {
-            throw new RuntimeException('Le televersement du fichier a echoue');
+            throw new HttpException('Le televersement du fichier a echoue', 422);
         }
 
         $tmpName = (string)($file['tmp_name'] ?? '');
@@ -41,16 +41,16 @@ final class FileStorageService
         $size = (int)($file['size'] ?? 0);
 
         if ($tmpName === '' || !is_file($tmpName) || !is_uploaded_file($tmpName)) {
-            throw new RuntimeException('Fichier televerse manquant');
+            throw new HttpException('Fichier televerse manquant', 422);
         }
 
         if ($size <= 0 || $size > self::MAX_SIZE_BYTES) {
-            throw new RuntimeException('Taille de fichier invalide (fichier vide ou trop volumineux)');
+            throw new HttpException('Taille de fichier invalide (fichier vide ou trop volumineux)', 422);
         }
 
         $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
         if (!isset(self::ALLOWED_TYPES[$extension])) {
-            throw new RuntimeException('Type de fichier non autorise : .' . $extension);
+            throw new HttpException('Type de fichier non autorise : .' . $extension, 422);
         }
 
         // Le type declare par le navigateur (Content-Type) n'est jamais fiable: on verifie
@@ -62,7 +62,7 @@ final class FileStorageService
             finfo_close($finfo);
         }
         if ($realMime === '' || !in_array($realMime, self::ALLOWED_TYPES[$extension], true)) {
-            throw new RuntimeException('Le contenu du fichier ne correspond pas a son extension');
+            throw new HttpException('Le contenu du fichier ne correspond pas a son extension', 422);
         }
         $mimeType = $realMime;
 
@@ -71,7 +71,7 @@ final class FileStorageService
         $targetDir = rtrim($this->basePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativeDir);
 
         if (!is_dir($targetDir) && !mkdir($targetDir, 0775, true) && !is_dir($targetDir)) {
-            throw new RuntimeException('Impossible de creer le dossier de destination');
+            throw new HttpException('Impossible de creer le dossier de destination', 422);
         }
 
         $unique = bin2hex(random_bytes(8));
@@ -80,7 +80,7 @@ final class FileStorageService
 
         if (!move_uploaded_file($tmpName, $targetPath)) {
             if (!rename($tmpName, $targetPath)) {
-                throw new RuntimeException('Cannot persist uploaded file');
+                throw new HttpException('Impossible d\'enregistrer le fichier sur le serveur', 422);
             }
         }
 
