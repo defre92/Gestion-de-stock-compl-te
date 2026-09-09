@@ -630,6 +630,17 @@ fonctionnalite paraissait cassee alors qu'elle faisait ce qu'on lui demandait.
 - Si la quantite ne permet pas la sortie, le message explique la cause reelle
   - divergence entre les deux registres - au lieu d'un "Stock insuffisant"
   incomprehensible a cet endroit.
+- **Suppression d'un numero de serie** : la question est posee a
+  l'utilisateur, dans ses termes, au moment ou il decide. Supprimer couvre
+  deux situations que rien dans les donnees ne distingue - une erreur de
+  saisie (le numero est faux, l'article est bien la : la quantite ne bouge
+  pas) ou un article qui n'est plus la (casse, perdu, jamais recu : la
+  quantite baisse de 1). L'ancien comportement supposait toujours le premier
+  cas en silence, ce qui laissait la quantite trop haute sans que personne ne
+  le sache - une regle que seul un lecteur du code pouvait connaitre. Chaque
+  choix affiche sa consequence concrete (`askChoice()`). Un numero deja sorti
+  n'etant plus compte dans la quantite, sa suppression ne pose aucune question
+  et ne peut pas decrementer deux fois.
 
 ### Numeros de serie : entrepot fiabilise
 

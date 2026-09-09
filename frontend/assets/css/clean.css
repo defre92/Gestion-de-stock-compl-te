@@ -758,3 +758,28 @@ td.is-positive {
     opacity: 0.45;
     cursor: not-allowed;
 }
+
+/* Question a choix multiples (askChoice) : chaque option affiche sa consequence */
+.choice-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 14px 0;
+}
+
+.choice-list .choice-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    text-align: left;
+    width: 100%;
+    padding: 12px 14px;
+    height: auto;
+    line-height: 1.35;
+}
+
+.choice-list .choice-btn small {
+    font-weight: 400;
+    opacity: 0.75;
+}

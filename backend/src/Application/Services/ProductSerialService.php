@@ -281,14 +281,67 @@ final class ProductSerialService
         }
     }
 
-    public function delete(int $id, int $actorId, ?string $ip): void
+    /**
+     * @param bool $adjustStock Retirer aussi 1 de la quantite en stock.
+     *
+     * Supprimer un numero de serie couvre deux situations que rien dans les
+     * donnees ne permet de distinguer :
+     *  - une erreur de saisie (le numero est faux, mais l'article est bien la)
+     *    : la quantite ne doit PAS bouger ;
+     *  - un article qui n'est plus la (casse, perdu, jamais recu) : la
+     *    quantite doit baisser de 1.
+     * L'ancien comportement supposait toujours le premier cas en silence, ce
+     * qui laissait la quantite trop haute sans que personne ne le sache.
+     * C'est donc l'utilisateur qui tranche, au moment de la suppression.
+     *
+     * Un numero deja sorti (OUT) n'est plus compte dans la quantite : sa
+     * suppression ne peut pas la modifier, quel que soit ce parametre.
+     */
+    public function delete(int $id, int $actorId, ?string $ip, bool $adjustStock = false): void
     {
         $serial = $this->repository->findById($id);
         if (!$serial) {
             throw new HttpException('Numero de serie introuvable', 404);
         }
 
-        $this->repository->delete($id);
-        $this->auditRepository->log($actorId, 'DELETE', 'product_serial', $id, [], $ip);
+        $pdo = Database::connection();
+        $ownsTransaction = !$pdo->inTransaction();
+        if ($ownsTransaction) {
+            $pdo->beginTransaction();
+        }
+
+        try {
+            $movesStock = $adjustStock && $serial['status'] === 'IN_STOCK';
+
+            $this->repository->delete($id);
+
+            if ($movesStock) {
+                $this->moveStock(
+                    (int)$serial['product_id'],
+                    $serial['variant_id'] !== null ? (int)$serial['variant_id'] : null,
+                    $serial['warehouse_id'] !== null ? (int)$serial['warehouse_id'] : null,
+                    'OUT',
+                    1,
+                    'SERIAL_DELETED',
+                    'Suppression du numero de serie ' . $serial['serial_number'] . ' (article absent du stock)',
+                    $actorId,
+                    $ip
+                );
+            }
+
+            $this->auditRepository->log($actorId, 'DELETE', 'product_serial', $id, [
+                'serial_number' => $serial['serial_number'],
+                'stock_adjusted' => $movesStock,
+            ], $ip);
+
+            if ($ownsTransaction) {
+                $pdo->commit();
+            }
+        } catch (Throwable $exception) {
+            if ($ownsTransaction && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $exception;
+        }
     }
 }

@@ -1810,7 +1810,7 @@ async function renderProductSerials() {
                     ${row.status === 'IN_STOCK'
                         ? `<button class="btn btn-soft" data-mark-out="${value}">Marquer sorti</button>`
                         : `<button class="btn btn-soft" data-mark-in="${value}">Remettre en stock</button>`}
-                    <button class="btn btn-soft" data-delete-serial="${value}">Supprimer</button>
+                    <button class="btn btn-soft" data-delete-serial="${value}" data-serial-status="${sanitize(row.status)}" data-serial-number="${sanitize(row.serial_number)}">Supprimer</button>
                 `]] : []),
             ])}
         </section>
@@ -1927,11 +1927,44 @@ async function renderProductSerials() {
 
     root.querySelectorAll('[data-delete-serial]').forEach((btn) => {
         btn.addEventListener('click', async () => {
-            if (!window.confirm('Supprimer ce numero de serie ?')) {
+            const enStock = btn.dataset.serialStatus === 'IN_STOCK';
+
+            // Un numero deja sorti n'est plus compte dans la quantite : sa
+            // suppression ne peut pas la modifier, aucune question a poser.
+            if (!enStock) {
+                if (!window.confirm(`Supprimer le numero de serie ${btn.dataset.serialNumber} ?`)) {
+                    return;
+                }
+
+                try {
+                    await apiRequest(`/product-serials/${btn.dataset.deleteSerial}`, { method: 'DELETE' });
+                    await renderProductSerials();
+                } catch (error) {
+                    window.alert(error.message);
+                }
                 return;
             }
+
+            // En stock : la reponse change la quantite. On ne peut pas la
+            // deviner, et compter sur l'utilisateur pour "penser a ajuster"
+            // apres coup ne marche jamais. On pose donc la question dans ses
+            // termes a lui, au moment ou il decide.
+            const choix = await askChoice(
+                `Supprimer le numero de serie ${btn.dataset.serialNumber}`,
+                'Ce numero est actuellement en stock. Que s\'est-il passe ?',
+                [
+                    { value: 'typo', label: 'Erreur de saisie - l\'article est toujours en stock', hint: 'La quantite en stock ne change pas.' },
+                    { value: 'gone', label: 'L\'article n\'est plus la (casse, perdu, jamais recu)', hint: 'La quantite en stock sera diminuee de 1.' },
+                ]
+            );
+
+            if (!choix) {
+                return;
+            }
+
             try {
-                await apiRequest(`/product-serials/${btn.dataset.deleteSerial}`, { method: 'DELETE' });
+                const suffixe = choix === 'gone' ? '?adjust_stock=1' : '';
+                await apiRequest(`/product-serials/${btn.dataset.deleteSerial}${suffixe}`, { method: 'DELETE' });
                 await renderProductSerials();
             } catch (error) {
                 window.alert(error.message);
@@ -4577,6 +4610,66 @@ function formatMoney(value) {
  *
  * @returns {Promise<number|null>} l'id choisi, ou null si annulation.
  */
+/**
+ * Pose une question a choix multiples, formulee dans les termes du metier.
+ *
+ * Sert la ou une action a une consequence que le code ne peut pas deviner
+ * (typiquement : supprimer un numero de serie doit-il retirer l'article du
+ * stock ?). Chaque choix affiche sa consequence concrete, pour que
+ * l'utilisateur decide en connaissance de cause plutot que de decouvrir
+ * l'effet plus tard.
+ *
+ * @returns {Promise<string|null>} la valeur choisie, ou null si annulation.
+ */
+function askChoice(title, question, choices) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.innerHTML = `
+            <div class="modal-box" role="dialog" aria-modal="true">
+                <h3>${sanitize(title)}</h3>
+                <div class="modal-body">
+                    <p>${sanitize(question)}</p>
+                    <div class="choice-list">
+                        ${choices.map((choice) => `
+                            <button type="button" class="btn btn-soft choice-btn" data-choice="${sanitize(choice.value)}">
+                                <strong>${sanitize(choice.label)}</strong>
+                                <small>${sanitize(choice.hint ?? '')}</small>
+                            </button>
+                        `).join('')}
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-soft" id="askChoiceCancel">Annuler</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        const done = (value) => {
+            overlay.remove();
+            document.removeEventListener('keydown', onKey);
+            resolve(value);
+        };
+        const onKey = (event) => {
+            if (event.key === 'Escape') {
+                done(null);
+            }
+        };
+
+        document.addEventListener('keydown', onKey);
+        overlay.addEventListener('click', (event) => {
+            if (event.target === overlay) {
+                done(null);
+            }
+        });
+        overlay.querySelector('#askChoiceCancel').addEventListener('click', () => done(null));
+        overlay.querySelectorAll('.choice-btn').forEach((button) => {
+            button.addEventListener('click', () => done(button.dataset.choice));
+        });
+    });
+}
+
 function askWarehouse(question) {
     return new Promise((resolve) => {
         const warehouses = state.lookups?.warehouses ?? [];

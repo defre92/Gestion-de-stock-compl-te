@@ -69,7 +69,10 @@ final class ProductSerialController
     public function destroy(Request $request, int $id): void
     {
         $user = $request->attribute('auth_user');
-        $this->service->delete($id, (int)$user['id'], $_SERVER['REMOTE_ADDR'] ?? null);
+        // ?adjust_stock=1 quand l'utilisateur indique que l'article n'est plus
+        // physiquement la (et non qu'il corrige une erreur de saisie).
+        $adjustStock = filter_var($request->query('adjust_stock', '0'), FILTER_VALIDATE_BOOL);
+        $this->service->delete($id, (int)$user['id'], $_SERVER['REMOTE_ADDR'] ?? null, $adjustStock);
 
         JsonResponse::send(['message' => 'Numero de serie supprime']);
     }
