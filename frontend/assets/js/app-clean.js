@@ -1079,6 +1079,7 @@ async function renderCrud(module) {
             ${renderCrudTable(config, rows, writable, module)}
         </section>
         ${module === 'products' ? '<section class="panel" id="productDetailPane"><h4>Fiche produit</h4><p class="muted">Selectionne un produit pour afficher sa fiche detaillee.</p></section>' : ''}
+        ${module === 'product-variants' && writable ? renderVariantGenerator() : ''}
     `;
 
     const form = document.getElementById('crudForm');
@@ -1101,6 +1102,10 @@ async function renderCrud(module) {
             }
             await renderCrud('products');
         });
+    }
+
+    if (module === 'product-variants' && writable) {
+        setupVariantGenerator();
     }
 
     if (writable) {
@@ -3452,6 +3457,353 @@ async function downloadCsv(path, fileName) {
     link.download = fileName;
     link.click();
     URL.revokeObjectURL(url);
+}
+
+// ---------------------------------------------------------------------------
+// Generateur de variantes en lot
+// ---------------------------------------------------------------------------
+// Creer 5 tailles x 4 couleurs a la main represente 20 saisies identiques a
+// 90%. Ce generateur produit toutes les combinaisons d'un coup. Il est
+// volontairement 100% frontend : il enchaine les memes POST /product-variants
+// que le formulaire unitaire, un par combinaison. Pas de nouvelle route, pas
+// de migration, pas de transaction cote serveur - et donc aucun risque pour
+// l'existant. La contrepartie est qu'un lot peut aboutir partiellement ; le
+// rapport de fin liste precisement ce qui est passe et ce qui a echoue, et
+// relancer le meme lot ignore ce qui existe deja (aucun doublon).
+
+// Rapport conserve entre deux rendus : renderCrud() reconstruit tout le
+// panneau apres la generation, on le reaffiche donc apres coup.
+let lastVariantGenerationReport = null;
+
+const VARIANT_GENERATOR_MAX = 200;
+
+function renderVariantGenerator() {
+    const clothing = state.clothingVariantsEnabled;
+    const bottle = state.bottleVariantsEnabled;
+
+    const attributeFields = [];
+    if (clothing) {
+        attributeFields.push(`
+            <label><span>Tailles / pointures</span>
+                <input type="text" name="gen_sizes" placeholder="S, M, L, XL"></label>`);
+        attributeFields.push(`
+            <label><span>Couleurs</span>
+                <input type="text" name="gen_colors" placeholder="Rouge, Bleu, Noir"></label>`);
+    }
+    if (bottle) {
+        attributeFields.push(`
+            <label><span>Millesimes</span>
+                <input type="text" name="gen_vintages" placeholder="2018, 2019, 2020"></label>`);
+        attributeFields.push(`
+            <label><span>Contenances en cl (nombres entiers)</span>
+                <input type="text" name="gen_volumes" placeholder="37, 75, 150"></label>`);
+    }
+
+    const report = lastVariantGenerationReport;
+    lastVariantGenerationReport = null;
+
+    return `
+        <section class="panel" id="variantGeneratorPanel">
+            <div class="panel-head">
+                <h4>Generer des variantes en lot</h4>
+            </div>
+            <p class="muted">
+                Saisis les valeurs separees par des virgules (ou une par ligne).
+                Toutes les combinaisons possibles seront creees. Laisse un champ
+                vide pour l'exclure des combinaisons.
+            </p>
+            <form id="variantGeneratorForm" class="form-grid">
+                ${selectField('gen_product_id', 'Produit', state.lookups.products, 'id', 'name', true)}
+                <label><span>Prefixe des SKU</span>
+                    <input type="text" name="gen_prefix" id="genPrefix" placeholder="Choisis d'abord un produit"></label>
+                ${attributeFields.join('')}
+                <label><span>Prix (vide = prix du produit)</span>
+                    <input type="number" step="0.01" name="gen_price"></label>
+                <div class="full form-actions">
+                    <button type="button" class="btn btn-soft" id="genPreviewBtn">Previsualiser</button>
+                    <button type="submit" class="btn btn-primary" id="genSubmitBtn" disabled>Generer</button>
+                </div>
+            </form>
+            <p id="genFeedback" class="feedback ${report ? (report.isError ? 'is-error' : 'is-success') : ''}">${report ? sanitize(report.message) : ''}</p>
+            <div id="genPreview">${report?.html ?? ''}</div>
+        </section>
+    `;
+}
+
+/** "S, M , L" ou "S\nM\nL" -> ['S','M','L'], doublons et vides ecartes. */
+function parseVariantList(raw) {
+    const seen = new Set();
+    const values = [];
+
+    for (const part of String(raw ?? '').split(/[,;\n\r]+/)) {
+        const value = part.trim();
+        if (value === '') {
+            continue;
+        }
+
+        const dedupeKey = value.toLocaleUpperCase('fr-FR');
+        if (seen.has(dedupeKey)) {
+            continue;
+        }
+
+        seen.add(dedupeKey);
+        values.push(value);
+    }
+
+    return values;
+}
+
+/** "Rouge fonce" -> "ROUGE-FONCE" : composant de SKU lisible et sans accent. */
+function skuPart(value) {
+    return String(value)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+}
+
+function setupVariantGenerator() {
+    const form = document.getElementById('variantGeneratorForm');
+    const previewBtn = document.getElementById('genPreviewBtn');
+    const submitBtn = document.getElementById('genSubmitBtn');
+    const preview = document.getElementById('genPreview');
+    const feedback = document.getElementById('genFeedback');
+    const prefixInput = document.getElementById('genPrefix');
+    if (!form || !previewBtn || !submitBtn || !preview || !feedback) {
+        return;
+    }
+
+    // Combinaisons validees par la derniere previsualisation. La generation ne
+    // travaille que sur cette liste : impossible de generer autre chose que ce
+    // qui a ete affiche a l'ecran.
+    let plannedCombos = [];
+
+    const invalidate = () => {
+        plannedCombos = [];
+        submitBtn.disabled = true;
+    };
+
+    form.addEventListener('input', invalidate);
+    form.addEventListener('change', invalidate);
+
+    // Le prefixe se pre-remplit avec le SKU du produit, mais reste modifiable.
+    form.elements.gen_product_id?.addEventListener('change', (event) => {
+        const product = state.lookups.products.find((p) => String(p.id) === String(event.target.value));
+        if (prefixInput && product) {
+            prefixInput.value = String(product.sku ?? '');
+        }
+    });
+
+    previewBtn.addEventListener('click', async () => {
+        feedback.className = 'feedback';
+        feedback.textContent = '';
+        preview.innerHTML = '';
+        invalidate();
+
+        const productId = Number(form.elements.gen_product_id?.value ?? 0);
+        if (!productId) {
+            feedback.textContent = 'Choisis un produit.';
+            feedback.classList.add('is-error');
+            return;
+        }
+
+        const prefix = skuPart(prefixInput?.value ?? '');
+        if (prefix === '') {
+            feedback.textContent = 'Le prefixe des SKU est obligatoire.';
+            feedback.classList.add('is-error');
+            return;
+        }
+
+        // Dimensions du produit cartesien, dans l'ordre d'apparition dans le SKU.
+        const dimensions = [];
+        const sizes = parseVariantList(form.elements.gen_sizes?.value);
+        const colors = parseVariantList(form.elements.gen_colors?.value);
+        const vintages = parseVariantList(form.elements.gen_vintages?.value);
+        const volumes = parseVariantList(form.elements.gen_volumes?.value);
+
+        if (sizes.length > 0) {
+            dimensions.push({ key: 'size', values: sizes });
+        }
+        if (colors.length > 0) {
+            dimensions.push({ key: 'color', values: colors });
+        }
+        if (vintages.length > 0) {
+            if (vintages.some((v) => !/^\d{4}$/.test(v))) {
+                feedback.textContent = 'Les millesimes doivent etre des annees a 4 chiffres (ex: 2019).';
+                feedback.classList.add('is-error');
+                return;
+            }
+            dimensions.push({ key: 'vintage', values: vintages });
+        }
+        if (volumes.length > 0) {
+            if (volumes.some((v) => !/^\d{1,5}$/.test(v))) {
+                feedback.textContent = 'Les contenances doivent etre des nombres entiers de cl (ex: 75).';
+                feedback.classList.add('is-error');
+                return;
+            }
+            dimensions.push({ key: 'volume_cl', values: volumes });
+        }
+
+        if (dimensions.length === 0) {
+            feedback.textContent = 'Renseigne au moins une liste de valeurs.';
+            feedback.classList.add('is-error');
+            return;
+        }
+
+        // Produit cartesien de toutes les dimensions renseignees.
+        let combos = [{}];
+        for (const dimension of dimensions) {
+            const next = [];
+            for (const combo of combos) {
+                for (const value of dimension.values) {
+                    next.push({ ...combo, [dimension.key]: value });
+                }
+            }
+            combos = next;
+        }
+
+        if (combos.length > VARIANT_GENERATOR_MAX) {
+            feedback.textContent = `${combos.length} combinaisons demandees, maximum ${VARIANT_GENERATOR_MAX} par lot. Reduis les listes et procede en plusieurs fois.`;
+            feedback.classList.add('is-error');
+            return;
+        }
+
+        // SKU deja utilises par ce produit : on les marque "existe deja" pour
+        // pouvoir relancer un lot elargi sans creer de doublon.
+        let existingSkus = new Set();
+        try {
+            const response = await apiRequest(`/product-variants?product_id=${productId}&per_page=200`);
+            existingSkus = new Set(normalizeRows(response).map((row) => String(row.sku ?? '').toUpperCase()));
+        } catch (error) {
+            feedback.textContent = `Impossible de lire les variantes existantes : ${error.message}`;
+            feedback.classList.add('is-error');
+            return;
+        }
+
+        const price = String(form.elements.gen_price?.value ?? '').trim();
+        const rows = combos.map((combo) => {
+            const parts = dimensions.map((dimension) => skuPart(combo[dimension.key]));
+            const sku = [prefix, ...parts].join('-');
+            return {
+                product_id: productId,
+                sku,
+                size: combo.size ?? '',
+                color: combo.color ?? '',
+                vintage: combo.vintage ?? '',
+                volume_cl: combo.volume_cl ?? '',
+                unit_price: price,
+                is_active: 1,
+                exists: existingSkus.has(sku.toUpperCase()),
+            };
+        });
+
+        plannedCombos = rows.filter((row) => !row.exists);
+        submitBtn.disabled = plannedCombos.length === 0;
+
+        const hasClothing = dimensions.some((d) => d.key === 'size' || d.key === 'color');
+        const hasBottle = dimensions.some((d) => d.key === 'vintage' || d.key === 'volume_cl');
+
+        preview.innerHTML = `
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead><tr>
+                        <th>SKU genere</th>
+                        ${hasClothing ? '<th>Taille</th><th>Couleur</th>' : ''}
+                        ${hasBottle ? '<th>Millesime</th><th>Contenance</th>' : ''}
+                        <th>Etat</th>
+                    </tr></thead>
+                    <tbody>
+                        ${rows.map((row) => `
+                            <tr>
+                                <td>${sanitize(row.sku)}</td>
+                                ${hasClothing ? `<td>${sanitize(row.size || '-')}</td><td>${sanitize(row.color || '-')}</td>` : ''}
+                                ${hasBottle ? `<td>${sanitize(row.vintage || '-')}</td><td>${sanitize(row.volume_cl ? row.volume_cl + ' cl' : '-')}</td>` : ''}
+                                <td>${row.exists ? 'Existe deja - ignoree' : 'A creer'}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        const skipped = rows.length - plannedCombos.length;
+        feedback.textContent = plannedCombos.length === 0
+            ? `Les ${rows.length} combinaisons existent deja, rien a generer.`
+            : `${plannedCombos.length} variante(s) a creer${skipped > 0 ? `, ${skipped} deja existante(s) ignoree(s)` : ''}. Verifie la liste puis clique sur Generer.`;
+        feedback.classList.add(plannedCombos.length === 0 ? 'is-error' : 'is-success');
+    });
+
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (plannedCombos.length === 0) {
+            return;
+        }
+
+        const productId = plannedCombos[0].product_id;
+        const total = plannedCombos.length;
+        submitBtn.disabled = true;
+        previewBtn.disabled = true;
+        feedback.className = 'feedback';
+
+        const failures = [];
+        let created = 0;
+
+        for (const [index, combo] of plannedCombos.entries()) {
+            feedback.textContent = `Creation en cours... ${index + 1} / ${total}`;
+            try {
+                await apiRequest('/product-variants', {
+                    method: 'POST',
+                    body: {
+                        product_id: combo.product_id,
+                        sku: combo.sku,
+                        size: combo.size,
+                        color: combo.color,
+                        vintage: combo.vintage,
+                        volume_cl: combo.volume_cl,
+                        unit_price: combo.unit_price,
+                        is_active: 1,
+                    },
+                });
+                created += 1;
+            } catch (error) {
+                failures.push(`${combo.sku} : ${error.message}`);
+            }
+        }
+
+        // Un produit qui recoit des variantes doit etre marque comme tel, sinon
+        // le selecteur de variante n'apparaitra pas dans les mouvements de stock.
+        let flagged = false;
+        const product = state.lookups.products.find((p) => String(p.id) === String(productId));
+        if (created > 0 && product && Number(product.has_variants) !== 1) {
+            try {
+                await apiRequest(`/products/${productId}`, { method: 'PUT', body: { has_variants: '1' } });
+                flagged = true;
+            } catch (_) {
+                failures.push("Le produit n'a pas pu etre marque comme \"a des variantes\" : fais-le manuellement sur sa fiche.");
+            }
+        }
+
+        const parts = [`${created} variante(s) creee(s) sur ${total}.`];
+        if (flagged) {
+            parts.push('Le produit a ete marque comme "a des variantes".');
+        }
+        if (failures.length > 0) {
+            parts.push(`${failures.length} echec(s).`);
+        }
+
+        lastVariantGenerationReport = {
+            message: parts.join(' '),
+            isError: failures.length > 0,
+            html: failures.length > 0
+                ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>Echecs</th></tr></thead><tbody>${failures.map((f) => `<tr><td>${sanitize(f)}</td></tr>`).join('')}</tbody></table></div>`
+                : '',
+        };
+
+        await refreshLookups();
+        state.pendingVariantProductId = productId;
+        await renderCrud('product-variants');
+    });
 }
 
 function renderCrudTable(config, rows, canWrite, module = '') {

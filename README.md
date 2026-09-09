@@ -69,6 +69,33 @@ apparaissant automatiquement dans le formulaire de mouvement. Tant qu'un
 produit a variantes n'a aucune variante, aucun mouvement ne peut etre
 enregistre dessus (controle cote backend).
 
+**Generation en lot** : le module Variantes propose un panneau "Generer des
+variantes en lot". On choisit le produit, on saisit les listes de valeurs
+separees par des virgules (tailles et couleurs, et/ou millesimes et
+contenances) et le generateur cree toutes les combinaisons. Un vetement en
+5 tailles x 4 couleurs = 20 variantes en une operation au lieu de 20 saisies.
+
+- Le prefixe des SKU se pre-remplit avec le SKU du produit et reste
+  modifiable ; chaque SKU est construit comme `PREFIXE-TAILLE-COULEUR`
+  (accents supprimes, majuscules), par exemple `TSHIRT-001-M-ROUGE`.
+- Le bouton **Previsualiser** affiche la liste complete avant toute
+  ecriture, avec pour chaque ligne son etat ("a creer" ou "existe deja -
+  ignoree"). La generation ne porte que sur ce qui a ete affiche.
+- Relancer un lot elargi ne cree aucun doublon : les SKU deja presents sur
+  le produit sont ignores.
+- Le produit est automatiquement marque `has_variants = 1` si ce n'etait pas
+  deja le cas, sans quoi le selecteur de variante n'apparaitrait pas dans les
+  mouvements de stock.
+- Plafond de 200 combinaisons par lot, pour eviter une saisie accidentelle
+  qui lancerait des milliers de creations.
+
+Techniquement, le generateur est **entierement cote frontend** : il enchaine
+les memes `POST /product-variants` que le formulaire unitaire, une requete par
+combinaison. Aucune route ni migration supplementaire. La contrepartie est
+qu'un lot peut aboutir partiellement (coupure reseau, SKU en conflit) : le
+rapport de fin liste alors precisement les echecs, et il suffit de relancer le
+lot, les variantes deja creees etant ignorees.
+
 **Pourquoi une seule table plutot que deux** : le stock, les mouvements,
 les alertes, les livraisons, les achats et les inventaires ne raisonnent
 tous qu'en `variant_id` - ils sont deja entierement agnostiques du type
