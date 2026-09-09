@@ -39,6 +39,6 @@ final class PurchaseRequestController
         $user = $request->attribute('auth_user');
         $this->service->updateStatus($id, (string)$request->input('status', ''), (int)$user['id'], $_SERVER['REMOTE_ADDR'] ?? null);
 
-        JsonResponse::send(['message' => 'Status updated']);
+        JsonResponse::send(['message' => 'Statut mis a jour']);
     }
 }

@@ -38,7 +38,7 @@ final class CrudService
         $id = $this->repository->create($payload);
 
         if ($id <= 0) {
-            throw new HttpException('Invalid payload', 422);
+            throw new HttpException('Donnees invalides', 422);
         }
 
         $this->auditRepository->log($actorId, 'CREATE', $this->entityType, $id, $payload, $ip);
@@ -49,7 +49,7 @@ final class CrudService
     {
         $this->findById($id);
         if (!$this->repository->update($id, $payload)) {
-            throw new HttpException('No data updated', 422);
+            throw new HttpException('Aucune donnee mise a jour', 422);
         }
 
         $this->auditRepository->log($actorId, 'UPDATE', $this->entityType, $id, $payload, $ip);

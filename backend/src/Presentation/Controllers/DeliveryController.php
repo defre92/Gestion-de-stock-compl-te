@@ -43,6 +43,6 @@ final class DeliveryController
         $user = $request->attribute('auth_user');
         $this->service->cancel($id, (int)$user['id'], $_SERVER['REMOTE_ADDR'] ?? null);
 
-        JsonResponse::send(['message' => 'Delivery cancelled']);
+        JsonResponse::send(['message' => 'Livraison annulee']);
     }
 }

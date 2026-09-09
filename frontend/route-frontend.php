@@ -67,6 +67,15 @@ $tenant += [
     'support_email' => '',
     'footer_text' => '',
 ];
-$tenantLogoUrl = $tenant['logo_file']
-    ? FRONTEND_BASE_URL . '/assets/img/brand/' . rawurlencode($tenant['logo_file'])
+// Le logo par defaut sert aussi de filet de securite : si TENANT_LOGO_FILE
+// designe un fichier absent du serveur (renommage, upload rate), on retombe
+// dessus au lieu d'afficher une image cassee sur l'ecran de connexion.
+$brandDir = __DIR__ . '/assets/img/brand/';
+$tenantLogoFile = $tenant['logo_file'];
+if ($tenantLogoFile !== null && !is_file($brandDir . $tenantLogoFile)) {
+    $tenantLogoFile = null;
+}
+
+$tenantLogoUrl = $tenantLogoFile
+    ? FRONTEND_BASE_URL . '/assets/img/brand/' . rawurlencode($tenantLogoFile)
     : FRONTEND_BASE_URL . '/assets/img/brand/lm-code-monogram.svg';

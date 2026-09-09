@@ -163,7 +163,8 @@ const crudModules = {
     products: {
         endpoint: '/products',
         label: 'produit',
-        fields: [
+        get fields() {
+            const fields = [
             { key: 'sku', label: 'SKU', type: 'text', required: true },
             { key: 'barcode', label: 'Code barre', type: 'text' },
             { key: 'name', label: 'Nom', type: 'text', required: true },
@@ -196,12 +197,22 @@ const crudModules = {
                 { value: '1', label: 'Oui' },
                 { value: '0', label: 'Non' },
             ] },
-            { key: 'has_variants', label: 'Ce produit a des variantes (taille/couleur)', type: 'select', options: [
-                { value: '0', label: 'Non' },
-                { value: '1', label: 'Oui - gerer les variantes dans le module dedie' },
-            ] },
-            { key: 'tag_ids', label: 'Tags', type: 'multiselect', optionsFrom: 'tags', optionLabel: 'name', valueFrom: 'tags' },
-        ],
+            ];
+
+            // Le choix "ce produit a des variantes" n'a de sens que si au moins
+            // une des deux options est activee dans Parametres (sinon le module
+            // Variantes est masque et le champ n'aurait nulle part ou etre
+            // exploite). Le libelle s'adapte a l'option reellement active.
+            if (state.clothingVariantsEnabled || state.bottleVariantsEnabled) {
+                fields.push({ key: 'has_variants', label: `Ce produit a des variantes (${variantsAttributesLabel()})`, type: 'select', options: [
+                    { value: '0', label: 'Non' },
+                    { value: '1', label: 'Oui - gerer les variantes dans le module dedie' },
+                ] });
+            }
+
+            fields.push({ key: 'tag_ids', label: 'Tags', type: 'multiselect', optionsFrom: 'tags', optionLabel: 'name', valueFrom: 'tags' });
+            return fields;
+        },
         columns: [
             { key: 'id', label: 'ID' },
             { key: 'sku', label: 'SKU' },
@@ -429,7 +440,7 @@ async function boot() {
     state.bottleVariantsEnabled = String(bottleRow?.setting_value ?? '0') === '1';
 
     const userPill = document.getElementById('userPill');
-    userPill.textContent = `${state.user.full_name} | ${state.user.role}`;
+    userPill.textContent = `${state.user.full_name} | ${localizeValue(state.user.role)}`;
     userPill.addEventListener('click', () => {
         setActiveNav('account');
         renderModule('account');
@@ -444,6 +455,19 @@ async function boot() {
     const initialModule = normalizeModule(requestedModule);
     setActiveNav(initialModule);
     await renderModule(initialModule, false);
+}
+
+function variantsAttributesLabel() {
+    // Decrit les attributs de variante reellement disponibles, pour ne pas
+    // parler de "taille/couleur" quand seule l'option bouteille est active.
+    const parts = [];
+    if (state.clothingVariantsEnabled) {
+        parts.push('taille/couleur');
+    }
+    if (state.bottleVariantsEnabled) {
+        parts.push('millesime/contenance');
+    }
+    return parts.length === 0 ? 'aucune option activee' : parts.join(' ou ');
 }
 
 function syncVariantsSettingState(settingKey, settingValue) {
@@ -1226,20 +1250,47 @@ async function renderCrud(module) {
             }
 
             try {
-                await apiRequest(path, { method, body: payload });
+                const saveResponse = await apiRequest(path, { method, body: payload });
                 await refreshLookups();
                 if (module === 'settings' && ['clothing_variants_enabled', 'bottle_variants_enabled'].includes(payload.setting_key)) {
                     syncVariantsSettingState(payload.setting_key, payload.setting_value);
                 }
+
+                // Un produit "a variantes" fraichement cree n'a encore aucune
+                // variante : il est inutilisable en mouvement tant qu'on n'est
+                // pas passe par le module dedie. On propose donc le raccourci
+                // au lieu de laisser l'utilisateur deviner l'etape suivante.
+                const createdProductId = module === 'products'
+                    && editId === null
+                    && String(payload.has_variants ?? '0') === '1'
+                    ? Number(saveResponse?.data?.id ?? saveResponse?.id ?? 0) || null
+                    : null;
+
+                const wasCreate = editId === null;
                 await renderCrud(module);
                 // renderCrud reconstruit tout le panneau (dont le formulaire),
                 // on recupere donc le nouveau champ de feedback pour y
                 // afficher la confirmation - l'ancien a ete remplace.
                 const freshFeedback = document.getElementById('crudFeedback');
                 if (freshFeedback) {
-                    freshFeedback.textContent = editId === null ? 'Cree avec succes.' : 'Modifie avec succes.';
+                    freshFeedback.textContent = wasCreate ? 'Cree avec succes.' : 'Modifie avec succes.';
                     freshFeedback.classList.remove('is-error');
                     freshFeedback.classList.add('is-success');
+
+                    if (createdProductId) {
+                        freshFeedback.textContent = 'Produit cree. Il utilise des variantes : ajoute-les pour pouvoir enregistrer des mouvements de stock.';
+                        const gotoBtn = document.createElement('button');
+                        gotoBtn.type = 'button';
+                        gotoBtn.className = 'btn btn-primary';
+                        gotoBtn.style.marginLeft = '12px';
+                        gotoBtn.textContent = 'Ajouter les variantes';
+                        gotoBtn.addEventListener('click', async () => {
+                            state.pendingVariantProductId = createdProductId;
+                            setActiveNav('product-variants');
+                            await renderModule('product-variants');
+                        });
+                        freshFeedback.appendChild(gotoBtn);
+                    }
                 }
             } catch (error) {
                 feedback.textContent = error.message;
@@ -1296,10 +1347,10 @@ async function renderMovements() {
                 ${selectField('warehouse_id', 'Entrepot source', state.lookups.warehouses, 'id', 'name', true)}
                 ${selectField('destination_warehouse_id', 'Entrepot destination', state.lookups.warehouses, 'id', 'name', false)}
                 <label><span>Type</span><select name="type" required>
-                    <option value="IN">IN</option>
-                    <option value="OUT">OUT</option>
-                    <option value="ADJUSTMENT">ADJUSTMENT</option>
-                    <option value="TRANSFER">TRANSFER</option>
+                    <option value="IN">Entree</option>
+                    <option value="OUT">Sortie</option>
+                    <option value="ADJUSTMENT">Ajustement</option>
+                    <option value="TRANSFER">Transfert</option>
                 </select></label>
                 <label><span>Quantite</span><input type="number" name="quantity" min="1" required></label>
                 ${selectField('customer_id', 'Client (sortie)', state.lookups.customers, 'id', 'name', false)}
@@ -2082,7 +2133,7 @@ async function renderInventories() {
             ${writable ? `
             <form id="inventorySessionForm" class="form-grid">
                 ${selectField('warehouse_id', 'Entrepot', state.lookups.warehouses, 'id', 'name', true)}
-                <label><span>Mode</span><select name="counting_mode"><option value="GLOBAL">GLOBAL</option><option value="CYCLE">CYCLE</option></select></label>
+                <label><span>Mode</span><select name="counting_mode"><option value="GLOBAL">Global</option><option value="CYCLE">Tournant</option></select></label>
                 <label class="full"><span>Notes</span><textarea name="notes"></textarea></label>
                 <button type="submit" class="btn btn-primary">Creer une session</button>
                 <p id="inventorySessionFeedback" class="feedback"></p>
@@ -2541,10 +2592,10 @@ async function renderPurchaseOrders() {
             <form id="orderStatusForm" class="form-grid">
                 <label><span>Commande</span><select name="purchase_order_id" required><option value="">Choisir</option>${orderOptions}</select></label>
                 <label><span>Nouveau statut</span><select name="status" required>
-                    <option value="PENDING">PENDING</option>
-                    <option value="PARTIAL">PARTIAL</option>
-                    <option value="RECEIVED">RECEIVED</option>
-                    <option value="CANCELLED">CANCELLED</option>
+                    <option value="PENDING">En attente</option>
+                    <option value="PARTIAL">Partielle</option>
+                    <option value="RECEIVED">Recue</option>
+                    <option value="CANCELLED">Annulee</option>
                 </select></label>
                 <button type="submit" class="btn btn-soft">Mettre a jour statut</button>
                 <p id="orderStatusFeedback" class="feedback"></p>
@@ -3020,10 +3071,10 @@ async function renderProductDetail(productId) {
                     <small class="field-hint">Ce produit utilise des variantes : choisis celle concernee par ce mouvement.</small>
                 </div>
                 <label><span>Type</span><select name="type" required>
-                    <option value="IN">IN</option>
-                    <option value="OUT">OUT</option>
-                    <option value="ADJUSTMENT">ADJUSTMENT</option>
-                    <option value="TRANSFER">TRANSFER</option>
+                    <option value="IN">Entree</option>
+                    <option value="OUT">Sortie</option>
+                    <option value="ADJUSTMENT">Ajustement</option>
+                    <option value="TRANSFER">Transfert</option>
                 </select></label>
                 <label><span>Quantite</span><input type="number" min="1" name="quantity" required></label>
                 ${selectField('customer_id', 'Client (sortie)', state.lookups.customers, 'id', 'name', false)}
@@ -3060,7 +3111,7 @@ async function renderProductDetail(productId) {
         <div class="tab-panel hidden" data-tab-panel="media">
             ${canManageProduct ? `
             <form id="productMediaUploadForm" class="form-grid">
-                <label><span>Type media</span><select name="media_type"><option value="IMAGE">IMAGE</option><option value="DOCUMENT">DOCUMENT</option></select></label>
+                <label><span>Type media</span><select name="media_type"><option value="IMAGE">Image</option><option value="DOCUMENT">Document</option></select></label>
                 <label><span>Fichier</span><input type="file" name="file" required></label>
                 <button type="submit" class="btn btn-primary">Televerser un media</button>
                 <p class="feedback" id="mediaUploadFeedback"></p>
@@ -3410,7 +3461,7 @@ function renderCrudTable(config, rows, canWrite, module = '') {
     const rowCells = rows.map((row) => {
         const cells = config.columns.map((column) => {
             const value = row[column.key];
-            const display = column.format ? column.format(value, row) : sanitize(localizeValue(value));
+            const display = column.format ? column.format(value, row) : sanitize(localizeValue(value, column.key));
             return `<td>${display}</td>`;
         }).join('');
 
@@ -3592,7 +3643,7 @@ function renderSimpleTable(rows, columns) {
     const body = rows.map((row) => {
         const cells = columns.map(([key, , formatter]) => {
             const value = row[key];
-            const display = formatter ? formatter(value, row) : sanitize(localizeValue(value));
+            const display = formatter ? formatter(value, row) : sanitize(localizeValue(value, key));
             return `<td>${display}</td>`;
         }).join('');
 
@@ -3725,29 +3776,72 @@ function showModal(title, bodyHtml) {
     document.addEventListener('keydown', onEscape);
 }
 
-function localizeValue(value) {
-    // Traduction simple des statuts techniques vers des libelles lisibles.
-    const v = String(value ?? '');
-    const map = {
-        ACTIVE: 'Actif',
-        INACTIVE: 'Inactif',
-        PENDING: 'En attente',
-        PARTIAL: 'Partielle',
-        RECEIVED: 'Recue',
-        CANCELLED: 'Annulee',
-        DRAFT: 'Brouillon',
-        SUBMITTED: 'Soumise',
-        APPROVED: 'Approuvee',
-        REJECTED: 'Rejetee',
-        CONVERTED: 'Convertie',
-        COMPLETED: 'Terminee',
-        OPEN: 'Ouverte',
-        ACKNOWLEDGED: 'Accusee',
-        RESOLVED: 'Resolue',
-        WARNING: 'Avertissement',
-        CRITICAL: 'Critique',
-        INFO: 'Information',
-    };
+// Colonnes dont la valeur est une donnee saisie par l'utilisateur (SKU, code,
+// nom...) et non un statut technique : on ne les traduit jamais, sans quoi une
+// unite dont le code est "IN" (pouce) s'afficherait "Entree".
+const RAW_VALUE_KEYS = new Set([
+    'sku', 'product_sku', 'code', 'barcode', 'name', 'product_name', 'full_name',
+    'contact_name', 'email', 'phone', 'address', 'description', 'reference',
+    'unit_code', 'warehouse_code', 'destination_warehouse_code', 'serial_number',
+    'setting_key', 'setting_value', 'descriptor', 'variant_sku', 'note', 'notes',
+    'category_name', 'brand_name', 'supplier_name', 'customer_name', 'size', 'color',
+]);
 
-    return map[v] ?? value;
+const VALUE_LABELS = {
+    // Statuts generiques
+    ACTIVE: 'Actif',
+    INACTIVE: 'Inactif',
+    PENDING: 'En attente',
+    PARTIAL: 'Partielle',
+    RECEIVED: 'Recue',
+    CANCELLED: 'Annulee',
+    DRAFT: 'Brouillon',
+    SUBMITTED: 'Soumise',
+    APPROVED: 'Approuvee',
+    REJECTED: 'Rejetee',
+    CONVERTED: 'Convertie',
+    COMPLETED: 'Terminee',
+    IN_PROGRESS: 'En cours',
+    VALIDATED: 'Validee',
+    OPEN: 'Ouverte',
+    ACKNOWLEDGED: 'Accusee',
+    RESOLVED: 'Resolue',
+    WARNING: 'Avertissement',
+    CRITICAL: 'Critique',
+    INFO: 'Information',
+    // Types de mouvement de stock
+    IN: 'Entree',
+    OUT: 'Sortie',
+    ADJUSTMENT: 'Ajustement',
+    TRANSFER: 'Transfert',
+    // Types d'inventaire
+    GLOBAL: 'Global',
+    CYCLE: 'Tournant',
+    // Types d'alerte
+    LOW_STOCK: 'Stock bas',
+    OUT_OF_STOCK: 'Rupture',
+    OVERSTOCK: 'Surstock',
+    PO_DELAY: 'Retard commande',
+    // Etats de tache d'import
+    RUNNING: 'En cours',
+    DONE: 'Terminee',
+    FAILED: 'Echouee',
+    // Types de piece jointe
+    IMAGE: 'Image',
+    DOCUMENT: 'Document',
+    // Profils utilisateur
+    ADMIN: 'Administrateur',
+    MANAGER: 'Responsable',
+    STOREKEEPER: 'Magasinier',
+    VIEWER: 'Lecture seule',
+};
+
+function localizeValue(value, key = null) {
+    // Traduction simple des statuts techniques vers des libelles lisibles.
+    // `key` (nom de la colonne) permet d'ecarter les colonnes de donnees libres.
+    if (key !== null && RAW_VALUE_KEYS.has(key)) {
+        return value;
+    }
+
+    return VALUE_LABELS[String(value ?? '')] ?? value;
 }

@@ -37,7 +37,7 @@ final class UserController
     {
         $user = $request->attribute('auth_user');
         $this->service->update($id, $request->input(), (int)$user['id'], $_SERVER['REMOTE_ADDR'] ?? null);
-        JsonResponse::send(['message' => 'Updated']);
+        JsonResponse::send(['message' => 'Mis a jour']);
     }
 
     public function resetPassword(Request $request, int $id): void
@@ -49,7 +49,7 @@ final class UserController
             (int)$user['id'],
             $_SERVER['REMOTE_ADDR'] ?? null
         );
-        JsonResponse::send(['message' => 'Password reset']);
+        JsonResponse::send(['message' => 'Mot de passe reinitialise']);
     }
 
     public function changeOwnPassword(Request $request): void
@@ -61,7 +61,7 @@ final class UserController
             (string)$request->input('new_password', ''),
             $_SERVER['REMOTE_ADDR'] ?? null
         );
-        JsonResponse::send(['message' => 'Password changed']);
+        JsonResponse::send(['message' => 'Mot de passe modifie']);
     }
 
     public function destroy(Request $request, int $id): void

@@ -27,7 +27,7 @@ final class InventoryService
     {
         $session = $this->repository->findSession($id);
         if (!$session) {
-            throw new HttpException('Inventory session not found', 404);
+            throw new HttpException('Session d\'inventaire introuvable', 404);
         }
 
         return $session;
@@ -37,7 +37,7 @@ final class InventoryService
     {
         $warehouseId = (int)($payload['warehouse_id'] ?? 0);
         if ($warehouseId <= 0) {
-            throw new HttpException('Warehouse is required', 422);
+            throw new HttpException('L\'entrepot est requis', 422);
         }
 
         $code = $payload['code'] ?? ('INV-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 5)));
@@ -60,7 +60,7 @@ final class InventoryService
     {
         $session = $this->findSession($sessionId);
         if (!in_array($session['status'], ['IN_PROGRESS', 'DRAFT'], true)) {
-            throw new HttpException('Session is not editable', 422);
+            throw new HttpException('Cette session n\'est plus modifiable', 422);
         }
 
         $productId = (int)($payload['product_id'] ?? 0);
@@ -68,7 +68,7 @@ final class InventoryService
         $countedQty = (int)($payload['counted_qty'] ?? 0);
 
         if ($productId <= 0 || $countedQty < 0) {
-            throw new HttpException('Invalid count payload', 422);
+            throw new HttpException('Donnees de comptage invalides', 422);
         }
 
         $product = $this->productRepository->findById($productId);
@@ -101,7 +101,7 @@ final class InventoryService
         $session = $this->findSession($sessionId);
 
         if ($session['status'] === 'COMPLETED') {
-            throw new HttpException('Session already completed', 422);
+            throw new HttpException('Session deja cloturee', 422);
         }
 
         // Un meme produit peut avoir ete compte plusieurs fois dans la session

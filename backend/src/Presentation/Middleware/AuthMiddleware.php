@@ -18,7 +18,7 @@ final class AuthMiddleware
     {
         $token = $request->cookie(AuthCookie::NAME);
         if (!$token) {
-            throw new HttpException('Missing session cookie', 401);
+            throw new HttpException('Session expiree', 401);
         }
 
         $user = $this->authService->resolveUserByToken($token);

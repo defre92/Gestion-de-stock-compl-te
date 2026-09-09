@@ -18,7 +18,7 @@ final class ImportController
         $user = $request->attribute('auth_user');
         $file = $request->file('file');
         if (!$file) {
-            JsonResponse::send(['message' => 'file is required'], 422);
+            JsonResponse::send(['message' => 'Le fichier est requis'], 422);
             return;
         }
 

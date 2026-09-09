@@ -51,12 +51,12 @@ final class StockService
         $destinationWarehouseId = isset($payload['destination_warehouse_id']) ? (int)$payload['destination_warehouse_id'] : null;
 
         if ($productId <= 0 || $warehouseId <= 0 || $quantity <= 0 || !in_array($type, ['IN', 'OUT', 'ADJUSTMENT', 'TRANSFER'], true)) {
-            throw new HttpException('Invalid stock movement payload', 422);
+            throw new HttpException('Donnees de mouvement de stock invalides', 422);
         }
 
         $product = $this->productRepository->findById($productId);
         if (!$product) {
-            throw new HttpException('Product not found', 404);
+            throw new HttpException('Produit introuvable', 404);
         }
 
         if ((int)($product['has_variants'] ?? 0) === 1 && $variantId === null) {
@@ -65,7 +65,7 @@ final class StockService
 
         $warehouse = $this->warehouseRepository->findById($warehouseId);
         if (!$warehouse) {
-            throw new HttpException('Warehouse not found', 404);
+            throw new HttpException('Entrepot introuvable', 404);
         }
 
         $pdo = Database::connection();
@@ -84,23 +84,23 @@ final class StockService
             } elseif ($type === 'OUT') {
                 $nextQty = $currentQty - $quantity;
                 if ($nextQty < 0) {
-                    throw new HttpException('Insufficient stock', 422);
+                    throw new HttpException('Stock insuffisant', 422);
                 }
             } elseif ($type === 'ADJUSTMENT') {
                 $nextQty = $quantity;
             } else {
                 if (!$destinationWarehouseId || $destinationWarehouseId === $warehouseId) {
-                    throw new HttpException('A valid destination warehouse is required for transfer', 422);
+                    throw new HttpException('Un entrepot de destination valide est requis pour un transfert', 422);
                 }
 
                 $destinationWarehouse = $this->warehouseRepository->findById($destinationWarehouseId);
                 if (!$destinationWarehouse) {
-                    throw new HttpException('Destination warehouse not found', 404);
+                    throw new HttpException('Entrepot de destination introuvable', 404);
                 }
 
                 $nextQty = $currentQty - $quantity;
                 if ($nextQty < 0) {
-                    throw new HttpException('Insufficient stock for transfer', 422);
+                    throw new HttpException('Stock insuffisant pour ce transfert', 422);
                 }
 
                 $destinationCurrent = $this->productRepository->stockLevel($productId, $destinationWarehouseId, $variantId);

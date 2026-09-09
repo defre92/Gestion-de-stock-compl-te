@@ -31,7 +31,7 @@ final class PurchaseOrderService
     {
         $order = $this->repository->findById($id);
         if (!$order) {
-            throw new HttpException('Purchase order not found', 404);
+            throw new HttpException('Commande d\'achat introuvable', 404);
         }
 
         return $order;
@@ -45,20 +45,20 @@ final class PurchaseOrderService
         $purchaseRequestId = (int)($payload['purchase_request_id'] ?? 0);
 
         if (!is_array($items) || $items === []) {
-            throw new HttpException('At least one item is required', 422);
+            throw new HttpException('Au moins un article est requis', 422);
         }
         if ($supplierId <= 0 || $warehouseId <= 0) {
-            throw new HttpException('Supplier and warehouse are required', 422);
+            throw new HttpException('Le fournisseur et l\'entrepot sont requis', 422);
         }
 
         $purchaseRequest = null;
         if ($purchaseRequestId > 0) {
             $purchaseRequest = $this->purchaseRequestRepository->findById($purchaseRequestId);
             if (!$purchaseRequest) {
-                throw new HttpException('Purchase request not found', 404);
+                throw new HttpException('Demande d\'achat introuvable', 404);
             }
             if (!in_array($purchaseRequest['status'], ['SUBMITTED', 'APPROVED'], true)) {
-                throw new HttpException('Purchase request cannot be converted in its current status', 422);
+                throw new HttpException('Cette demande d\'achat ne peut pas etre convertie dans son statut actuel', 422);
             }
         }
 
@@ -69,7 +69,7 @@ final class PurchaseOrderService
             $unitCost = (float)($item['unit_cost'] ?? 0);
 
             if ($qty <= 0 || $unitCost < 0) {
-                throw new HttpException("Invalid item at index {$index}", 422);
+                throw new HttpException("Article invalide a la ligne {$index}", 422);
             }
 
             if ($productId > 0) {
@@ -125,12 +125,12 @@ final class PurchaseOrderService
         $allowed = ['DRAFT', 'PENDING', 'PARTIAL', 'RECEIVED', 'CANCELLED'];
         $status = strtoupper((string)($payload['status'] ?? ''));
         if (!in_array($status, $allowed, true)) {
-            throw new HttpException('Invalid status', 422);
+            throw new HttpException('Statut invalide', 422);
         }
 
         $order = $this->repository->findById($id);
         if (!$order) {
-            throw new HttpException('Purchase order not found', 404);
+            throw new HttpException('Commande d\'achat introuvable', 404);
         }
 
         $this->repository->updateStatus($id, $status);
@@ -141,16 +141,16 @@ final class PurchaseOrderService
     {
         $order = $this->repository->findById($id);
         if (!$order) {
-            throw new HttpException('Purchase order not found', 404);
+            throw new HttpException('Commande d\'achat introuvable', 404);
         }
 
         if (in_array($order['status'], ['CANCELLED', 'RECEIVED'], true)) {
-            throw new HttpException('Purchase order cannot be received in current status', 422);
+            throw new HttpException('Cette commande d\'achat ne peut pas etre receptionnee dans son statut actuel', 422);
         }
 
         $items = $payload['items'] ?? [];
         if (!is_array($items) || $items === []) {
-            throw new HttpException('At least one received item is required', 422);
+            throw new HttpException('Au moins un article recu est requis', 422);
         }
 
         $indexedItems = [];
@@ -170,7 +170,7 @@ final class PurchaseOrderService
                 $receivedQty = (int)($line['quantity_received'] ?? 0);
 
                 if ($itemId <= 0 || $receivedQty <= 0) {
-                    throw new HttpException('Invalid received line payload', 422);
+                    throw new HttpException('Donnees de ligne recue invalides', 422);
                 }
 
                 if (!isset($indexedItems[$itemId])) {

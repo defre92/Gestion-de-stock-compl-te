@@ -18,7 +18,7 @@ final class AuthService
     /** Fenetre glissante (minutes) sur laquelle les echecs sont comptes. */
     private const WINDOW_MINUTES = 15;
     /** Duree de vie glissante d'un token: renouvelee a chaque requete authentifiee. */
-    private const TOKEN_TTL_DAYS = 30;
+    private const TOKEN_TTL_DAYS = 7;
 
     public function __construct(
         private readonly UserRepositoryInterface $userRepository,
@@ -47,12 +47,12 @@ final class AuthService
 
         if (!$user || !$this->passwordService->verify($password, $user['password_hash'])) {
             $this->loginAttemptRepository->record($email, $ipAddress, false);
-            throw new HttpException('Invalid credentials', 401);
+            throw new HttpException('Identifiants invalides', 401);
         }
 
         if (!(bool)$user['is_active']) {
             $this->loginAttemptRepository->record($email, $ipAddress, false);
-            throw new HttpException('Inactive account', 403);
+            throw new HttpException('Compte inactif', 403);
         }
 
         $this->loginAttemptRepository->record($email, $ipAddress, true);
@@ -101,7 +101,7 @@ final class AuthService
         $user = $this->userRepository->findByTokenHash($tokenHash);
 
         if (!$user || !(bool)$user['is_active']) {
-            throw new HttpException('Unauthorized', 401);
+            throw new HttpException('Session non autorisee', 401);
         }
 
         if (isset($user['token_id'])) {

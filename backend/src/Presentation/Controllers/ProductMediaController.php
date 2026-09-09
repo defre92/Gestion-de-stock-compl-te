@@ -24,13 +24,13 @@ final class ProductMediaController
     {
         $product = $this->productRepository->findById($productId);
         if (!$product) {
-            JsonResponse::send(['message' => 'Product not found'], 404);
+            JsonResponse::send(['message' => 'Produit introuvable'], 404);
             return;
         }
 
         $file = $request->file('file');
         if (!$file) {
-            JsonResponse::send(['message' => 'file is required'], 422);
+            JsonResponse::send(['message' => 'Le fichier est requis'], 422);
             return;
         }
 
@@ -62,13 +62,13 @@ final class ProductMediaController
     {
         $media = $this->mediaRepository->findById($id);
         if (!$media) {
-            JsonResponse::send(['message' => 'Media not found'], 404);
+            JsonResponse::send(['message' => 'Media introuvable'], 404);
             return;
         }
 
         $path = (string)($media['file_path'] ?? '');
         if ($path === '' || !is_file($path)) {
-            JsonResponse::send(['message' => 'File not found on disk'], 404);
+            JsonResponse::send(['message' => 'Fichier introuvable sur le serveur'], 404);
             return;
         }
 

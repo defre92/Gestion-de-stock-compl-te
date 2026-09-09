@@ -23,8 +23,9 @@ Application de gestion de stock professionnelle avec separation stricte Frontend
 ## Fonctionnalites principales
 
 - Referentiels: produits, categories, unites, marques, taxes, tags.
-- Variantes produit (optionnel): taille/couleur par produit, stock et
-  mouvements suivis par variante. Voir section dediee plus bas.
+- Variantes produit (optionnel): taille/couleur **ou** millesime/contenance
+  par produit, stock et mouvements suivis par variante. Voir section dediee
+  plus bas.
 - Tiers: fournisseurs et clients.
 - Stock: entrees, sorties, transferts, ajustements, inventaires.
 - Achats: commandes, receptions partielles/totales, suivi des statuts.
@@ -46,11 +47,27 @@ concernee :
   spiritueux, boissons).
 
 Les deux cles se creent dans l'ecran Parametres. Des qu'au moins une des
-deux est activee, l'entree "Variantes" apparait dans le menu Admin - avec
-un seul et meme module (pas deux ecrans separes) : chaque variante ne
-remplit que les champs qui la concernent (taille/couleur OU
-millesime/contenance), les autres restent vides. Le module reste masque
-si aucune des deux n'est activee.
+deux est activee, l'entree "Variantes" apparait dans le menu lateral sous
+**Referentiels**, juste apres Produits - avec un seul et meme module (pas
+deux ecrans separes) : chaque variante ne remplit que les champs qui la
+concernent (taille/couleur OU millesime/contenance), les autres restent
+vides. Le module reste masque si aucune des deux n'est activee.
+
+Le formulaire suit la meme regle : le champ "Ce produit a des variantes"
+n'apparait sur la fiche produit que si au moins une option est active, et
+son libelle s'adapte a l'option reellement activee (taille/couleur,
+millesime/contenance, ou les deux). Les champs de la variante elle-meme
+(taille, couleur / millesime, contenance) n'apparaissent que dans le module
+Variantes, jamais dans le formulaire produit : un produit porte **plusieurs**
+variantes, il ne peut donc pas les saisir sur sa propre fiche.
+
+**Parcours de saisie** : creer le produit avec "Ce produit a des variantes =
+Oui" -> le message de confirmation propose directement un bouton "Ajouter les
+variantes" qui ouvre le module deja filtre sur ce produit -> creer les
+variantes -> enregistrer les mouvements de stock, le selecteur de variante
+apparaissant automatiquement dans le formulaire de mouvement. Tant qu'un
+produit a variantes n'a aucune variante, aucun mouvement ne peut etre
+enregistre dessus (controle cote backend).
 
 **Pourquoi une seule table plutot que deux** : le stock, les mouvements,
 les alertes, les livraisons, les achats et les inventaires ne raisonnent
@@ -130,12 +147,21 @@ Parametres, jamais ecrases si l'installateur est relance sur une base
 existante), et enregistre le logo dans `frontend/assets/img/brand/`.
 
 ### 4. Apres l'installation - IMPORTANT
-**Supprimer `frontend/install.php` via FTP immediatement apres usage.** Tant
-qu'il reste en ligne, quiconque connait (ou devine) la cle d'installation peut
-le relancer. Une reconfiguration nécessite de toute facon de recreer
-`config/install.key` (il est supprime automatiquement apres chaque installation
-reussie), ce qui offre une double protection meme si l'oubli de suppression
-du fichier arrive.
+**Supprimer `frontend/install.php` via FTP immediatement apres usage.**
+
+Trois protections se cumulent desormais, mais aucune ne remplace la
+suppression du fichier :
+
+1. **Verrou dur** : des que `config/.installed` existe, `install.php` refuse
+   categoriquement de s'executer et renvoie une page 403. Il n'y a plus
+   d'option "reconfigurer quand meme". Pour reinstaller volontairement il
+   faut supprimer `config/.installed` via FTP - ce qui suppose un acces
+   serveur, donc d'etre l'exploitant de l'instance.
+2. **Cle d'installation** : `config/install.key` est supprime automatiquement
+   apres chaque installation reussie, et sans lui la page n'affiche que les
+   instructions de creation de la cle.
+3. **Anti-brute-force** : chaque tentative de cle incorrecte est ralentie de
+   500 ms.
 
 ### A verifier apres l'installation
 - Que l'utilisateur systeme du serveur web (souvent `www-data`) a bien les
@@ -302,18 +328,32 @@ CREATE DATABASE IF NOT EXISTS gestion_stock
   COLLATE utf8mb4_unicode_ci;
 ```
 
-4. Configurer les acces MySQL dans `config/database.php`.
+4. Configurer les acces MySQL. `config/database.php` ne contient **aucune
+valeur en dur** : il lit les variables d'environnement chargees depuis
+`backend/.env` (via `config/env-loader.php`). C'est donc `backend/.env`
+qu'il faut renseigner, en partant de `backend/.env.example` :
 
-Exemple:
+```dotenv
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=gestion_stock
+DB_USER=root
+DB_PASS=
+DB_CHARSET=utf8mb4
+```
+
+Pour memoire, la structure retournee par `config/database.php` (a ne
+modifier qu'en connaissance de cause - noter la cle `name`, et non
+`dbname`) :
 
 ```php
 return [
-    'host' => '127.0.0.1',
-    'port' => 3306,
-    'dbname' => 'gestion_stock',
-    'username' => 'root',
-    'password' => '',
-    'charset' => 'utf8mb4',
+    'host'     => getenv('DB_HOST') ?: '127.0.0.1',
+    'port'     => (int)(getenv('DB_PORT') ?: 3306),
+    'name'     => getenv('DB_NAME') ?: 'gestion_stock',
+    'username' => getenv('DB_USER') ?: 'root',
+    'password' => getenv('DB_PASS') ?: '',
+    'charset'  => getenv('DB_CHARSET') ?: 'utf8mb4',
 ];
 ```
 
@@ -364,11 +404,12 @@ d'un client B.
 - Fichier principal: `config/database.php`
 - Fallback backend: `backend/config/database.php`
 
-Champs a renseigner:
-- `username` = login MySQL
-- `password` = mot de passe MySQL
-- `dbname` = nom de la base
-- `host` et `port` selon votre serveur
+Ces deux fichiers lisent l'environnement, ils ne se modifient pas
+directement. Variables a renseigner dans `backend/.env`:
+- `DB_USER` = login MySQL
+- `DB_PASS` = mot de passe MySQL
+- `DB_NAME` = nom de la base
+- `DB_HOST` et `DB_PORT` selon votre serveur
 
 ### 2e passe de durcissement (post-livraison client)
 
@@ -376,12 +417,16 @@ En plus de ce qui precede:
 
 - **Cookie httpOnly** remplace le jeton `Bearer` en `localStorage` (voir
   ci-dessus) - `AuthCookie`, `AuthMiddleware`, `http-client.js`.
-- **Expiration glissante des sessions** (30 jours d'inactivite max) au lieu
-  de jetons illimites - `AuthService::TOKEN_TTL_DAYS`.
+- **Expiration glissante des sessions** (7 jours d'inactivite max) au lieu
+  de jetons illimites - `AuthService::TOKEN_TTL_DAYS`, a garder aligne avec
+  `AuthCookie::TTL_DAYS` (duree de vie du cookie cote navigateur).
 - **Content-Security-Policy** avec nonce par requete (aucun `unsafe-inline`
-  sur les scripts) + `X-Content-Type-Options`, `X-Frame-Options`,
-  `Referrer-Policy` - `route-frontend.php`, `backend/public/index.php`,
-  `nginx-gestion-stock.conf.example`.
+  sur les scripts) + `X-Content-Type-Options` et `Referrer-Policy` -
+  `route-frontend.php`, `backend/public/index.php`,
+  `nginx-gestion-stock.conf.example`. La protection contre le clickjacking
+  est assuree par la directive CSP `frame-ancestors 'none'` (et non par un
+  en-tete `X-Frame-Options`, qu'elle remplace sur tous les navigateurs
+  actuels).
 - **Rate limiting nginx** dedie sur `/auth/login` (5 req/min/IP), en plus du
   blocage applicatif deja documente ci-dessus.
 - **`APP_DEBUG`** desactive par defaut si absent du `.env` (fail-safe), au
@@ -413,6 +458,39 @@ En plus de ce qui precede:
   n'est pas disponible (extension `sodium` souvent absente sur du mutualise
   bas de gamme) - sans ce fallback, la creation du premier compte admin
   plantait avec une erreur fatale sur ce type d'hebergement.
+
+### 3e passe - francisation et durcissement complementaire
+
+- **Interface entierement en francais.** Les ~75 messages d'erreur et de
+  confirmation de l'API etaient encore en anglais ("Product not found",
+  "Insufficient stock", "Forbidden"...) : ils sont traduits a la source, dans
+  les `HttpException` et les reponses JSON. Le dictionnaire de repli de
+  `http-client.js` reste en place comme filet de securite.
+- **Statuts techniques traduits a l'affichage.** La fonction
+  `localizeValue()` de `app-clean.js` existait mais son dictionnaire etait
+  incomplet : `DRAFT`, `IN`, `OUT`, `ADJUSTMENT`, `TRANSFER`, `LOW_STOCK`,
+  `ADMIN`... s'affichaient bruts dans les tableaux. Dictionnaire complete,
+  libelles des listes deroulantes traduits, et badge utilisateur qui affichait
+  "ADMIN" au lieu de "Administrateur". **Les valeurs stockees en base et
+  envoyees a l'API sont inchangees**, seul l'affichage est traduit.
+  Une liste `RAW_VALUE_KEYS` protege les colonnes de donnees libres (SKU,
+  code, nom...) pour qu'une unite dont le code est `IN` (pouce) ne s'affiche
+  pas "Entree".
+- **Installateur verrouille apres installation** (voir section Installation).
+- **Session ramenee de 30 a 7 jours** d'inactivite.
+- **Logo par defaut** : `frontend/assets/img/brand/lm-code-monogram.svg` est
+  desormais present dans le depot. Il etait reference comme favicon par
+  `index.php` et `login.php` et comme logo de repli par `route-frontend.php`
+  sans exister, ce qui cassait le favicon sur toutes les pages. En prime,
+  `route-frontend.php` verifie l'existence du logo du client avant de
+  l'utiliser et retombe sur ce monogramme s'il a disparu, au lieu d'afficher
+  une image cassee sur l'ecran de connexion.
+- **Dossier `stats/`** (statistiques webalizer de l'hebergeur) : son
+  `.htaccess` etait corrompu (il contenait litteralement
+  `Files HASH(0x...)`, un bug d'interpolation du script qui l'a genere) et ne
+  protegeait donc rien, alors que ces pages exposent les URLs visitees, les
+  IP et les referents. `.htaccess` reecrit, et le dossier est a exclure des
+  livraisons.
 
 ## Migrations et seed interne LM-Code (dev interne uniquement - PAS pour un client)
 **A ne pas confondre avec `frontend/demo-data.php` (section dediee plus haut),

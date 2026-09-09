@@ -15,7 +15,7 @@ final class AuthCookie
     public const NAME = 'gs_token';
 
     /** Duree de vie du cookie cote navigateur (doit rester coherente avec AuthService::TOKEN_TTL_DAYS). */
-    private const TTL_DAYS = 30;
+    private const TTL_DAYS = 7;
 
     public static function issue(string $token): void
     {

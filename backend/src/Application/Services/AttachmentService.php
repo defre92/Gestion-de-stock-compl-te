@@ -21,7 +21,7 @@ final class AttachmentService
     public function listByEntity(string $entityType, int $entityId): array
     {
         if ($entityType === '' || $entityId <= 0) {
-            throw new HttpException('entity_type and entity_id are required', 422);
+            throw new HttpException('entity_type et entity_id sont requis', 422);
         }
 
         return $this->repository->listByEntity($entityType, $entityId);
@@ -32,13 +32,13 @@ final class AttachmentService
         $entityType = strtolower(trim((string)($payload['entity_type'] ?? '')));
         $entityId = (int)($payload['entity_id'] ?? 0);
         if ($entityType === '' || $entityId <= 0) {
-            throw new HttpException('entity_type and entity_id are required', 422);
+            throw new HttpException('entity_type et entity_id sont requis', 422);
         }
 
         $original = (string)($file['name'] ?? '');
         $extension = strtolower(pathinfo($original, PATHINFO_EXTENSION));
         if ($extension === '' || !in_array($extension, self::ALLOWED_EXTENSIONS, true)) {
-            throw new HttpException('Unsupported file type', 422);
+            throw new HttpException('Type de fichier non pris en charge', 422);
         }
 
         $stored = $this->storage->storeUploadedFile($file, 'attachments/' . $entityType);
@@ -66,7 +66,7 @@ final class AttachmentService
     {
         $row = $this->repository->findById($id);
         if (!$row) {
-            throw new HttpException('Attachment not found', 404);
+            throw new HttpException('Piece jointe introuvable', 404);
         }
 
         return $row;

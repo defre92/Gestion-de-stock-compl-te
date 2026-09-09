@@ -205,27 +205,30 @@ code{background:#f1f5f9;padding:2px 6px;border-radius:4px}pre{background:#0f172a
 
 $installKeyValue = trim((string)file_get_contents($keyFile));
 
-if ($alreadyInstalled && ($_POST['confirm_reinstall'] ?? '') !== 'oui') {
+if ($alreadyInstalled) {
+    // Refus categorique une fois l'installation faite : cette page peut
+    // recreer le compte admin et reecrire le branding. Elle n'a aucune raison
+    // de rester actionnable sur une instance en production. Pour reinstaller
+    // volontairement, il faut un acces FTP au serveur (suppression du verrou),
+    // ce qui prouve qu'on est bien l'exploitant de l'instance.
+    http_response_code(403);
     ?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<title>Deja installe</title>
+<title>Installation verrouillee</title>
 <style>body{font-family:system-ui,sans-serif;max-width:640px;margin:60px auto;line-height:1.6;color:#1e293b}
-.warn{background:#fef3c7;border:1px solid #f59e0b;padding:16px;border-radius:8px}</style>
+code{background:#f1f5f9;padding:2px 6px;border-radius:4px}
+.warn{background:#fee2e2;border:1px solid #ef4444;padding:16px;border-radius:8px}</style>
 </head>
 <body>
-<h1>Cette instance est deja installee</h1>
+<h1>Installation deja effectuee</h1>
 <div class="warn">
-<p>Le fichier <code>config/.installed</code> existe deja. Relancer l'installation ne supprime pas les donnees existantes mais va recreer/mettre a jour le compte admin et le branding.</p>
-<form method="post">
-<input type="hidden" name="confirm_reinstall" value="oui">
-<p>Cle d'installation:<br><input type="password" name="install_key" required style="width:100%;padding:8px"></p>
-<button type="submit" style="padding:10px 20px">Reconfigurer quand meme</button>
-</form>
+<p>Cette instance est installee et l'installateur est desormais verrouille : il ne peut plus etre relance depuis le navigateur.</p>
 </div>
-<p>Si ce n'est pas volontaire, ignore cette page et supprime <code>frontend/install.php</code> via FTP.</p>
+<p><strong>Action recommandee :</strong> supprime le fichier <code>frontend/install.php</code> via FTP. Il n'a plus aucune utilite.</p>
+<p>Pour reinstaller volontairement, supprime d'abord <code>config/.installed</code> via FTP, puis recharge cette page.</p>
 </body>
 </html>
     <?php

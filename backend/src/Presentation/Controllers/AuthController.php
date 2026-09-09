@@ -44,6 +44,6 @@ final class AuthController
 
         AuthCookie::forget();
 
-        JsonResponse::send(['message' => 'Logged out']);
+        JsonResponse::send(['message' => 'Deconnecte']);
     }
 }

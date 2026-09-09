@@ -31,7 +31,7 @@ final class DeliveryService
     {
         $delivery = $this->repository->findById($id);
         if (!$delivery) {
-            throw new HttpException('Delivery not found', 404);
+            throw new HttpException('Livraison introuvable', 404);
         }
 
         return $delivery;
@@ -44,10 +44,10 @@ final class DeliveryService
         $warehouseId = (int)($payload['warehouse_id'] ?? 0);
 
         if (!is_array($lines) || $lines === []) {
-            throw new HttpException('At least one line is required', 422);
+            throw new HttpException('Au moins une ligne est requise', 422);
         }
         if ($customerId <= 0 || $warehouseId <= 0) {
-            throw new HttpException('Customer and warehouse are required', 422);
+            throw new HttpException('Le client et l\'entrepot sont requis', 422);
         }
 
         $totalAmount = 0.0;
@@ -61,7 +61,7 @@ final class DeliveryService
                 : null;
 
             if ($productId <= 0 || $qty <= 0 || $unitPrice < 0) {
-                throw new HttpException("Invalid line at index {$index}", 422);
+                throw new HttpException("Ligne invalide a la position {$index}", 422);
             }
 
             $product = $this->productRepository->findById($productId);
@@ -149,10 +149,10 @@ final class DeliveryService
     {
         $delivery = $this->repository->findById($id);
         if (!$delivery) {
-            throw new HttpException('Delivery not found', 404);
+            throw new HttpException('Livraison introuvable', 404);
         }
         if ($delivery['status'] === 'CANCELLED') {
-            throw new HttpException('Delivery already cancelled', 422);
+            throw new HttpException('Cette livraison est deja annulee', 422);
         }
 
         $pdo = Database::connection();

@@ -51,6 +51,6 @@ final class Router
             return;
         }
 
-        throw new HttpException('Route not found', 404);
+        throw new HttpException('Route introuvable', 404);
     }
 }

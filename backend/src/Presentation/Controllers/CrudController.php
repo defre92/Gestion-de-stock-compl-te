@@ -51,7 +51,7 @@ final class CrudController
             $_SERVER['REMOTE_ADDR'] ?? null
         );
 
-        JsonResponse::send(['message' => 'Updated']);
+        JsonResponse::send(['message' => 'Mis a jour']);
     }
 
     public function destroy(Request $request, int $id): void

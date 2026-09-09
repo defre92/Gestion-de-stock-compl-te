@@ -48,7 +48,7 @@ final class InventoryController
         $user = $request->attribute('auth_user');
         $this->service->finalize($id, (int)$user['id'], $_SERVER['REMOTE_ADDR'] ?? null);
 
-        JsonResponse::send(['message' => 'Inventory session finalized']);
+        JsonResponse::send(['message' => 'Session d\'inventaire finalisee']);
     }
 
     public function exportXlsx(int $id): void

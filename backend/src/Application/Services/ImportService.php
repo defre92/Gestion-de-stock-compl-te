@@ -25,7 +25,7 @@ final class ImportService
     {
         $entity = strtolower(trim($entity));
         if (!in_array($entity, self::SUPPORTED_ENTITIES, true)) {
-            throw new HttpException('Unsupported import entity', 422);
+            throw new HttpException('Type d\'import non pris en charge', 422);
         }
 
         $stored = $this->storage->storeUploadedFile($file, 'imports/' . $entity);
@@ -94,7 +94,7 @@ final class ImportService
                 'failed_rows' => max(1, $failed),
                 'error_log' => $exception->getMessage(),
             ]);
-            throw new HttpException('Import failed: ' . $exception->getMessage(), 422);
+            throw new HttpException('Echec de l\'import : ' . $exception->getMessage(), 422);
         }
     }
 

@@ -32,7 +32,7 @@ final class UserService
     {
         $user = $this->repository->findById($id);
         if (!$user) {
-            throw new HttpException('User not found', 404);
+            throw new HttpException('Utilisateur introuvable', 404);
         }
 
         unset($user['password_hash']);
@@ -53,7 +53,7 @@ final class UserService
 
         $roleId = $this->roleRepository->idByCode((string)$payload['role']);
         if (!$roleId) {
-            throw new HttpException('Unknown role', 422);
+            throw new HttpException('Profil inconnu', 422);
         }
 
         $id = $this->repository->create([
@@ -73,7 +73,7 @@ final class UserService
     {
         $user = $this->repository->findById($id);
         if (!$user) {
-            throw new HttpException('User not found', 404);
+            throw new HttpException('Utilisateur introuvable', 404);
         }
 
         $update = [];
@@ -93,7 +93,7 @@ final class UserService
         if (!empty($payload['role'])) {
             $roleId = $this->roleRepository->idByCode((string)$payload['role']);
             if (!$roleId) {
-                throw new HttpException('Unknown role', 422);
+                throw new HttpException('Profil inconnu', 422);
             }
             $update['role_id'] = $roleId;
         }
@@ -106,7 +106,7 @@ final class UserService
         }
 
         if ($update === []) {
-            throw new HttpException('No data to update', 422);
+            throw new HttpException('Aucune donnee a mettre a jour', 422);
         }
 
         $this->repository->update($id, $update);
@@ -116,7 +116,7 @@ final class UserService
     public function resetPassword(int $id, string $newPassword, int $actorId, ?string $ip): void
     {
         if (!$this->repository->findById($id)) {
-            throw new HttpException('User not found', 404);
+            throw new HttpException('Utilisateur introuvable', 404);
         }
 
         if (strlen($newPassword) < self::MIN_PASSWORD_LENGTH) {
@@ -139,7 +139,7 @@ final class UserService
     {
         $user = $this->repository->findById($userId);
         if (!$user) {
-            throw new HttpException('User not found', 404);
+            throw new HttpException('Utilisateur introuvable', 404);
         }
 
         if (!$this->passwordService->verify($currentPassword, (string)$user['password_hash'])) {
@@ -170,7 +170,7 @@ final class UserService
     public function delete(int $id, int $actorId, ?string $ip): void
     {
         if (!$this->repository->findById($id)) {
-            throw new HttpException('User not found', 404);
+            throw new HttpException('Utilisateur introuvable', 404);
         }
 
         $this->repository->delete($id);

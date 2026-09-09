@@ -19,7 +19,7 @@ final class RoleMiddleware
         $role = strtoupper((string)($user['role_code'] ?? ''));
 
         if (!in_array($role, $this->allowedRoles, true)) {
-            throw new HttpException('Forbidden', 403);
+            throw new HttpException('Acces refuse', 403);
         }
 
         $next($request, $params);

@@ -28,7 +28,7 @@ final class AttachmentController
         $user = $request->attribute('auth_user');
         $file = $request->file('file');
         if (!$file) {
-            JsonResponse::send(['message' => 'file is required'], 422);
+            JsonResponse::send(['message' => 'Le fichier est requis'], 422);
             return;
         }
 
@@ -41,7 +41,7 @@ final class AttachmentController
         $attachment = $this->service->findById($id);
         $path = (string)$attachment['file_path'];
         if ($path === '' || !is_file($path)) {
-            JsonResponse::send(['message' => 'File not found on disk'], 404);
+            JsonResponse::send(['message' => 'Fichier introuvable sur le serveur'], 404);
             return;
         }
 

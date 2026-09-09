@@ -16,7 +16,7 @@ final class BarcodeController
     {
         $product = $this->productRepository->findById($id);
         if (!$product) {
-            JsonResponse::send(['message' => 'Product not found'], 404);
+            JsonResponse::send(['message' => 'Produit introuvable'], 404);
             return;
         }
 
@@ -26,7 +26,7 @@ final class BarcodeController
         }
 
         if ($code === '') {
-            JsonResponse::send(['message' => 'No barcode or sku on product'], 422);
+            JsonResponse::send(['message' => 'Ce produit n\'a ni code barre ni SKU'], 422);
             return;
         }
 

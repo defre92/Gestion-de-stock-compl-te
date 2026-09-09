@@ -39,7 +39,7 @@ final class PurchaseOrderController
         $user = $request->attribute('auth_user');
         $this->service->updateStatus($id, $request->input(), (int)$user['id'], $_SERVER['REMOTE_ADDR'] ?? null);
 
-        JsonResponse::send(['message' => 'Purchase order status updated']);
+        JsonResponse::send(['message' => 'Statut de la commande d\'achat mis a jour']);
     }
 
     public function receive(Request $request, int $id): void
@@ -47,6 +47,6 @@ final class PurchaseOrderController
         $user = $request->attribute('auth_user');
         $this->service->receive($id, $request->input(), (int)$user['id'], $_SERVER['REMOTE_ADDR'] ?? null);
 
-        JsonResponse::send(['message' => 'Purchase order receipt saved']);
+        JsonResponse::send(['message' => 'Reception enregistree']);
     }
 }

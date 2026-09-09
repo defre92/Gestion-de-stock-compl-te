@@ -26,7 +26,7 @@ final class PurchaseRequestService
     {
         $row = $this->repository->findById($id);
         if (!$row) {
-            throw new HttpException('Purchase request not found', 404);
+            throw new HttpException('Demande d\'achat introuvable', 404);
         }
 
         return $row;
@@ -38,16 +38,16 @@ final class PurchaseRequestService
         $items = $payload['items'] ?? [];
 
         if ($warehouseId <= 0) {
-            throw new HttpException('Warehouse is required', 422);
+            throw new HttpException('L\'entrepot est requis', 422);
         }
         if (!is_array($items) || $items === []) {
-            throw new HttpException('At least one item is required', 422);
+            throw new HttpException('Au moins un article est requis', 422);
         }
 
         foreach ($items as $idx => $item) {
             $productId = (int)($item['product_id'] ?? 0);
             if ($productId <= 0 || (int)($item['quantity_requested'] ?? 0) <= 0) {
-                throw new HttpException("Invalid item at index {$idx}", 422);
+                throw new HttpException("Article invalide a la ligne {$idx}", 422);
             }
             $product = $this->productRepository->findById($productId);
             if ($product && (int)($product['has_variants'] ?? 0) === 1 && empty($item['variant_id'])) {
@@ -76,7 +76,7 @@ final class PurchaseRequestService
         $allowed = ['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'CONVERTED'];
         $normalized = strtoupper($status);
         if (!in_array($normalized, $allowed, true)) {
-            throw new HttpException('Invalid purchase request status', 422);
+            throw new HttpException('Statut de demande d\'achat invalide', 422);
         }
 
         $this->findById($id);
