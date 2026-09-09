@@ -137,7 +137,7 @@ $importJobController = new CrudController(new CrudService(new ImportJobRepositor
 
 $dashboardController = new DashboardController(new DashboardService(new DashboardRepository()));
 $stockService = new StockService(new ProductRepository(), new WarehouseRepository(), new StockMovementRepository(), new StockAlertRepository(), $auditRepository);
-$productSerialController = new ProductSerialController(new ProductSerialService(new ProductSerialRepository(), $auditRepository));
+$productSerialController = new ProductSerialController(new ProductSerialService(new ProductSerialRepository(), $auditRepository, $stockService));
 $stockController = new StockController($stockService);
 $deliveryController = new DeliveryController(new DeliveryService(new DeliveryRepository(), $stockService, $auditRepository, new ProductSerialRepository(), new ProductRepository()));
 $purchaseOrderController = new PurchaseOrderController(new PurchaseOrderService(new PurchaseOrderRepository(), $stockService, $auditRepository, new PurchaseRequestRepository(), new ProductRepository()));

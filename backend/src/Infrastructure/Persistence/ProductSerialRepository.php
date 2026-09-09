@@ -150,7 +150,14 @@ final class ProductSerialRepository
      */
     public function createMany(int $productId, ?int $warehouseId, array $serialNumbers, ?int $createdBy, ?int $variantId = null): array
     {
-        $this->pdo->beginTransaction();
+        // L'appelant peut avoir ouvert sa propre transaction (le service
+        // enchaine desormais creation des series ET mouvement de stock, les
+        // deux devant reussir ou echouer ensemble). PDO refuse une transaction
+        // imbriquee : on ne prend la main que si personne ne l'a deja prise.
+        $ownsTransaction = !$this->pdo->inTransaction();
+        if ($ownsTransaction) {
+            $this->pdo->beginTransaction();
+        }
 
         try {
             $stmt = $this->pdo->prepare('
@@ -170,10 +177,14 @@ final class ProductSerialRepository
                 $ids[] = (int)$this->pdo->lastInsertId();
             }
 
-            $this->pdo->commit();
+            if ($ownsTransaction) {
+                $this->pdo->commit();
+            }
             return $ids;
         } catch (Throwable $exception) {
-            $this->pdo->rollBack();
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
             throw $exception;
         }
     }

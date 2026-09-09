@@ -81,6 +81,21 @@ final class DeliveryService
                 if ($serial['status'] !== 'IN_STOCK') {
                     throw new HttpException("Le numero de serie {$serial['serial_number']} n'est plus en stock", 422);
                 }
+                // Un numero de serie est un objet physique unique : il ne peut
+                // pas sortir d'un entrepot ou il ne se trouve pas. Sans ce
+                // controle, on pouvait livrer depuis l'entrepot B un article
+                // enregistre dans l'entrepot A - la quantite etait decrementee
+                // au mauvais endroit et la localisation du serie devenait
+                // fausse, sans le moindre message.
+                // Un serie sans entrepot renseigne (colonne nullable, donnees
+                // anciennes) reste accepte : on ne bloque pas l'existant.
+                $serialWarehouseId = $serial['warehouse_id'] !== null ? (int)$serial['warehouse_id'] : null;
+                if ($serialWarehouseId !== null && $serialWarehouseId !== $warehouseId) {
+                    throw new HttpException(
+                        "Le numero de serie {$serial['serial_number']} est enregistre dans un autre entrepot que celui de cette livraison",
+                        422
+                    );
+                }
                 if ($qty !== 1) {
                     throw new HttpException("Un numero de serie ne peut etre associe qu'a une ligne de quantite 1 (ligne {$index})", 422);
                 }

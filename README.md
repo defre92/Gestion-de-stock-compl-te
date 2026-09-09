@@ -598,6 +598,64 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+### Numeros de serie : reconciliation avec le stock quantitatif
+
+Le modele voulait que les deux registres restent d'accord, et l'ecran
+**Mouvements** le faisait deja correctement : une entree de 10 avec 10 numeros
+de serie cree le mouvement (+10) *et* enregistre les 10 series. Les livraisons
+aussi. Mais l'onglet **Numeros de serie** etait entierement aveugle au stock :
+enregistrer, marquer sorti, remettre en stock, supprimer - aucune de ces
+actions ne touchait aux quantites. Or c'est l'ecran vers lequel on va
+naturellement, puisqu'il porte le nom de la fonctionnalite.
+
+Consequence concrete : on enregistrait 10 series sur un produit a 0 en stock,
+puis la premiere livraison echouait sur "Stock insuffisant" - la
+fonctionnalite paraissait cassee alors qu'elle faisait ce qu'on lui demandait.
+
+- **Enregistrement** : un choix explicite plutot qu'une regle implicite, parce
+  que les deux usages sont legitimes. *"Ces articles arrivent"* (par defaut)
+  cree un mouvement d'entree `SERIAL_IN` de N ; *"Ces articles sont deja
+  comptes dans le stock"* n'en cree aucun. Sans ce choix, l'un des deux cas
+  doublait la quantite.
+- **Marquer sorti** cree un mouvement `SERIAL_OUT` de 1 depuis l'entrepot du
+  numero de serie ; **remettre en stock** cree un `SERIAL_RETURN` de 1 dans
+  l'entrepot choisi.
+- **L'ecran Mouvements envoie `creates_stock_entry: false`** lors de la saisie
+  de series accompagnant une entree : le mouvement vient d'etre cree par
+  l'appel precedent, sans ce drapeau la quantite serait comptee deux fois.
+  Idem depuis la fiche produit.
+- **Tout ou rien** : creation des series et mouvement sont dans une meme
+  transaction (`createMany()` est devenue transaction-aware). Si le mouvement
+  echoue, le statut du numero de serie n'est pas modifie.
+- Si la quantite ne permet pas la sortie, le message explique la cause reelle
+  - divergence entre les deux registres - au lieu d'un "Stock insuffisant"
+  incomprehensible a cet endroit.
+
+### Numeros de serie : entrepot fiabilise
+
+Un numero de serie designe un objet physique unique. Or l'entrepot saisi a
+l'enregistrement n'etait controle nulle part.
+
+- **Livraison depuis le mauvais entrepot : refusee.** On pouvait livrer depuis
+  l'entrepot B un article enregistre dans l'entrepot A, sans aucun message :
+  la quantite etait decrementee au mauvais endroit et la localisation du
+  numero de serie devenait fausse. `DeliveryService` verifie desormais la
+  concordance. Un numero de serie **sans** entrepot renseigne (colonne
+  nullable, donnees anterieures) reste accepte : l'existant n'est pas bloque.
+- **L'entrepot devient obligatoire** a l'enregistrement d'un numero de serie,
+  avec un rappel explicite : l'article ne pourra etre livre que depuis cet
+  entrepot.
+- **Fin de la saisie d'un identifiant a la main.** La remise en stock d'un
+  article sorti demandait l'entrepot via `window.prompt('Id de l'entrepot ?')`
+  : il fallait connaitre l'identifiant numerique et le taper, sans le moindre
+  controle - taper 3 au lieu de 1 remettait l'article au mauvais endroit en
+  silence. Remplace par une liste deroulante des entrepots (`askWarehouse()`).
+
+**A savoir** : enregistrer un numero de serie ne modifie pas la quantite en
+stock. Les numeros de serie et les quantites sont deux registres independants
+- c'est le fonctionnement voulu, mais cela signifie qu'un ecart entre les deux
+est possible et n'est signale nulle part.
+
 ### Recherche produit instantanee
 
 - **Recherche au fil de la frappe** sur l'ecran Produits : plus besoin de

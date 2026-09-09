@@ -1686,7 +1686,16 @@ async function renderMovements() {
                 try {
                     await apiRequest('/product-serials', {
                         method: 'POST',
-                        body: { product_id: productId, warehouse_id: warehouseId, serial_numbers: serialNumbers },
+                        body: {
+                            product_id: productId,
+                            variant_id: variantId,
+                            warehouse_id: warehouseId,
+                            serial_numbers: serialNumbers,
+                            // Le mouvement d'entree vient d'etre enregistre par
+                            // l'appel precedent : sans ce drapeau, la quantite
+                            // serait comptee deux fois.
+                            creates_stock_entry: false,
+                        },
                     });
                 } catch (serialError) {
                     await renderMovements();
@@ -1757,11 +1766,29 @@ async function renderProductSerials() {
             ${writable ? `
             <form id="serialCreateForm" class="form-grid">
                 ${selectField('product_id', 'Produit', state.lookups.products, 'id', 'name', true, presetProductId ?? '')}
-                ${selectField('warehouse_id', 'Entrepot', state.lookups.warehouses, 'id', 'name', false)}
+                ${selectField('warehouse_id', 'Entrepot de stockage', state.lookups.warehouses, 'id', 'name', true)}
+                <small class="full field-hint">
+                    Un numero de serie designe un objet physique unique : il ne
+                    pourra etre livre que depuis cet entrepot. Verifie-le avant
+                    d'enregistrer un lot.
+                </small>
                 <label class="full">
                     <span>Numero(s) de serie (un par ligne, pour enregistrer plusieurs exemplaires recus en une fois)</span>
                     <textarea name="serial_numbers" rows="4" placeholder="SN-00012345&#10;SN-00012346" required></textarea>
                 </label>
+                <label class="full">
+                    <span>Que represente cet enregistrement ?</span>
+                    <select name="creates_stock_entry">
+                        <option value="1">Ces articles arrivent : ajouter la quantite au stock</option>
+                        <option value="0">Ces articles sont deja comptes dans le stock (regularisation)</option>
+                    </select>
+                </label>
+                <small class="full field-hint">
+                    Un numero de serie represente un article physique. Choisis la
+                    premiere option a la reception d'une commande, la seconde si tu
+                    ne fais que noter apres coup les numeros d'un stock deja saisi -
+                    sinon la quantite serait comptee deux fois.
+                </small>
                 <button type="submit" class="btn btn-primary">Enregistrer</button>
                 <p id="serialCreateFeedback" class="feedback"></p>
             </form>
@@ -1853,6 +1880,7 @@ async function renderProductSerials() {
             product_id: Number(data.get('product_id')),
             warehouse_id: warehouseId,
             serial_numbers: serialNumbers,
+            creates_stock_entry: String(data.get('creates_stock_entry') ?? '1') === '1',
         };
 
         try {
@@ -1877,7 +1905,11 @@ async function renderProductSerials() {
 
     root.querySelectorAll('[data-mark-in]').forEach((btn) => {
         btn.addEventListener('click', async () => {
-            const warehouseId = window.prompt('Id de l\'entrepot de retour en stock ?');
+            // Avant : window.prompt('Id de l'entrepot ?') - il fallait
+            // connaitre l'identifiant numerique de l'entrepot et le taper a la
+            // main, sans aucune verification. Taper 3 au lieu de 1 remettait
+            // l'article en stock au mauvais endroit, en silence.
+            const warehouseId = await askWarehouse('Dans quel entrepot cet article revient-il ?');
             if (!warehouseId) {
                 return;
             }
@@ -3495,7 +3527,16 @@ async function renderProductDetail(productId) {
                 try {
                     await apiRequest('/product-serials', {
                         method: 'POST',
-                        body: { product_id: productId, warehouse_id: warehouseId, serial_numbers: serialNumbers },
+                        body: {
+                            product_id: productId,
+                            variant_id: productMoveVariantSelect?.value ? Number(productMoveVariantSelect.value) : null,
+                            warehouse_id: warehouseId,
+                            serial_numbers: serialNumbers,
+                            // Le mouvement d'entree vient d'etre enregistre par
+                            // l'appel precedent : sans ce drapeau, la quantite
+                            // serait comptee deux fois.
+                            creates_stock_entry: false,
+                        },
                     });
                 } catch (serialError) {
                     await renderProductDetail(productId);
@@ -4525,6 +4566,70 @@ function sanitize(value) {
 function formatMoney(value) {
     const amount = Number(value ?? 0);
     return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
+}
+
+/**
+ * Demande a l'utilisateur de CHOISIR un entrepot dans une liste deroulante.
+ *
+ * Remplace les window.prompt() qui reclamaient l'identifiant numerique de
+ * l'entrepot : personne ne connait par coeur l'id d'un entrepot, et une
+ * faute de frappe envoyait l'article au mauvais endroit sans aucun controle.
+ *
+ * @returns {Promise<number|null>} l'id choisi, ou null si annulation.
+ */
+function askWarehouse(question) {
+    return new Promise((resolve) => {
+        const warehouses = state.lookups?.warehouses ?? [];
+        if (warehouses.length === 0) {
+            window.alert('Aucun entrepot n\'est configure.');
+            resolve(null);
+            return;
+        }
+
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.innerHTML = `
+            <div class="modal-box" role="dialog" aria-modal="true">
+                <h3>${sanitize(question)}</h3>
+                <div class="modal-body">
+                    <label>
+                        <span>Entrepot</span>
+                        <select id="askWarehouseSelect">
+                            ${warehouses.map((w) => `<option value="${Number(w.id)}">${sanitize(w.name ?? w.code ?? w.id)}</option>`).join('')}
+                        </select>
+                    </label>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-primary" id="askWarehouseOk">Valider</button>
+                        <button type="button" class="btn btn-soft" id="askWarehouseCancel">Annuler</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        const done = (value) => {
+            overlay.remove();
+            document.removeEventListener('keydown', onKey);
+            resolve(value);
+        };
+        const onKey = (event) => {
+            if (event.key === 'Escape') {
+                done(null);
+            }
+        };
+
+        document.addEventListener('keydown', onKey);
+        overlay.addEventListener('click', (event) => {
+            if (event.target === overlay) {
+                done(null);
+            }
+        });
+        overlay.querySelector('#askWarehouseCancel').addEventListener('click', () => done(null));
+        overlay.querySelector('#askWarehouseOk').addEventListener('click', () => {
+            const value = Number(overlay.querySelector('#askWarehouseSelect').value);
+            done(Number.isFinite(value) && value > 0 ? value : null);
+        });
+    });
 }
 
 /**

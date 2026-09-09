@@ -5,14 +5,58 @@ namespace App\Application\Services;
 
 use App\Infrastructure\Persistence\AuditRepository;
 use App\Infrastructure\Persistence\ProductSerialRepository;
+use App\Shared\Database\Database;
 use App\Shared\Http\HttpException;
+use Throwable;
 
 final class ProductSerialService
 {
     public function __construct(
         private readonly ProductSerialRepository $repository,
-        private readonly AuditRepository $auditRepository
+        private readonly AuditRepository $auditRepository,
+        private readonly StockService $stockService
     ) {
+    }
+
+    /**
+     * Enregistre le mouvement de stock correspondant a une action sur un
+     * numero de serie.
+     *
+     * Un numero de serie represente UN article physique : le suivre sans
+     * toucher aux quantites laissait les deux registres diverger. L'ecran
+     * Mouvements, lui, faisait deja les deux (entree + enregistrement des
+     * series) - c'est ce comportement-la qui est generalise ici.
+     *
+     * Le message d'erreur est reformule : "Stock insuffisant" brut n'aurait
+     * aucun sens pour quelqu'un qui vient de cliquer sur "Marquer sorti".
+     */
+    private function moveStock(int $productId, ?int $variantId, ?int $warehouseId, string $type, int $quantity, string $reason, string $notes, int $actorId, ?string $ip): void
+    {
+        if ($warehouseId === null || $quantity <= 0) {
+            return;
+        }
+
+        try {
+            $this->stockService->createMovement([
+                'product_id' => $productId,
+                'variant_id' => $variantId,
+                'warehouse_id' => $warehouseId,
+                'type' => $type,
+                'quantity' => $quantity,
+                'reason_code' => $reason,
+                'reference_type' => 'PRODUCT_SERIAL',
+                'notes' => $notes,
+            ], $actorId, $ip);
+        } catch (HttpException $exception) {
+            if (str_contains($exception->getMessage(), 'Stock insuffisant')) {
+                throw new HttpException(
+                    'La quantite en stock de ce produit dans cet entrepot est insuffisante : elle ne concorde pas avec les numeros de serie enregistres. Corrige la quantite par un mouvement d\'ajustement, puis recommence.',
+                    422
+                );
+            }
+
+            throw $exception;
+        }
     }
 
     public function paginate(int $page, int $perPage, array $filters = []): array
@@ -59,6 +103,9 @@ final class ProductSerialService
         $warehouseId = isset($payload['warehouse_id']) && $payload['warehouse_id'] !== ''
             ? (int)$payload['warehouse_id']
             : null;
+        $variantId = isset($payload['variant_id']) && $payload['variant_id'] !== ''
+            ? (int)$payload['variant_id']
+            : null;
 
         // Accepte soit un seul SN (serial_number), soit une liste (serial_numbers,
         // un par ligne cote frontend) pour enregistrer un lot recu d'un coup.
@@ -90,14 +137,58 @@ final class ProductSerialService
             }
         }
 
-        $ids = $this->repository->createMany($productId, $warehouseId, $serials, $actorId);
+        // Deux usages legitimes, donc un choix explicite plutot qu'une regle
+        // implicite : soit le materiel ARRIVE (il faut donc l'entrer en
+        // stock), soit on note apres coup les numeros d'un stock deja compte
+        // (aucun mouvement, sinon la quantite doublerait). Par defaut on
+        // considere une entree : c'est l'usage courant de cet ecran.
+        $createsStockEntry = !array_key_exists('creates_stock_entry', $payload)
+            || filter_var($payload['creates_stock_entry'], FILTER_VALIDATE_BOOL);
 
-        $this->auditRepository->log($actorId, 'CREATE', 'product_serial', null, [
-            'product_id' => $productId,
-            'count' => count($ids),
-        ], $ip);
+        if ($createsStockEntry && $warehouseId === null) {
+            throw new HttpException("L'entrepot est requis pour enregistrer une entree en stock", 422);
+        }
 
-        return $ids;
+        $pdo = Database::connection();
+        $ownsTransaction = !$pdo->inTransaction();
+        if ($ownsTransaction) {
+            $pdo->beginTransaction();
+        }
+
+        try {
+            $ids = $this->repository->createMany($productId, $warehouseId, $serials, $actorId, $variantId);
+
+            if ($createsStockEntry) {
+                $this->moveStock(
+                    $productId,
+                    $variantId,
+                    $warehouseId,
+                    'IN',
+                    count($ids),
+                    'SERIAL_IN',
+                    'Entree de ' . count($ids) . ' article(s) suivi(s) par numero de serie',
+                    $actorId,
+                    $ip
+                );
+            }
+
+            $this->auditRepository->log($actorId, 'CREATE', 'product_serial', null, [
+                'product_id' => $productId,
+                'count' => count($ids),
+                'stock_entry' => $createsStockEntry,
+            ], $ip);
+
+            if ($ownsTransaction) {
+                $pdo->commit();
+            }
+
+            return $ids;
+        } catch (Throwable $exception) {
+            if ($ownsTransaction && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $exception;
+        }
     }
 
     public function markOut(int $id, int $actorId, ?string $ip, ?string $notes): void
@@ -110,8 +201,41 @@ final class ProductSerialService
             throw new HttpException('Ce numero de serie est deja sorti', 422);
         }
 
-        $this->repository->updateStatus($id, 'OUT', null, $notes);
-        $this->auditRepository->log($actorId, 'MARK_OUT', 'product_serial', $id, [], $ip);
+        $pdo = Database::connection();
+        $ownsTransaction = !$pdo->inTransaction();
+        if ($ownsTransaction) {
+            $pdo->beginTransaction();
+        }
+
+        try {
+            // On lit l'entrepot AVANT le changement de statut : updateStatus le
+            // remet a NULL pour une sortie, on ne saurait plus d'ou decrementer.
+            $warehouseId = $serial['warehouse_id'] !== null ? (int)$serial['warehouse_id'] : null;
+
+            $this->repository->updateStatus($id, 'OUT', null, $notes);
+            $this->moveStock(
+                (int)$serial['product_id'],
+                $serial['variant_id'] !== null ? (int)$serial['variant_id'] : null,
+                $warehouseId,
+                'OUT',
+                1,
+                'SERIAL_OUT',
+                'Sortie du numero de serie ' . $serial['serial_number'],
+                $actorId,
+                $ip
+            );
+
+            $this->auditRepository->log($actorId, 'MARK_OUT', 'product_serial', $id, [], $ip);
+
+            if ($ownsTransaction) {
+                $pdo->commit();
+            }
+        } catch (Throwable $exception) {
+            if ($ownsTransaction && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $exception;
+        }
     }
 
     public function markInStock(int $id, int $warehouseId, int $actorId, ?string $ip, ?string $notes): void
@@ -124,8 +248,37 @@ final class ProductSerialService
             throw new HttpException('Ce numero de serie est deja en stock', 422);
         }
 
-        $this->repository->updateStatus($id, 'IN_STOCK', $warehouseId, $notes);
-        $this->auditRepository->log($actorId, 'MARK_IN_STOCK', 'product_serial', $id, [], $ip);
+        $pdo = Database::connection();
+        $ownsTransaction = !$pdo->inTransaction();
+        if ($ownsTransaction) {
+            $pdo->beginTransaction();
+        }
+
+        try {
+            $this->repository->updateStatus($id, 'IN_STOCK', $warehouseId, $notes);
+            $this->moveStock(
+                (int)$serial['product_id'],
+                $serial['variant_id'] !== null ? (int)$serial['variant_id'] : null,
+                $warehouseId,
+                'IN',
+                1,
+                'SERIAL_RETURN',
+                'Retour en stock du numero de serie ' . $serial['serial_number'],
+                $actorId,
+                $ip
+            );
+
+            $this->auditRepository->log($actorId, 'MARK_IN_STOCK', 'product_serial', $id, [], $ip);
+
+            if ($ownsTransaction) {
+                $pdo->commit();
+            }
+        } catch (Throwable $exception) {
+            if ($ownsTransaction && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $exception;
+        }
     }
 
     public function delete(int $id, int $actorId, ?string $ip): void
