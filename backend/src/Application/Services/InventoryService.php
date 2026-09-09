@@ -58,6 +58,34 @@ final class InventoryService
         return $id;
     }
 
+    /**
+     * Reste a compter d'une session (mode GLOBAL uniquement).
+     *
+     * Un inventaire tournant ne porte volontairement que sur une selection de
+     * produits : lui presenter la liste de tout l'entrepot n'aurait pas de
+     * sens. On renvoie donc une liste vide pour ce mode, avec le drapeau
+     * `applicable` pour que le frontend n'affiche simplement pas le panneau.
+     */
+    public function remainingToCount(int $sessionId): array
+    {
+        $session = $this->findSession($sessionId);
+        $warehouseId = (int)$session['warehouse_id'];
+
+        if (strtoupper((string)($session['counting_mode'] ?? 'GLOBAL')) !== 'GLOBAL') {
+            return ['applicable' => false, 'total' => 0, 'counted' => 0, 'items' => []];
+        }
+
+        $items = $this->repository->remainingToCount($sessionId, $warehouseId);
+        $total = $this->repository->countableLines($warehouseId);
+
+        return [
+            'applicable' => true,
+            'total' => $total,
+            'counted' => max(0, $total - count($items)),
+            'items' => $items,
+        ];
+    }
+
     public function addCount(int $sessionId, array $payload, int $actorId, ?string $ip): int
     {
         $session = $this->findSession($sessionId);

@@ -100,6 +100,61 @@ final class InventoryRepository
         return $session;
     }
 
+    /**
+     * Ce qu'il reste a compter dans une session d'inventaire GLOBALE.
+     *
+     * Retourne les lignes de stock de l'entrepot de la session (produit seul,
+     * ou produit + variante) pour lesquelles aucun comptage n'a encore ete
+     * saisi. C'est volontairement une simple LECTURE : on ne pre-cree aucune
+     * ligne de comptage a 0. Pre-charger des comptages a zero serait
+     * dangereux - la finalisation applique un ajustement des que l'ecart n'est
+     * pas nul, donc un produit pre-charge puis oublie verrait son stock
+     * remis a zero. Ici, un produit non compte reste simplement non compte.
+     *
+     * Les lignes a quantite nulle sont ecartees : elles n'ont rien a faire
+     * dans une liste de choses a aller compter physiquement.
+     */
+    public function remainingToCount(int $sessionId, int $warehouseId): array
+    {
+        $stmt = $this->pdo->prepare('
+            SELECT
+                sl.product_id,
+                sl.variant_id,
+                sl.quantity AS expected_qty,
+                p.sku,
+                p.name AS product_name,
+                v.sku AS variant_sku,
+                v.size AS variant_size,
+                v.color AS variant_color,
+                v.vintage AS variant_vintage,
+                v.volume_cl AS variant_volume_cl
+            FROM stock_levels sl
+            INNER JOIN products p ON p.id = sl.product_id
+            LEFT JOIN product_variants v ON v.id = sl.variant_id
+            WHERE sl.warehouse_id = :warehouse_id
+              AND sl.quantity <> 0
+              AND NOT EXISTS (
+                  SELECT 1 FROM inventory_session_items i
+                  WHERE i.session_id = :session_id
+                    AND i.product_id = sl.product_id
+                    AND ((i.variant_id IS NULL AND sl.variant_id IS NULL) OR i.variant_id = sl.variant_id)
+              )
+            ORDER BY p.name ASC, v.size ASC, v.color ASC
+        ');
+        $stmt->execute([':warehouse_id' => $warehouseId, ':session_id' => $sessionId]);
+
+        return $stmt->fetchAll();
+    }
+
+    /** Nombre total de lignes de stock a compter dans cet entrepot (denominateur). */
+    public function countableLines(int $warehouseId): int
+    {
+        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM stock_levels WHERE warehouse_id = :warehouse_id AND quantity <> 0');
+        $stmt->execute([':warehouse_id' => $warehouseId]);
+
+        return (int)$stmt->fetchColumn();
+    }
+
     public function expectedQuantity(int $warehouseId, int $productId, ?int $variantId = null): int
     {
         $sql = '

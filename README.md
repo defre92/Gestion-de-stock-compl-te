@@ -598,6 +598,56 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+### Modes d'inventaire : Global et Tournant
+
+Le champ `counting_mode` d'une session existait mais n'etait lu par aucune
+logique : Global ou Tournant, le comportement etait identique. C'etait un
+controle qui laissait croire a un effet qu'il n'avait pas - le meme travers
+que l'ancien couple `status` / `is_active` sur les produits.
+
+- **Global** : la session compte tout l'entrepot. Un panneau **"Reste a
+  compter"** liste les articles ayant du stock dans cet entrepot et pas encore
+  comptes, avec un compteur `X / Y article(s) compte(s)` et un bouton
+  "Compter" qui pre-selectionne l'article (et sa variante) dans le formulaire
+  de saisie.
+- **Tournant** : la session ne porte que sur une selection d'articles, le
+  panneau ne s'affiche pas. C'est le backend qui le decide, via le drapeau
+  `applicable` de `GET /api/v1/inventories/{id}/remaining`.
+
+**Point de conception important** : le panneau est en LECTURE SEULE, aucun
+comptage n'est pre-cree a 0. Pre-charger des comptages a zero aurait ete
+dangereux - la finalisation applique un ajustement des que l'ecart n'est pas
+nul, donc un article pre-charge puis oublie aurait vu **son stock remis a
+zero**. Un inventaire global abandonne a mi-parcours aurait vide l'entrepot.
+Ici, un article non compte reste simplement non ajuste, son stock est
+inchange. Verifie : session globale sur un entrepot de 3 articles, 2 comptes
+puis finalisation - le 3e conserve exactement sa quantite.
+
+Les lignes a quantite nulle sont ecartees de la liste : elles n'ont rien a
+faire dans une liste d'articles a aller compter physiquement.
+
+### 7e passe - garde-fou sur l'entrepot d'un inventaire
+
+Une session d'inventaire ne porte que sur **un** entrepot : la quantite
+attendue d'un produit est celle de cet entrepot-la. Compter un produit stocke
+ailleurs affichait donc "Attendu 0", un ecart egal a toute la quantite saisie,
+et la finalisation **creait** ce stock dans l'entrepot de la session sans
+toucher a l'autre - une erreur silencieuse et couteuse, dont rien dans l'ecran
+ne prevenait.
+
+Le calcul etait correct, c'est l'interface qui laissait tomber dans le piege.
+Desormais :
+
+- le titre du formulaire et un rappel en tete nomment explicitement l'entrepot
+  de la session ;
+- a la selection d'un produit, si celui-ci n'a aucun stock dans l'entrepot de
+  la session **mais en a ailleurs**, un avertissement rouge nomme les
+  entrepots concernes et leurs quantites, et explique ce que fera la
+  finalisation.
+
+Un produit reellement neuf (aucun stock nulle part) ne declenche rien : c'est
+un cas normal d'inventaire d'entree.
+
 ### 5e passe - jeu de demonstration etendu
 
 - **`database/demo/catalog-demo.sql` etoffe** : le catalogue passe de 2 a 144

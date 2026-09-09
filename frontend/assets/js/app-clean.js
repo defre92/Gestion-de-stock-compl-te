@@ -2309,6 +2309,20 @@ async function renderInventorySessionDetail(sessionId) {
         </section>
 
         ${writable && isEditable ? `
+        <section class="panel hidden" id="inventoryRemainingPanel">
+            <div class="panel-head">
+                <h4>Reste a compter</h4>
+                <span class="muted" id="inventoryRemainingCounter"></span>
+            </div>
+            <p class="muted">
+                Inventaire global : voici les articles ayant du stock dans cet
+                entrepot et qui n'ont pas encore ete comptes. Aucun comptage
+                n'est pre-rempli - un article laisse ici n'est simplement pas
+                ajuste a la finalisation, son stock reste inchange.
+            </p>
+            <div id="inventoryRemainingList"></div>
+        </section>
+
         <section class="panel">
             <div class="panel-head"><h4>Ajouter un comptage - entrepot ${sanitize(session.warehouse_name)}</h4></div>
             <p class="muted">
@@ -2355,6 +2369,12 @@ async function renderInventorySessionDetail(sessionId) {
             window.alert(error.message);
         }
     });
+
+    // Chargement differe : le panneau n'a de sens qu'en mode GLOBAL, et le
+    // backend le dit lui-meme via `applicable`.
+    if (writable && isEditable) {
+        loadInventoryRemaining(sessionId);
+    }
 
     const countForm = document.getElementById('inventoryCountForm');
     const countVariantWrap = document.getElementById('inventoryVariantWrap');
@@ -3934,6 +3954,109 @@ function setupVariantGenerator() {
  * finalisation cree ce stock dans le mauvais entrepot sans toucher au bon.
  * Rien dans l'ecran ne le signalait.
  */
+/**
+ * Remplit le panneau "Reste a compter" d'une session d'inventaire globale.
+ *
+ * Volontairement en lecture seule : cliquer sur "Compter" ne fait que
+ * pre-selectionner l'article dans le formulaire de saisie. Aucun comptage
+ * n'est cree tant que l'utilisateur n'a pas saisi une quantite - un article
+ * non compte doit rester non ajuste, sans quoi la finalisation mettrait son
+ * stock a zero.
+ */
+async function loadInventoryRemaining(sessionId) {
+    const panel = document.getElementById('inventoryRemainingPanel');
+    const list = document.getElementById('inventoryRemainingList');
+    const counter = document.getElementById('inventoryRemainingCounter');
+    if (!panel || !list) {
+        return;
+    }
+
+    let data;
+    try {
+        const response = await apiRequest(`/inventories/${sessionId}/remaining`);
+        data = response?.data;
+    } catch (_) {
+        // Aide a la saisie : en cas d'echec on masque le panneau, la session
+        // reste parfaitement utilisable sans lui.
+        return;
+    }
+
+    if (!data?.applicable) {
+        return;
+    }
+
+    panel.classList.remove('hidden');
+    const total = Number(data.total ?? 0);
+    const counted = Number(data.counted ?? 0);
+    if (counter) {
+        counter.textContent = `${counted} / ${total} article(s) compte(s)`;
+    }
+
+    const items = Array.isArray(data.items) ? data.items : [];
+    if (items.length === 0) {
+        list.innerHTML = total === 0
+            ? '<p class="muted">Aucun article en stock dans cet entrepot.</p>'
+            : '<p class="feedback is-success">Tous les articles en stock de cet entrepot ont ete comptes.</p>';
+        return;
+    }
+
+    list.innerHTML = `
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>SKU</th><th>Produit</th><th>Variante</th><th>Stock attendu</th><th>Action</th></tr></thead>
+                <tbody>
+                    ${items.map((item) => `
+                        <tr>
+                            <td>${sanitize(item.sku)}</td>
+                            <td>${sanitize(item.product_name)}</td>
+                            <td>${item.variant_id ? sanitize(variantDescriptor({ ...item, sku: item.variant_sku })) : '-'}</td>
+                            <td>${Number(item.expected_qty)}</td>
+                            <td><button type="button" class="btn btn-soft" data-action="count-remaining"
+                                    data-product-id="${Number(item.product_id)}"
+                                    data-variant-id="${item.variant_id ? Number(item.variant_id) : ''}">Compter</button></td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+
+    list.addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-action="count-remaining"]');
+        if (!button) {
+            return;
+        }
+
+        const productSelect = document.getElementById('inventoryCountForm')?.elements.product_id;
+        if (!productSelect) {
+            return;
+        }
+
+        productSelect.value = String(button.dataset.productId);
+        // dispatchEvent plutot qu'un appel direct : c'est le meme chemin que
+        // lorsque l'utilisateur choisit le produit a la main (chargement des
+        // variantes, avertissement d'entrepot).
+        productSelect.dispatchEvent(new Event('change'));
+
+        const variantId = button.dataset.variantId;
+        if (variantId) {
+            // Le chargement des variantes est asynchrone : on attend que
+            // l'option existe avant de la selectionner.
+            const variantSelect = document.getElementById('inventoryVariantSelect');
+            for (let attempt = 0; attempt < 20 && variantSelect; attempt += 1) {
+                if (variantSelect.querySelector(`option[value="${variantId}"]`)) {
+                    variantSelect.value = variantId;
+                    break;
+                }
+                await new Promise((resolve) => setTimeout(resolve, 100));
+            }
+        }
+
+        document.getElementById('inventoryCountForm')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        document.getElementById('inventoryCountForm')?.elements.counted_qty?.focus();
+    });
+}
+
 async function warnIfStockedElsewhere(productId, session) {
     const hint = document.getElementById('inventoryStockHint');
     if (!hint) {

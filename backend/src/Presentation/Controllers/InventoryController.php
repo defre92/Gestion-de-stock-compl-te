@@ -27,6 +27,11 @@ final class InventoryController
         JsonResponse::send(['data' => $this->service->findSession($id)]);
     }
 
+    public function remaining(int $id): void
+    {
+        JsonResponse::send(['data' => $this->service->remainingToCount($id)]);
+    }
+
     public function store(Request $request): void
     {
         $user = $request->attribute('auth_user');
