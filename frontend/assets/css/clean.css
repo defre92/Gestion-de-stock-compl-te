@@ -783,3 +783,10 @@ td.is-positive {
     font-weight: 400;
     opacity: 0.75;
 }
+
+/* Champ de filtrage ajoute au-dessus des listes deroulantes longues */
+.select-search {
+    margin-bottom: 6px;
+    font-size: 0.9em;
+    padding: 6px 10px;
+}

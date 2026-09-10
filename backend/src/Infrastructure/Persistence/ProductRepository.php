@@ -45,9 +45,29 @@ final class ProductRepository extends PdoCrudRepository
         $perPage = max(1, min(100, $perPage));
         $offset = ($page - 1) * $perPage;
 
+        // warehouse_id n'est pas une colonne de `products` : il ne peut pas
+        // passer par buildWhere(). Il restreint la liste aux produits presents
+        // dans cet entrepot, et la colonne stock_total n'y compte alors que le
+        // stock de cet entrepot - sinon on afficherait un total tous entrepots
+        // confondus a cote d'un filtre "entrepot X", ce qui serait trompeur.
+        $warehouseId = isset($filters['warehouse_id']) && $filters['warehouse_id'] !== ''
+            ? (int)$filters['warehouse_id']
+            : null;
+        unset($filters['warehouse_id']);
+
         [$whereSql, $params] = $this->buildWhere($filters);
 
-        $countStmt = $this->pdo->prepare("SELECT COUNT(*) FROM products p {$whereSql}");
+        $stockJoin = 'LEFT JOIN stock_levels sl ON sl.product_id = p.id';
+        if ($warehouseId !== null) {
+            $stockJoin = 'INNER JOIN stock_levels sl ON sl.product_id = p.id AND sl.warehouse_id = :f_warehouse_id';
+            $params[':f_warehouse_id'] = $warehouseId;
+        }
+
+        $countSql = $warehouseId !== null
+            ? "SELECT COUNT(DISTINCT p.id) FROM products p {$stockJoin} {$whereSql}"
+            : "SELECT COUNT(*) FROM products p {$whereSql}";
+
+        $countStmt = $this->pdo->prepare($countSql);
         $countStmt->execute($params);
         $total = (int)$countStmt->fetchColumn();
 
@@ -66,7 +86,7 @@ final class ProductRepository extends PdoCrudRepository
             LEFT JOIN units u ON u.id = p.unit_id
             LEFT JOIN brands b ON b.id = p.brand_id
             LEFT JOIN taxes t ON t.id = p.tax_id
-            LEFT JOIN stock_levels sl ON sl.product_id = p.id
+            {$stockJoin}
             {$whereSql}
             GROUP BY p.id
             ORDER BY p.id DESC
@@ -123,10 +143,27 @@ final class ProductRepository extends PdoCrudRepository
         $mediaStmt->execute([':id' => $id]);
         $result['media'] = $mediaStmt->fetchAll();
 
+        // last_location_code : dernier emplacement connu dans cet entrepot,
+        // deduit du mouvement de stock le plus recent qui en mentionne un.
+        // stock_levels ne porte pas d'emplacement (le stock est suivi par
+        // entrepot, pas par allee) : c'est donc une information indicative,
+        // "ou cet article a ete range la derniere fois", pas un inventaire
+        // par emplacement.
         $whStmt = $this->pdo->prepare('
             SELECT sl.warehouse_id, sl.variant_id, w.code AS warehouse_code, w.name AS warehouse_name,
                    sl.quantity, sl.reserved_quantity,
-                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl
+                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl,
+                   (
+                       SELECT COALESCE(dloc.code, sloc.code)
+                       FROM stock_movements sm
+                       LEFT JOIN warehouse_locations dloc ON dloc.id = sm.destination_location_id
+                       LEFT JOIN warehouse_locations sloc ON sloc.id = sm.source_location_id
+                       WHERE sm.product_id = sl.product_id
+                         AND (sm.warehouse_id = sl.warehouse_id OR sm.destination_warehouse_id = sl.warehouse_id)
+                         AND (sm.source_location_id IS NOT NULL OR sm.destination_location_id IS NOT NULL)
+                       ORDER BY sm.id DESC
+                       LIMIT 1
+                   ) AS last_location_code
             FROM stock_levels sl
             INNER JOIN warehouses w ON w.id = sl.warehouse_id
             LEFT JOIN product_variants v ON v.id = sl.variant_id

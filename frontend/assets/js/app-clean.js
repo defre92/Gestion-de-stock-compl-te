@@ -19,6 +19,10 @@ const state = {
     // sans aucun moyen de voir les suivants.
     crudPages: {},
     crudPerPage: 25,
+    // Filtre entrepot de l'ecran Produits. Quand il est actif, la colonne
+    // Stock n'affiche que la quantite de cet entrepot - sinon on lirait un
+    // total tous entrepots confondus a cote d'un filtre "entrepot X".
+    warehouseFilter: '',
 };
 
 const dashboardCharts = {
@@ -223,6 +227,18 @@ const crudModules = {
             }
 
             fields.push({ key: 'tag_ids', label: 'Tags', type: 'multiselect', optionsFrom: 'tags', optionLabel: 'name', valueFrom: 'tags' });
+
+            // Stock initial : un produit n'appartient pas a un entrepot, c'est
+            // son STOCK qui y est reparti. Jusqu'ici il fallait creer le
+            // produit puis aller faire un mouvement d'entree dans un autre
+            // ecran. Ces deux champs evitent cet aller-retour ; ils ne sont
+            // proposes qu'a la CREATION (createOnly), car modifier un stock se
+            // fait par un mouvement trace, jamais en editant une fiche.
+            fields.push(
+                { key: 'initial_warehouse_id', label: 'Stock initial - entrepot (optionnel)', type: 'select', optionsFrom: 'warehouses', optionLabel: 'name', createOnly: true },
+                { key: 'initial_quantity', label: 'Stock initial - quantite', type: 'number', createOnly: true },
+            );
+
             return fields;
         },
         columns: [
@@ -463,6 +479,16 @@ async function boot() {
 
     setupNavigation();
     applyNavAccess();
+
+    // Les ecrans sont reconstruits par innerHTML un peu partout (renderCrud,
+    // renderMovements, fiche produit, modales...). Plutot que d'ajouter un
+    // appel apres chacun d'eux - et d'en oublier au prochain ecran ajoute -
+    // on observe le document : toute liste deroulante longue qui apparait
+    // recoit son champ de filtrage, d'ou qu'elle vienne.
+    const selectObserver = new MutationObserver(() => {
+        enhanceSelects(document.body);
+    });
+    selectObserver.observe(document.body, { childList: true, subtree: true });
     applyVariantsVisibility();
     setupGlobalSearch();
     const params = new URLSearchParams(window.location.search);
@@ -692,6 +718,7 @@ async function renderModule(module, updateUrl = true) {
     if (state.module === 'products' && normalized !== 'products') {
         state.globalQuery = '';
         state.tagFilter = '';
+        state.warehouseFilter = '';
         state.crudPages.products = 1;
         const searchInput = document.getElementById('globalSearch');
         if (searchInput) {
@@ -783,8 +810,8 @@ async function renderDashboard() {
         { label: 'Produits', value: data.totals.products, icon: 'bi-box-seam', theme: 'kpi-blue', target: 'products' },
         { label: 'Ruptures', value: data.totals.out_of_stock, icon: 'bi-exclamation-triangle', theme: 'kpi-red', target: 'alerts' },
         { label: 'Stock bas', value: data.totals.low_stock, icon: 'bi-thermometer-half', theme: 'kpi-orange', target: 'alerts' },
-        { label: 'PO en retard', value: data.totals.delayed_po, icon: 'bi-clock-history', theme: 'kpi-violet', target: 'purchase-orders' },
-        { label: 'PO ouvertes', value: data.totals.purchase_orders_pending, icon: 'bi-cart-check', theme: 'kpi-cyan', target: 'purchase-orders' },
+        { label: 'Commandes en retard', value: data.totals.delayed_po, icon: 'bi-clock-history', theme: 'kpi-violet', target: 'purchase-orders' },
+        { label: 'Commandes ouvertes', value: data.totals.purchase_orders_pending, icon: 'bi-cart-check', theme: 'kpi-cyan', target: 'purchase-orders' },
         { label: 'Demandes achat', value: data.totals.purchase_requests_open, icon: 'bi-file-earmark-text', theme: 'kpi-slate', target: 'purchase-requests' },
         { label: 'Entrepots', value: data.totals.warehouses, icon: 'bi-building', theme: 'kpi-gold', target: 'warehouses' },
     ];
@@ -1153,6 +1180,9 @@ async function renderCrud(module) {
     if (module === 'products' && state.tagFilter !== '') {
         query.tag_id = state.tagFilter;
     }
+    if (module === 'products' && state.warehouseFilter !== '') {
+        query.warehouse_id = state.warehouseFilter;
+    }
     if (module === 'product-variants' && state.pendingVariantProductId) {
         query.product_id = state.pendingVariantProductId;
         state.pendingVariantProductId = null;
@@ -1179,13 +1209,28 @@ async function renderCrud(module) {
         ? (state.lookups?.tags ?? []).map((tag) => `<option value="${tag.id}" ${String(tag.id) === String(state.tagFilter) ? 'selected' : ''}>${sanitize(tag.name)}</option>`).join('')
         : '';
 
+    const warehouseFilterOptions = module === 'products'
+        ? (state.lookups?.warehouses ?? []).map((w) => `<option value="${w.id}" ${String(w.id) === String(state.warehouseFilter) ? 'selected' : ''}>${sanitize(w.name ?? w.code)}</option>`).join('')
+        : '';
+
+    // Le libelle de la colonne dit d'ou vient le chiffre : sans ca, un total
+    // filtre et un total global se ressemblent trop.
+    const filteredWarehouse = (state.lookups?.warehouses ?? []).find((w) => String(w.id) === String(state.warehouseFilter));
+    if (module === 'products') {
+        const stockColumn = config.columns.find((column) => column.key === 'stock_total');
+        if (stockColumn) {
+            stockColumn.label = filteredWarehouse ? `Stock (${filteredWarehouse.name ?? filteredWarehouse.code})` : 'Stock (tous entrepots)';
+        }
+    }
+
     root.innerHTML = `
         <section class="panel">
             <div class="panel-head">
                 <h4>Gestion ${config.label}</h4>
                 <div class="panel-actions">
+                    ${module === 'products' ? `<select id="productWarehouseFilter"><option value="">Tous les entrepots</option>${warehouseFilterOptions}</select>` : ''}
                     ${module === 'products' ? `<select id="productTagFilter"><option value="">Tous les tags</option>${tagFilterOptions}</select>` : ''}
-                    ${module === 'products' ? '<button class="btn btn-soft" id="clearProductSearch">Effacer filtre</button>' : ''}
+                    ${module === 'products' ? '<button class="btn btn-soft" id="clearProductSearch">Effacer filtres</button>' : ''}
                     ${writable ? '<button class="btn btn-primary" id="createBtn">Nouveau</button>' : ''}
                 </div>
             </div>
@@ -1212,9 +1257,16 @@ async function renderCrud(module) {
             await renderCrud('products');
         });
 
+        document.getElementById('productWarehouseFilter')?.addEventListener('change', async (event) => {
+            state.warehouseFilter = event.target.value;
+            state.crudPages.products = 1;
+            await renderCrud('products');
+        });
+
         document.getElementById('clearProductSearch')?.addEventListener('click', async () => {
             state.globalQuery = '';
             state.tagFilter = '';
+            state.warehouseFilter = '';
             state.crudPages.products = 1;
             const input = document.getElementById('globalSearch');
             if (input) {
@@ -1390,11 +1442,51 @@ async function renderCrud(module) {
                 // variante : il est inutilisable en mouvement tant qu'on n'est
                 // pas passe par le module dedie. On propose donc le raccourci
                 // au lieu de laisser l'utilisateur deviner l'etape suivante.
-                const createdProductId = module === 'products'
-                    && editId === null
-                    && String(payload.has_variants ?? '0') === '1'
+                const newProductId = module === 'products' && editId === null
                     ? Number(saveResponse?.data?.id ?? saveResponse?.id ?? 0) || null
                     : null;
+
+                const createdProductId = newProductId !== null && String(payload.has_variants ?? '0') === '1'
+                    ? newProductId
+                    : null;
+
+                let initialStockError = null;
+                if (newProductId !== null && initialWarehouseId && initialQuantity > 0) {
+                    if (String(payload.has_variants ?? '0') === '1') {
+                        // Un produit a variantes ne porte pas de stock en
+                        // propre : la quantite appartient a chaque variante.
+                        initialStockError = "Le stock initial n'a pas ete enregistre : ce produit utilise des variantes, la quantite se saisit variante par variante.";
+                    } else {
+                        try {
+                            await apiRequest('/stock/movements', {
+                                method: 'POST',
+                                body: {
+                                    product_id: newProductId,
+                                    warehouse_id: initialWarehouseId,
+                                    type: 'IN',
+                                    quantity: initialQuantity,
+                                    reason_code: 'INITIAL_STOCK',
+                                    notes: 'Stock initial saisi a la creation du produit',
+                                },
+                            });
+                        } catch (stockError) {
+                            initialStockError = `Produit cree, mais le stock initial n'a pas pu etre enregistre : ${stockError.message}`;
+                        }
+                    }
+                }
+
+                // Stock initial : ces deux champs ne sont pas des colonnes de
+                // `products`, on les sort du payload produit et on les traite
+                // par un vrai mouvement d'entree - trace, audite, et coherent
+                // avec le reste de l'application.
+                const initialWarehouseId = module === 'products' && editId === null
+                    ? Number(payload.initial_warehouse_id ?? 0) || null
+                    : null;
+                const initialQuantity = module === 'products' && editId === null
+                    ? Number(payload.initial_quantity ?? 0) || 0
+                    : 0;
+                delete payload.initial_warehouse_id;
+                delete payload.initial_quantity;
 
                 const wasCreate = editId === null;
                 if (wasCreate) {
@@ -1412,6 +1504,14 @@ async function renderCrud(module) {
                     freshFeedback.textContent = wasCreate ? 'Cree avec succes.' : 'Modifie avec succes.';
                     freshFeedback.classList.remove('is-error');
                     freshFeedback.classList.add('is-success');
+
+                    if (initialStockError) {
+                        freshFeedback.textContent = initialStockError;
+                        freshFeedback.classList.remove('is-success');
+                        freshFeedback.classList.add('is-error');
+                    } else if (initialWarehouseId && initialQuantity > 0) {
+                        freshFeedback.textContent = `Produit cree avec un stock initial de ${initialQuantity} (mouvement d'entree enregistre).`;
+                    }
 
                     if (createdProductId) {
                         freshFeedback.textContent = 'Produit cree. Il utilise des variantes : ajoute-les pour pouvoir enregistrer des mouvements de stock.';
@@ -1520,7 +1620,9 @@ async function renderMovements() {
                 ['quantity', 'Quantite'],
                 ['balance_after', 'Stock apres'],
                 ['warehouse_name', 'Source'],
+                ['source_location_code', 'Empl. source'],
                 ['destination_warehouse_name', 'Destination'],
+                ['destination_location_code', 'Empl. dest.'],
                 ['customer_name', 'Client'],
                 ['reason_code', 'Motif'],
                 ['moved_by_name', 'Operateur'],
@@ -1609,6 +1711,27 @@ async function renderMovements() {
     warehouseSelect?.addEventListener('change', loadOutSerialOptions);
     productSelect?.addEventListener('change', loadVariantOptions);
     loadVariantOptions();
+
+    // Emplacements : ils dependent de l'entrepot choisi. Pour un transfert,
+    // l'emplacement de destination appartient a l'entrepot de destination ;
+    // pour tout autre mouvement, il n'y a qu'un entrepot, donc les deux listes
+    // pointent le meme.
+    const sourceLocationSelect = document.getElementById('movementSourceLocation');
+    const destinationLocationSelect = document.getElementById('movementDestinationLocation');
+    const destinationWarehouseSelect = form?.elements.namedItem('destination_warehouse_id');
+
+    const refreshLocations = () => {
+        fillLocationOptions(sourceLocationSelect, warehouseSelect?.value ?? '');
+        const destinationWarehouse = String(typeSelect?.value ?? '') === 'TRANSFER'
+            ? (destinationWarehouseSelect?.value ?? '')
+            : (warehouseSelect?.value ?? '');
+        fillLocationOptions(destinationLocationSelect, destinationWarehouse);
+    };
+
+    warehouseSelect?.addEventListener('change', refreshLocations);
+    destinationWarehouseSelect?.addEventListener('change', refreshLocations);
+    typeSelect?.addEventListener('change', refreshLocations);
+    refreshLocations();
 
     form?.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -2297,9 +2420,9 @@ async function renderAlerts() {
             ])}
         </section>
         <section class="panel">
-            <h4>PO en retard</h4>
+            <h4>Commandes d'achat en retard</h4>
             ${renderSimpleTable(computed.data.delayed_po ?? [], [
-                ['order_number', 'PO'],
+                ['order_number', 'Commande'],
                 ['supplier_name', 'Fournisseur'],
                 ['expected_at', 'Date attendue'],
             ])}
@@ -3339,6 +3462,7 @@ async function renderProductDetail(productId) {
                 ['variant_label', 'Variante'],
                 ['quantity', 'Quantite'],
                 ['reserved_quantity', 'Reserve'],
+                ['last_location_code', 'Dernier emplacement'],
             ])}
             <div class="panel-actions">
                 <button type="button" class="btn btn-soft" id="gotoProductSerialsBtn">Numeros de serie de ce produit</button>
@@ -3347,7 +3471,15 @@ async function renderProductDetail(productId) {
             ${canMoveStock ? `
             <form id="productMoveForm" class="form-grid">
                 ${selectField('warehouse_id', 'Entrepot source', state.lookups.warehouses, 'id', 'name', true)}
+                <label><span>Emplacement source (optionnel)</span>
+                    <select name="source_location_id" id="productMoveSourceLocation" disabled>
+                        <option value="">Choisis d'abord un entrepot</option>
+                    </select></label>
                 ${selectField('destination_warehouse_id', 'Entrepot destination', state.lookups.warehouses, 'id', 'name', false)}
+                <label><span>Emplacement destination (optionnel)</span>
+                    <select name="destination_location_id" id="productMoveDestinationLocation" disabled>
+                        <option value="">Choisis d'abord un entrepot</option>
+                    </select></label>
                 <div class="full ${Number(product.has_variants) === 1 ? '' : 'hidden'}" id="productMoveVariantWrap">
                     <label><span>Variante</span><select name="variant_id" id="productMoveVariantSelect" ${Number(product.has_variants) === 1 ? 'required' : ''}></select></label>
                     <small class="field-hint">Ce produit utilise des variantes : choisis celle concernee par ce mouvement.</small>
@@ -3384,7 +3516,9 @@ async function renderProductDetail(productId) {
                 ['variant_sku', 'Variante', (v, row) => (row.variant_id ? sanitize(variantDescriptor(row)) : '-')],
                 ['quantity', 'Quantite'],
                 ['warehouse_name', 'Source'],
+                ['source_location_code', 'Empl. source'],
                 ['destination_warehouse_name', 'Destination'],
+                ['destination_location_code', 'Empl. dest.'],
                 ['customer_name', 'Client'],
                 ['reason_code', 'Motif'],
                 ['moved_by_name', 'Par'],
@@ -3487,6 +3621,26 @@ async function renderProductDetail(productId) {
     moveWarehouseSelect?.addEventListener('change', loadProductMoveOutSerialOptions);
     loadProductMoveVariantOptions();
 
+    // Meme logique que sur l'ecran Mouvements : les emplacements proposes sont
+    // ceux de l'entrepot concerne, la destination suivant l'entrepot de
+    // destination quand il s'agit d'un transfert.
+    const moveSourceLocation = document.getElementById('productMoveSourceLocation');
+    const moveDestinationLocation = document.getElementById('productMoveDestinationLocation');
+    const moveDestinationWarehouse = moveForm?.elements.namedItem('destination_warehouse_id');
+
+    const refreshProductMoveLocations = () => {
+        fillLocationOptions(moveSourceLocation, moveWarehouseSelect?.value ?? '');
+        const destinationWarehouse = String(moveTypeSelect?.value ?? '') === 'TRANSFER'
+            ? (moveDestinationWarehouse?.value ?? '')
+            : (moveWarehouseSelect?.value ?? '');
+        fillLocationOptions(moveDestinationLocation, destinationWarehouse);
+    };
+
+    moveWarehouseSelect?.addEventListener('change', refreshProductMoveLocations);
+    moveDestinationWarehouse?.addEventListener('change', refreshProductMoveLocations);
+    moveTypeSelect?.addEventListener('change', refreshProductMoveLocations);
+    refreshProductMoveLocations();
+
     moveForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
         const feedback = document.getElementById('productMoveFeedback');
@@ -3548,6 +3702,8 @@ async function renderProductDetail(productId) {
                     variant_id: productMoveVariantSelect?.value ? Number(productMoveVariantSelect.value) : null,
                     warehouse_id: warehouseId,
                     destination_warehouse_id: data.get('destination_warehouse_id') ? Number(data.get('destination_warehouse_id')) : null,
+                    source_location_id: data.get('source_location_id') ? Number(data.get('source_location_id')) : null,
+                    destination_location_id: data.get('destination_location_id') ? Number(data.get('destination_location_id')) : null,
                     type,
                     quantity,
                     reason_code: String(data.get('reason_code') ?? ''),
@@ -4352,7 +4508,8 @@ function renderCrudTable(config, rows, canWrite, module = '') {
 }
 
 function buildFormFields(fields, item = null, editing = false) {
-    return fields.map((field) => {
+    // Les champs createOnly n'ont de sens qu'a la creation (ex: stock initial).
+    return fields.filter((field) => !(field.createOnly && editing)).map((field) => {
         // field.defaultValue ne s'applique qu'a la creation : en edition, la
         // valeur enregistree du produit prime toujours sur le reglage global.
         const fallback = !item && field.defaultValue !== undefined ? String(field.defaultValue) : '';
@@ -4621,6 +4778,131 @@ function formatMoney(value) {
  *
  * @returns {Promise<string|null>} la valeur choisie, ou null si annulation.
  */
+// Au-dela de ce nombre d'options, une liste deroulante recoit un champ de
+// filtrage. En dessous, le defilement suffit et un champ en plus serait du
+// bruit.
+const SEARCHABLE_SELECT_THRESHOLD = 12;
+
+/** Minuscules sans accents, pour un filtrage qui ignore la casse et les accents. */
+function searchNormalize(value) {
+    return String(value ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+}
+
+/**
+ * Ajoute un champ de filtrage au-dessus d'une liste deroulante trop longue.
+ *
+ * Une balise <select> native ne permet de taper que deux ou trois caracteres :
+ * le navigateur cherche depuis le DEBUT du libelle et remet son tampon a zero
+ * apres une seconde. Avec 144 produits, retrouver "Clavier mecanique" en
+ * tapant "clav" est impossible - c'est la limite du composant natif, pas un
+ * defaut de configuration.
+ *
+ * Le filtrage porte sur n'importe quelle partie du libelle (donc aussi le
+ * SKU), ignore accents et casse. On reconstruit la liste des options plutot
+ * que de jouer sur `option.hidden`, dont le support est inegal selon les
+ * navigateurs. Le <select> reste un <select> : les formulaires continuent de
+ * lire `.value` sans rien changer.
+ */
+/**
+ * Remplit une liste d'emplacements avec ceux d'un entrepot donne.
+ *
+ * Les emplacements appartiennent a un entrepot (`warehouse_locations
+ * .warehouse_id`) : proposer ceux de tous les entrepots n'aurait aucun sens
+ * et permettrait de ranger un article dans une allee qui n'existe pas la ou
+ * il se trouve.
+ */
+function fillLocationOptions(select, warehouseId, selectedValue = '') {
+    if (!select) {
+        return;
+    }
+
+    const locations = (state.lookups?.warehouse_locations ?? [])
+        .filter((location) => String(location.warehouse_id) === String(warehouseId))
+        .filter((location) => Number(location.is_active ?? 1) === 1);
+
+    if (!warehouseId) {
+        select.innerHTML = '<option value="">Choisis d\'abord un entrepot</option>';
+        select.disabled = true;
+        return;
+    }
+
+    select.disabled = false;
+    select.innerHTML = locations.length === 0
+        ? '<option value="">Aucun emplacement defini pour cet entrepot</option>'
+        : '<option value="">Non precise</option>' + locations
+            .map((location) => {
+                const label = location.description
+                    ? `${location.code} - ${location.description}`
+                    : location.code;
+                return `<option value="${Number(location.id)}" ${String(location.id) === String(selectedValue) ? 'selected' : ''}>${sanitize(label)}</option>`;
+            })
+            .join('');
+}
+
+function makeSelectSearchable(select) {
+    if (!select || select.dataset.searchable === '1' || select.multiple) {
+        return;
+    }
+
+    const options = Array.from(select.options).map((option) => ({
+        value: option.value,
+        label: option.textContent ?? '',
+        normalized: searchNormalize(option.textContent),
+    }));
+
+    if (options.length <= SEARCHABLE_SELECT_THRESHOLD) {
+        return;
+    }
+
+    select.dataset.searchable = '1';
+
+    const input = document.createElement('input');
+    input.type = 'search';
+    input.className = 'select-search';
+    input.placeholder = `Filtrer (${options.length} entrees)...`;
+    input.autocomplete = 'off';
+    select.parentNode?.insertBefore(input, select);
+
+    // Entree dans le champ de filtre : on ne soumet pas le formulaire, on
+    // laisse simplement le focus passer a la liste.
+    input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            select.focus();
+        }
+    });
+
+    input.addEventListener('input', () => {
+        const query = searchNormalize(input.value);
+        const previous = select.value;
+
+        const matches = options.filter((option) => option.value === '' || option.normalized.includes(query));
+        select.innerHTML = matches
+            .map((option) => `<option value="${sanitize(option.value)}">${sanitize(option.label)}</option>`)
+            .join('');
+
+        const realMatches = matches.filter((option) => option.value !== '');
+
+        // Un seul resultat : on le selectionne, c'est ce que l'utilisateur
+        // cherchait. Sinon on restaure sa selection precedente si elle fait
+        // toujours partie des resultats, pour ne jamais la perdre en cours de
+        // frappe.
+        if (query !== '' && realMatches.length === 1) {
+            select.value = realMatches[0].value;
+        } else if (matches.some((option) => option.value === previous)) {
+            select.value = previous;
+        }
+    });
+}
+
+/** Applique le filtrage a toutes les listes deroulantes longues d'un conteneur. */
+function enhanceSelects(root) {
+    root?.querySelectorAll('select:not([data-searchable])').forEach(makeSelectSearchable);
+}
+
 function askChoice(title, question, choices) {
     return new Promise((resolve) => {
         const overlay = document.createElement('div');

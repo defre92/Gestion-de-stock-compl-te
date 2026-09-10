@@ -598,6 +598,63 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+### Entrepots, emplacements et stock initial
+
+**Filtre par entrepot sur la liste des produits.** Un produit n'appartient pas
+a un entrepot : c'est son STOCK qui y est reparti. L'information existait
+(fiche produit, onglet Stock) mais nulle part ailleurs, et la colonne "Stock"
+de la liste affichait un total tous entrepots confondus sans le dire. Le filtre
+restreint la liste aux produits presents dans l'entrepot choisi, la colonne
+n'y compte plus que ce stock-la, et son libelle le precise ("Stock (Entrepot
+Principal)" ou "Stock (tous entrepots)"). `warehouse_id` n'etant pas une
+colonne de `products`, il est traite a part dans `ProductRepository::paginate()`
+et non par `buildWhere()`.
+
+**Stock initial a la creation d'un produit.** Deux champs optionnels
+(entrepot + quantite) affiches uniquement a la CREATION - modifier un stock se
+fait par un mouvement trace, jamais en editant une fiche. Ils generent un vrai
+mouvement d'entree `INITIAL_STOCK`, audite comme les autres, au lieu d'ecrire
+directement dans `stock_levels`. Un produit a variantes refuse le stock initial
+avec un message explicite : sa quantite appartient a chaque variante.
+
+**Emplacements branches sur les mouvements.** Zones et emplacements existaient
+comme referentiels, et le backend acceptait deja `source_location_id` /
+`destination_location_id` sur un mouvement - mais **aucun formulaire ne les
+envoyait**. Ils ne servaient qu'a une case du comptage d'inventaire. Desormais :
+
+- emplacement source et destination dans le formulaire de mouvement et dans
+  celui de la fiche produit, **filtres sur l'entrepot concerne** (pour un
+  transfert, la destination suit l'entrepot de destination) ;
+- colonnes "Empl. source" et "Empl. dest." dans l'historique des mouvements ;
+- **dernier emplacement connu** par entrepot sur la fiche produit, deduit du
+  dernier mouvement qui en mentionne un.
+
+**Limite assumee** : `stock_levels` ne porte pas d'emplacement, le stock reste
+suivi par entrepot. Le dernier emplacement est donc une indication - "ou cet
+article a ete range la derniere fois" - et non un inventaire par allee. Un vrai
+suivi par emplacement demanderait une migration de `stock_levels` et toucherait
+mouvements, inventaires, livraisons et achats ; a n'entreprendre que si
+quelqu'un cherche reellement du materiel etagere par etagere.
+
+### Listes deroulantes filtrables, et libelles "PO"
+
+- **Champ de filtrage sur les listes de plus de 12 entrees.** Une balise
+  `<select>` native ne permet de taper que deux ou trois caracteres : le
+  navigateur cherche depuis le DEBUT du libelle et remet son tampon a zero
+  apres une seconde. Avec 144 produits, retrouver "Clavier mecanique" en
+  tapant "clav" etait impossible - limite du composant natif, pas un defaut de
+  configuration. Le filtrage porte sur n'importe quelle partie du libelle (donc
+  aussi le SKU), ignore accents et casse, et selectionne automatiquement le
+  resultat quand il est unique.
+  Applique par un `MutationObserver` sur le document plutot que par un appel
+  apres chaque rendu : les ecrans sont reconstruits par `innerHTML` a une
+  vingtaine d'endroits, et un futur ecran en beneficiera sans qu'on ait a y
+  penser. Le `<select>` reste un `<select>`, les formulaires lisent toujours
+  `.value`.
+- **"PO" remplace par "Commandes"** dans le tableau de bord et les tableaux
+  d'achats : l'abreviation anglaise (purchase order) n'a aucun sens pour un
+  utilisateur francais.
+
 ### Numeros de serie : reconciliation avec le stock quantitatif
 
 Le modele voulait que les deux registres restent d'accord, et l'ecran

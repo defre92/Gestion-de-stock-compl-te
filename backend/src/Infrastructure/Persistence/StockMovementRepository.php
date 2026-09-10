@@ -98,6 +98,8 @@ final class StockMovementRepository
                    v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl,
                    w.name AS warehouse_name,
                    dw.name AS destination_warehouse_name,
+                   sloc.code AS source_location_code,
+                   dloc.code AS destination_location_code,
                    u.full_name AS moved_by_name,
                    c.name AS customer_name
             FROM stock_movements sm
@@ -105,6 +107,8 @@ final class StockMovementRepository
             LEFT JOIN product_variants v ON v.id = sm.variant_id
             INNER JOIN warehouses w ON w.id = sm.warehouse_id
             LEFT JOIN warehouses dw ON dw.id = sm.destination_warehouse_id
+            LEFT JOIN warehouse_locations sloc ON sloc.id = sm.source_location_id
+            LEFT JOIN warehouse_locations dloc ON dloc.id = sm.destination_location_id
             LEFT JOIN users u ON u.id = sm.moved_by
             LEFT JOIN customers c ON sm.reference_type = \'CUSTOMER\' AND c.id = sm.reference_id
             ' . $whereSql . '
