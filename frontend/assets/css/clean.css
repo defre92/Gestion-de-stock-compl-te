@@ -807,3 +807,15 @@ td.is-positive {
 .panel-inline p:last-child {
     margin-bottom: 0;
 }
+
+/* Vignette d'apercu des medias produit (onglet Media de la fiche produit). */
+.media-thumb {
+    width: 96px;
+}
+
+.media-thumb img {
+    display: block;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #ffffff;
+}

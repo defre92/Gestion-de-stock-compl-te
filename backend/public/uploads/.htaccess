@@ -12,3 +12,17 @@
 
 Options -ExecCGI -Indexes
 AddType text/plain .php .phtml .php5 .php7
+
+# Acces direct au fichier interdit : les telechargements passent
+# obligatoirement par l'API authentifiee (/product-media/{id}/download et
+# /attachments/{id}/download), qui verifie la session avant de streamer le
+# fichier. Sans cette regle, ce dossier etant sous public/, une piece jointe
+# restait joignable par son URL - sans aucune authentification - des que
+# celle-ci fuitait (historique de navigation, copier-coller, journal proxy).
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

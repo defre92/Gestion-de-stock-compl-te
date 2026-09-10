@@ -613,6 +613,49 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+## Fiche produit : etiquette cassee, et apercu des medias
+
+**L'image de l'onglet Etiquette ne s'affichait pas.** L'etiquette est un SVG
+genere par l'API, recupere par `fetch` avec le jeton d'authentification (le
+fichier n'est pas joignable par une URL publique), puis affiche via
+`URL.createObjectURL()` - donc une URL `blob:`. Or la politique de securite
+du contenu envoyee par le frontend declarait `img-src 'self' data:` : le
+navigateur refusait l'image **silencieusement**, sans erreur dans
+l'application, seulement une ligne dans la console. D'ou l'image cassee.
+`blob:` est desormais autorise pour les images. L'endpoint, lui, etait
+correct depuis le debut (SVG valide, `Content-Type: image/svg+xml`).
+
+**Medias et pieces jointes sont bien raccordes** - verifie de bout en bout
+sur une base reelle : televersement, apparition dans la liste, et
+telechargement rendant un fichier **octet pour octet identique** a
+l'original, pour les deux. Les routes utilisees par l'ecran
+(`POST /products/{id}/media/upload`, `POST /attachments/upload`,
+`GET /product-media/{id}/download`, `GET /attachments/{id}/download`)
+existent et repondent.
+
+Deux choses corrigees au passage :
+
+- **L'onglet Media n'affichait aucun apercu** : une photo produit n'etait
+  qu'une ligne de tableau avec un nom de fichier, il fallait la telecharger
+  pour savoir ce qu'elle montrait. Une colonne Apercu affiche desormais une
+  vignette pour les medias image (chargee par la meme route authentifiee que
+  le bouton Telecharger ; les documents gardent un tiret).
+- **Le chemin absolu du fichier sur le serveur etait renvoye au navigateur.**
+  `GET /products/{id}` faisait un `SELECT *` sur `product_media` et livrait
+  `file_path`, soit `/home/.../backend/public/uploads/...`, a tout
+  utilisateur connecte. Le frontend ne s'en sert pas : les colonnes sont
+  maintenant listees explicitement.
+
+**Dossier `uploads/` : acces direct desormais refuse.** Il se trouve sous
+`backend/public/`, donc une piece jointe restait joignable par son URL, sans
+aucune authentification, des que celle-ci fuitait (historique, copier-coller,
+journal de proxy). Les noms de fichiers sont aleatoires, ce qui rendait la
+chose peu probable, mais ce n'est pas une protection. Le `.htaccess` du
+dossier interdit maintenant l'acces direct ; les telechargements passent par
+l'API authentifiee, qui verifie la session avant de streamer le fichier -
+c'est deja ce que fait l'application, rien ne change pour l'utilisateur.
+(Il interdisait deja l'execution de tout script depose dans ce dossier.)
+
 ## Import CSV : modele telechargeable et colonnes exactes
 
 L'ecran **Importations CSV** affichait une seule ligne listant les en-tetes de

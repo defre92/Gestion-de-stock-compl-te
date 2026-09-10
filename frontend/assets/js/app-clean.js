@@ -4075,28 +4075,78 @@ async function renderProductDetail(productId) {
         }
     });
 
+    await loadMediaThumbnails();
     await loadLabelPreview(productId);
 }
 
 function renderDownloadTable(rows, type) {
-    const body = rows.map((row) => `
+    // Pour les medias, une colonne d'apercu : une photo produit listee par son
+    // seul nom de fichier oblige a la telecharger pour savoir ce qu'elle
+    // montre. Les vignettes sont chargees ensuite (voir loadMediaThumbnails),
+    // car le fichier n'est accessible qu'authentifie.
+    const withPreview = type === 'media';
+    const body = rows.map((row) => {
+        const isImage = String(row.mime_type ?? '').startsWith('image/');
+        const preview = withPreview
+            ? `<td class="media-thumb">${isImage
+                ? `<span data-media-thumb="${row.id}" class="muted">...</span>`
+                : '<span class="muted">-</span>'}</td>`
+            : '';
+        return `
         <tr>
             <td>${sanitize(row.id)}</td>
+            ${preview}
             <td>${sanitize(row.file_name)}</td>
             <td>${sanitize(row.mime_type ?? '')}</td>
             <td>${sanitize(row.created_at ?? '')}</td>
             <td class="actions"><button class="btn btn-soft" data-download-type="${type}" data-download-id="${row.id}" data-download-name="${sanitize(row.file_name ?? 'file.bin')}">Telecharger le fichier</button></td>
         </tr>
-    `).join('');
+    `;
+    }).join('');
+
+    const columnCount = withPreview ? 6 : 5;
 
     return `
         <div class="table-wrap">
             <table class="data-table">
-                <thead><tr><th>ID</th><th>Fichier</th><th>Type</th><th>Date</th><th>Action</th></tr></thead>
-                <tbody>${body || '<tr><td colspan="5">Aucune donnee</td></tr>'}</tbody>
+                <thead><tr><th>ID</th>${withPreview ? '<th>Apercu</th>' : ''}<th>Fichier</th><th>Type</th><th>Date</th><th>Action</th></tr></thead>
+                <tbody>${body || `<tr><td colspan="${columnCount}">Aucune donnee</td></tr>`}</tbody>
             </table>
         </div>
     `;
+}
+
+/**
+ * Charge les vignettes des medias image de la fiche produit.
+ *
+ * Le fichier n'est pas joignable par une URL publique (le dossier uploads
+ * refuse l'acces direct) : on passe par la meme route authentifiee que le
+ * bouton Telecharger, et on affiche le resultat via un objet blob. L'URL est
+ * liberee des que l'image est affichee, pour ne pas accumuler des blobs a
+ * chaque ouverture de fiche.
+ */
+async function loadMediaThumbnails() {
+    const holders = [...document.querySelectorAll('[data-media-thumb]')];
+    for (const holder of holders) {
+        const id = holder.getAttribute('data-media-thumb');
+        try {
+            const blob = await fetchAuthenticatedBlob(`/product-media/${id}/download`);
+            const url = URL.createObjectURL(blob);
+            const img = document.createElement('img');
+            img.alt = 'Apercu du media';
+            img.style.maxWidth = '80px';
+            img.style.maxHeight = '60px';
+            img.addEventListener('load', () => URL.revokeObjectURL(url), { once: true });
+            img.addEventListener('error', () => {
+                URL.revokeObjectURL(url);
+                holder.textContent = 'apercu indisponible';
+            }, { once: true });
+            img.src = url;
+            holder.replaceChildren(img);
+        } catch (_) {
+            holder.textContent = 'apercu indisponible';
+        }
+    }
 }
 
 async function loadLabelPreview(productId) {

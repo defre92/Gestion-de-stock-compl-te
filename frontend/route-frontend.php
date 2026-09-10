@@ -42,7 +42,12 @@ if (!headers_sent()) {
         . "script-src 'self' 'nonce-{$cspNonce}' https://cdn.jsdelivr.net; "
         . "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; "
         . "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; "
-        . "img-src 'self' data:; "
+        // blob: est indispensable a l'apercu d'etiquette : le SVG est
+        // recupere par fetch avec le jeton d'authentification, puis affiche
+        // via URL.createObjectURL(). Sans blob: dans img-src, le navigateur
+        // refusait silencieusement l'image - l'onglet Etiquette affichait une
+        // image cassee, sans aucune erreur visible cote application.
+        . "img-src 'self' data: blob:; "
         . "connect-src 'self'; "
         . "frame-ancestors 'none'; "
         . "base-uri 'self'; "

@@ -159,7 +159,15 @@ final class ProductRepository extends PdoCrudRepository
             return null;
         }
 
-        $mediaStmt = $this->pdo->prepare('SELECT * FROM product_media WHERE product_id = :id ORDER BY id DESC');
+        // Colonnes listees explicitement : `SELECT *` renvoyait file_path,
+        // c'est-a-dire le chemin ABSOLU du fichier sur le serveur
+        // (/home/.../backend/public/uploads/...). Le frontend ne s'en sert
+        // pas - il telecharge via /product-media/{id}/download - et cela
+        // renseignait l'arborescence du serveur a tout utilisateur connecte.
+        $mediaStmt = $this->pdo->prepare('
+            SELECT id, product_id, media_type, file_name, mime_type, uploaded_by, created_at
+            FROM product_media WHERE product_id = :id ORDER BY id DESC
+        ');
         $mediaStmt->execute([':id' => $id]);
         $result['media'] = $mediaStmt->fetchAll();
 
