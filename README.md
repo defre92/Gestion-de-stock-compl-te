@@ -613,6 +613,66 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+## Douchette : etiquette reellement scannable, et scan qui ouvre la fiche
+
+### L'ancienne etiquette n'etait pas un code barre
+
+Les barres etaient dessinees a partir des **bits ASCII bruts** du code : un
+octet, huit barres, un separateur. Cela RESSEMBLAIT a un code barre, mais il
+n'y avait ni caractere de depart, ni cle de controle, ni zone de silence, ni
+largeurs normalisees. **Aucune douchette ne pouvait le lire** - verifie : le
+decodeur zbar ne trouve rien dans l'ancienne image.
+
+L'etiquette utilise desormais du **Code 128** (norme ISO/IEC 15417), encode
+par `Code128Encoder` : caractere de depart, cle de controle modulo 103,
+symbole STOP, zone de silence de 12 modules et largeurs conformes. Le jeu C
+est employe pour un code entierement numerique de longueur paire (deux
+chiffres par symbole, donc un symbole deux fois plus court), le jeu B sinon -
+qui accepte les lettres, indispensable pour un SKU du type `MAT-PLAN-001`.
+
+Le Code 128 est le symbole le plus adapte a un stock : alphanumerique, dense,
+et lu sans configuration par tous les lecteurs du commerce.
+
+**Verification** : les etiquettes generees sont converties en image puis
+relues par `zbarimg`. `MAT-PLAN` -> `MAT-PLAN`, `3760001234567` ->
+`3760001234567`, `BUR-CHAISE-01` -> `BUR-CHAISE-01`. Ce n'est pas une
+relecture de mon propre encodeur : c'est un decodeur independant qui lit
+l'image, comme le ferait la douchette.
+
+L'etiquette porte le nom du produit, les barres, le code en clair (saisie
+manuelle possible si l'etiquette est abimee), le SKU et le prix. Sa largeur
+s'adapte a la longueur du code au lieu d'etre figee a 520 points.
+
+### Ce que fait un scan
+
+Une douchette USB ou Bluetooth se comporte comme un **clavier** : elle tape
+le code puis envoie Entree. Il n'y a rien a installer ni a configurer.
+
+1. Cliquer une fois dans le champ de recherche en haut de l'ecran.
+2. Scanner l'etiquette.
+3. La liste produit est filtree sur le code, et **si ce code designe un seul
+   article et correspond exactement a son code barre ou a son SKU, sa fiche
+   s'ouvre directement**.
+
+Le champ reste selectionne apres chaque scan : on enchaine les articles sans
+toucher a la souris. Le scan fonctionne depuis n'importe quel ecran (la
+touche Entree bascule sur Produits), et une recherche par mot ("velo") ou un
+code qui remonte plusieurs articles laissent simplement la liste filtree,
+sans ouvrir de fiche a tort.
+
+**Correction liee** : la fiche affichee doit toujours correspondre a un
+produit de la liste. Un scan qui ne trouvait rien laissait auparavant la
+fiche du produit precedent a l'ecran sous une liste vide - en reception, on
+croit avoir scanne l'article qu'on a sous les yeux.
+
+### Ce que ce n'est pas (encore)
+
+Le scan ouvre la fiche ; il ne saisit pas de mouvement tout seul. Enregistrer
+une entree ou une sortie reste un geste explicite depuis la fiche ou l'ecran
+Mouvements. Un mode "scan en rafale" pour un inventaire ou une reception -
+scanner vingt articles a la suite pour incrementer des quantites - est un
+chantier separe, a ouvrir si l'usage le demande.
+
 ## Fiche produit : etiquette cassee, et apercu des medias
 
 **L'image de l'onglet Etiquette ne s'affichait pas.** L'etiquette est un SVG

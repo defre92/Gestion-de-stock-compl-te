@@ -668,6 +668,43 @@ async function runGlobalSearch(rawValue) {
     }
 }
 
+/**
+ * Recherche validee par Entree - c'est aussi ce que produit une douchette,
+ * qui se comporte comme un clavier : elle "tape" le code puis envoie Entree.
+ *
+ * La liste produit est toujours filtree sur le code. En plus, si ce code
+ * designe UN SEUL article et qu'il correspond exactement a son code barre ou
+ * a son SKU, sa fiche s'ouvre directement : c'est le geste attendu apres un
+ * scan. Une recherche par mot ("velo"), ou un code qui remonte plusieurs
+ * articles, laisse simplement la liste filtree - aucune fiche ne s'ouvre a
+ * tort.
+ */
+async function submitGlobalSearch(rawValue) {
+    const query = String(rawValue ?? '').trim();
+    await runGlobalSearch(query);
+
+    if (query === '') {
+        return;
+    }
+
+    const rows = Array.isArray(state.lastProductRows) ? state.lastProductRows : [];
+    if (rows.length !== 1) {
+        return;
+    }
+
+    const row = rows[0];
+    const needle = query.toLowerCase();
+    const exact = [row.barcode, row.sku]
+        .some((value) => String(value ?? '').trim().toLowerCase() === needle);
+    if (!exact) {
+        return;
+    }
+
+    state.activeProductId = Number(row.id);
+    await renderProductDetail(Number(row.id));
+    document.getElementById('productDetailPane')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function setupGlobalSearch() {
     const input = document.getElementById('globalSearch');
 
@@ -703,7 +740,11 @@ function setupGlobalSearch() {
 
         event.preventDefault();
         window.clearTimeout(globalSearchTimer);
-        await runGlobalSearch(input.value);
+        await submitGlobalSearch(input.value);
+        // Le champ est vide pour le scan suivant, mais on garde le focus :
+        // en caisse ou en reception, on enchaine les articles sans toucher a
+        // la souris.
+        input.select();
     });
 }
 
@@ -1251,6 +1292,13 @@ async function renderCrud(module) {
 
     const rows = normalizeRows(response);
 
+    // Memorise le resultat produit courant : la recherche par douchette s'en
+    // sert pour savoir si le code scanne designe un seul et unique article,
+    // sans refaire un appel a l'API.
+    if (module === 'products') {
+        state.lastProductRows = rows;
+    }
+
     const tagFilterOptions = module === 'products'
         ? (state.lookups?.tags ?? []).map((tag) => `<option value="${tag.id}" ${String(tag.id) === String(state.tagFilter) ? 'selected' : ''}>${sanitize(tag.name)}</option>`).join('')
         : '';
@@ -1598,7 +1646,16 @@ async function renderCrud(module) {
     }
 
     if (module === 'products' && state.activeProductId) {
-        await renderProductDetail(state.activeProductId);
+        // La fiche ouverte doit toujours correspondre a un produit de la liste
+        // affichee. Sans ce controle, un scan qui ne trouve rien laissait la
+        // fiche du produit precedent a l'ecran, sous une liste vide : en
+        // reception, on croit avoir scanne l'article qu'on a sous les yeux.
+        const stillListed = rows.some((row) => String(row.id) === String(state.activeProductId));
+        if (stillListed) {
+            await renderProductDetail(state.activeProductId);
+        } else {
+            state.activeProductId = null;
+        }
     }
 }
 

@@ -75,7 +75,7 @@ require_once __DIR__ . '/route-frontend.php';
                     <h2 id="pageTitle">Tableau de bord</h2>
                 </div>
                 <div class="header-actions">
-                    <input id="globalSearch" class="global-search" type="search" placeholder="Recherche globale produit, SKU, fournisseur...">
+                    <input id="globalSearch" class="global-search" type="search" placeholder="Recherche ou scan douchette : nom, SKU, code barre">
                     <button type="button" class="user-pill" id="userPill">Chargement...</button>
                 </div>
             </header>
