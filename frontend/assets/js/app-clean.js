@@ -4855,8 +4855,11 @@ function fillLocationOptions(select, warehouseId, selectedValue = '') {
     }
 
     select.disabled = false;
+    // Message explicite plutot qu'une liste vide : un entrepot sans
+    // emplacement n'est pas une anomalie, mais l'utilisateur doit savoir ou
+    // aller en creer plutot que de croire a un dysfonctionnement.
     select.innerHTML = locations.length === 0
-        ? '<option value="">Aucun emplacement defini pour cet entrepot</option>'
+        ? '<option value="">Aucun emplacement dans cet entrepot - a creer dans Logistique &gt; Emplacements</option>'
         : '<option value="">Non precise</option>' + locations
             .map((location) => {
                 const label = location.description

@@ -128,6 +128,55 @@ JOIN warehouse_zones z ON z.warehouse_id = w.id AND z.code = 'B'
 WHERE w.code = 'WH-002'
 ON DUPLICATE KEY UPDATE description = VALUES(description), capacity = VALUES(capacity), is_active = VALUES(is_active);
 
+-- Zones et emplacements de l'entrepot PRINCIPAL.
+-- Ils manquaient : la demo ne definissait d'emplacement que dans l'entrepot
+-- secondaire, alors que tout le stock est dans le principal. Resultat, en
+-- choisissant "Entrepot Principal" dans un mouvement, la liste des
+-- emplacements etait vide et la fonctionnalite semblait cassee alors qu'il n'y
+-- avait simplement rien a proposer.
+INSERT INTO warehouse_zones (warehouse_id, code, name)
+SELECT w.id, 'A', 'Zone A - Picking' FROM warehouses w WHERE w.is_default = 1
+ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO warehouse_zones (warehouse_id, code, name)
+SELECT w.id, 'C', 'Zone C - Reserve' FROM warehouses w WHERE w.is_default = 1
+ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO warehouse_locations (warehouse_id, zone_id, code, description, capacity, is_active)
+SELECT w.id, z.id, 'A1', 'Allee A - niveau 1', 200, 1
+FROM warehouses w
+JOIN warehouse_zones z ON z.warehouse_id = w.id AND z.code = 'A'
+WHERE w.is_default = 1
+ON DUPLICATE KEY UPDATE description = VALUES(description), capacity = VALUES(capacity), is_active = VALUES(is_active);
+
+INSERT INTO warehouse_locations (warehouse_id, zone_id, code, description, capacity, is_active)
+SELECT w.id, z.id, 'A2', 'Allee A - niveau 2', 200, 1
+FROM warehouses w
+JOIN warehouse_zones z ON z.warehouse_id = w.id AND z.code = 'A'
+WHERE w.is_default = 1
+ON DUPLICATE KEY UPDATE description = VALUES(description), capacity = VALUES(capacity), is_active = VALUES(is_active);
+
+INSERT INTO warehouse_locations (warehouse_id, zone_id, code, description, capacity, is_active)
+SELECT w.id, z.id, 'A3', 'Allee A - niveau 3', 200, 1
+FROM warehouses w
+JOIN warehouse_zones z ON z.warehouse_id = w.id AND z.code = 'A'
+WHERE w.is_default = 1
+ON DUPLICATE KEY UPDATE description = VALUES(description), capacity = VALUES(capacity), is_active = VALUES(is_active);
+
+INSERT INTO warehouse_locations (warehouse_id, zone_id, code, description, capacity, is_active)
+SELECT w.id, z.id, 'C1', 'Reserve - palettier 1', 800, 1
+FROM warehouses w
+JOIN warehouse_zones z ON z.warehouse_id = w.id AND z.code = 'C'
+WHERE w.is_default = 1
+ON DUPLICATE KEY UPDATE description = VALUES(description), capacity = VALUES(capacity), is_active = VALUES(is_active);
+
+INSERT INTO warehouse_locations (warehouse_id, zone_id, code, description, capacity, is_active)
+SELECT w.id, z.id, 'C2', 'Reserve - palettier 2', 800, 1
+FROM warehouses w
+JOIN warehouse_zones z ON z.warehouse_id = w.id AND z.code = 'C'
+WHERE w.is_default = 1
+ON DUPLICATE KEY UPDATE description = VALUES(description), capacity = VALUES(capacity), is_active = VALUES(is_active);
+
 -- Clients de demo
 INSERT INTO customers (code, name, email, phone, address, status) VALUES
 ('CLI-001', 'Client Interne RH', 'rh@societe.local', '0101010101', 'Siege Bruxelles', 'ACTIVE'),
@@ -4354,3 +4403,140 @@ INSERT INTO product_tags (product_id, tag_id)
 SELECT p.id, t.id FROM products p JOIN tags t ON t.name = 'gros-volume'
 WHERE p.sku LIKE 'DEMO-PAP-%'
   AND NOT EXISTS (SELECT 1 FROM product_tags pt WHERE pt.product_id = p.id AND pt.tag_id = t.id);
+
+
+-- ----------------------------------------------------------------------------
+-- Repartition d'une partie du stock dans les emplacements
+-- ----------------------------------------------------------------------------
+-- Sans cela, tout le stock de demo reste "sans emplacement precis" et l'ecran
+-- Stock d'une fiche produit n'affiche qu'une ligne par entrepot : la
+-- fonctionnalite existe mais ne se voit nulle part. Ici, quelques articles sont
+-- ranges dans des allees precises pour que le suivi par emplacement soit
+-- visible des le chargement de la demo.
+-- Idempotent : la ligne sans emplacement est FIXEE a une valeur (UPDATE, pas
+-- une soustraction), et les lignes localisees sont protegees par NOT EXISTS.
+
+
+UPDATE stock_levels sl
+JOIN products p ON p.id = sl.product_id
+JOIN warehouses w ON w.id = sl.warehouse_id AND w.is_default = 1
+SET sl.quantity = 12
+WHERE p.sku = 'DEMO-INF-001' AND sl.variant_id IS NULL AND sl.location_id IS NULL;
+
+INSERT INTO stock_levels (product_id, warehouse_id, location_id, quantity, reserved_quantity)
+SELECT p.id, w.id, l.id, 40, 0
+FROM products p
+JOIN warehouses w ON w.is_default = 1
+JOIN warehouse_locations l ON l.warehouse_id = w.id AND l.code = 'A1'
+WHERE p.sku = 'DEMO-INF-001'
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.location_id = l.id AND sl.variant_id IS NULL);
+
+INSERT INTO stock_levels (product_id, warehouse_id, location_id, quantity, reserved_quantity)
+SELECT p.id, w.id, l.id, 25, 0
+FROM products p
+JOIN warehouses w ON w.is_default = 1
+JOIN warehouse_locations l ON l.warehouse_id = w.id AND l.code = 'A2'
+WHERE p.sku = 'DEMO-INF-001'
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.location_id = l.id AND sl.variant_id IS NULL);
+
+INSERT INTO stock_levels (product_id, warehouse_id, location_id, quantity, reserved_quantity)
+SELECT p.id, w.id, l.id, 60, 0
+FROM products p
+JOIN warehouses w ON w.is_default = 1
+JOIN warehouse_locations l ON l.warehouse_id = w.id AND l.code = 'C1'
+WHERE p.sku = 'DEMO-INF-001'
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.location_id = l.id AND sl.variant_id IS NULL);
+
+UPDATE stock_levels sl
+JOIN products p ON p.id = sl.product_id
+JOIN warehouses w ON w.id = sl.warehouse_id AND w.is_default = 1
+SET sl.quantity = 0
+WHERE p.sku = 'DEMO-INF-002' AND sl.variant_id IS NULL AND sl.location_id IS NULL;
+
+INSERT INTO stock_levels (product_id, warehouse_id, location_id, quantity, reserved_quantity)
+SELECT p.id, w.id, l.id, 18, 0
+FROM products p
+JOIN warehouses w ON w.is_default = 1
+JOIN warehouse_locations l ON l.warehouse_id = w.id AND l.code = 'A1'
+WHERE p.sku = 'DEMO-INF-002'
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.location_id = l.id AND sl.variant_id IS NULL);
+
+INSERT INTO stock_levels (product_id, warehouse_id, location_id, quantity, reserved_quantity)
+SELECT p.id, w.id, l.id, 90, 0
+FROM products p
+JOIN warehouses w ON w.is_default = 1
+JOIN warehouse_locations l ON l.warehouse_id = w.id AND l.code = 'C1'
+WHERE p.sku = 'DEMO-INF-002'
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.location_id = l.id AND sl.variant_id IS NULL);
+
+UPDATE stock_levels sl
+JOIN products p ON p.id = sl.product_id
+JOIN warehouses w ON w.id = sl.warehouse_id AND w.is_default = 1
+SET sl.quantity = 5
+WHERE p.sku = 'DEMO-PAP-001' AND sl.variant_id IS NULL AND sl.location_id IS NULL;
+
+INSERT INTO stock_levels (product_id, warehouse_id, location_id, quantity, reserved_quantity)
+SELECT p.id, w.id, l.id, 120, 0
+FROM products p
+JOIN warehouses w ON w.is_default = 1
+JOIN warehouse_locations l ON l.warehouse_id = w.id AND l.code = 'A2'
+WHERE p.sku = 'DEMO-PAP-001'
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.location_id = l.id AND sl.variant_id IS NULL);
+
+INSERT INTO stock_levels (product_id, warehouse_id, location_id, quantity, reserved_quantity)
+SELECT p.id, w.id, l.id, 300, 0
+FROM products p
+JOIN warehouses w ON w.is_default = 1
+JOIN warehouse_locations l ON l.warehouse_id = w.id AND l.code = 'C2'
+WHERE p.sku = 'DEMO-PAP-001'
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.location_id = l.id AND sl.variant_id IS NULL);
+
+UPDATE stock_levels sl
+JOIN products p ON p.id = sl.product_id
+JOIN warehouses w ON w.id = sl.warehouse_id AND w.is_default = 1
+SET sl.quantity = 0
+WHERE p.sku = 'DEMO-PAP-002' AND sl.variant_id IS NULL AND sl.location_id IS NULL;
+
+INSERT INTO stock_levels (product_id, warehouse_id, location_id, quantity, reserved_quantity)
+SELECT p.id, w.id, l.id, 45, 0
+FROM products p
+JOIN warehouses w ON w.is_default = 1
+JOIN warehouse_locations l ON l.warehouse_id = w.id AND l.code = 'A3'
+WHERE p.sku = 'DEMO-PAP-002'
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.location_id = l.id AND sl.variant_id IS NULL);
+
+UPDATE stock_levels sl
+JOIN products p ON p.id = sl.product_id
+JOIN warehouses w ON w.id = sl.warehouse_id AND w.is_default = 1
+SET sl.quantity = 3
+WHERE p.sku = 'DEMO-SEC-001' AND sl.variant_id IS NULL AND sl.location_id IS NULL;
+
+INSERT INTO stock_levels (product_id, warehouse_id, location_id, quantity, reserved_quantity)
+SELECT p.id, w.id, l.id, 22, 0
+FROM products p
+JOIN warehouses w ON w.is_default = 1
+JOIN warehouse_locations l ON l.warehouse_id = w.id AND l.code = 'A1'
+WHERE p.sku = 'DEMO-SEC-001'
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.location_id = l.id AND sl.variant_id IS NULL);
+
+INSERT INTO stock_levels (product_id, warehouse_id, location_id, quantity, reserved_quantity)
+SELECT p.id, w.id, l.id, 14, 0
+FROM products p
+JOIN warehouses w ON w.is_default = 1
+JOIN warehouse_locations l ON l.warehouse_id = w.id AND l.code = 'A3'
+WHERE p.sku = 'DEMO-SEC-001'
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.location_id = l.id AND sl.variant_id IS NULL);
+
+UPDATE stock_levels sl
+JOIN products p ON p.id = sl.product_id
+JOIN warehouses w ON w.id = sl.warehouse_id AND w.is_default = 1
+SET sl.quantity = 0
+WHERE p.sku = 'DEMO-ELE-001' AND sl.variant_id IS NULL AND sl.location_id IS NULL;
+
+INSERT INTO stock_levels (product_id, warehouse_id, location_id, quantity, reserved_quantity)
+SELECT p.id, w.id, l.id, 30, 0
+FROM products p
+JOIN warehouses w ON w.is_default = 1
+JOIN warehouse_locations l ON l.warehouse_id = w.id AND l.code = 'C2'
+WHERE p.sku = 'DEMO-ELE-001'
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.location_id = l.id AND sl.variant_id IS NULL);

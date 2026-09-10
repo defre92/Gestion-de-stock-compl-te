@@ -660,6 +660,30 @@ l'emplacement : deux allees du meme produit sont deux comptages distincts.
   contient `location_id` (nullable). Passees en `NOT EXISTS`. Verifie par trois
   chargements consecutifs : 280 lignes de stock, zero doublon.
 
+### Zones et emplacements dans les donnees de demo
+
+La demo ne definissait qu'une zone et un emplacement (B1), et dans l'entrepot
+**secondaire** - alors que la totalite du stock de demo est dans l'entrepot
+**principal**. En choisissant l'entrepot principal dans un mouvement, la liste
+des emplacements etait donc vide : la fonctionnalite paraissait cassee alors
+qu'il n'y avait simplement rien a proposer.
+
+- L'entrepot principal recoit deux zones (`A - Picking`, `C - Reserve`) et cinq
+  emplacements (A1, A2, A3, C1, C2).
+- Six articles ont leur stock **reparti dans ces emplacements**, pour que le
+  suivi par emplacement soit visible des le chargement de la demo au lieu de
+  n'afficher que des lignes "non precise". La repartition est idempotente : la
+  ligne sans emplacement est fixee par un `UPDATE` (et non diminuee), les
+  lignes localisees sont protegees par `NOT EXISTS`.
+- Le message d'une liste d'emplacements vide indique desormais ou aller en
+  creer ("Logistique > Emplacements") plutot que de laisser croire a un
+  dysfonctionnement.
+
+**Rappel de conception** : un produit n'est pas *affecte* a un emplacement. On
+n'attribue pas une allee a un article dans sa fiche - c'est le **stock** qui se
+trouve a un emplacement, et il y arrive par un mouvement. La fiche produit,
+onglet Stock, affiche ensuite une ligne par emplacement.
+
 ### Numeros de serie localises
 
 Migration `202602270013_product_serials_location`. Un numero de serie designe
