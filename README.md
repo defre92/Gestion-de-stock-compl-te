@@ -660,6 +660,29 @@ l'emplacement : deux allees du meme produit sont deux comptages distincts.
   contient `location_id` (nullable). Passees en `NOT EXISTS`. Verifie par trois
   chargements consecutifs : 280 lignes de stock, zero doublon.
 
+### Vue rapide : ou se trouve un produit
+
+Le suivi par emplacement existait mais restait invisible : il fallait ouvrir la
+fiche d'un produit, puis son onglet Stock, pour savoir dans quelle allee aller
+le chercher - et la zone n'y figurait meme pas.
+
+- **Colonne "Emplacements" dans la liste des produits** : `A1 (40), A2 (25),
+  C1 (60)` en un coup d'oeil, sans ouvrir la fiche. Les lignes a quantite nulle
+  et le stock non range sont ecartes du resume : on ne liste que les endroits
+  ou il y a reellement quelque chose. Le resume respecte le filtre par entrepot
+  - filtrer sur l'entrepot secondaire n'affiche que ses emplacements.
+- **Resume en tete de l'onglet Stock** d'une fiche produit : un bloc par
+  entrepot, avec le total et le detail des emplacements. La question courante -
+  "ou vais-je le chercher" - trouve sa reponse avant le tableau.
+- **Colonne Zone** dans le tableau de stock, et l'emplacement affiche avec sa
+  description (`A1 - Allee A niveau 1`) plutot que son seul code.
+
+Cote technique, le resume est calcule par un `GROUP_CONCAT` dans la requete
+existante : aucune requete supplementaire par produit. La colonne `location_id`
+venant de la migration 202602270012, sa presence est verifiee avant usage - sur
+une base qui n'aurait pas encore joue la migration, la colonne s'affiche vide
+au lieu de casser toute la liste des produits.
+
 ### Zones et emplacements dans les donnees de demo
 
 La demo ne definissait qu'une zone et un emplacement (B1), et dans l'entrepot

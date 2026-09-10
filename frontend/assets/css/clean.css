@@ -790,3 +790,20 @@ td.is-positive {
     font-size: 0.9em;
     padding: 6px 10px;
 }
+
+/* Résumé "où est ce produit" en tête de l'onglet Stock d'une fiche produit */
+.panel-inline {
+    margin: 0 0 14px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: rgba(37, 99, 235, 0.06);
+    border-left: 3px solid var(--brand-primary, #2563eb);
+}
+
+.panel-inline p {
+    margin: 0 0 6px;
+}
+
+.panel-inline p:last-child {
+    margin-bottom: 0;
+}

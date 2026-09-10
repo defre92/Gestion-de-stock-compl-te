@@ -63,6 +63,24 @@ final class ProductRepository extends PdoCrudRepository
             $params[':f_warehouse_id'] = $warehouseId;
         }
 
+        // Resume "ou est ce produit" directement dans la liste : sans lui, il
+        // fallait ouvrir la fiche puis l'onglet Stock pour savoir dans quelle
+        // allee aller le chercher. Les lignes a quantite nulle et le stock non
+        // range sont ecartes : on ne liste que les endroits ou il y a
+        // reellement quelque chose.
+        // La colonne location_id vient de la migration 202602270012 : sur une
+        // base qui ne l'a pas encore jouee, on renvoie une chaine vide plutot
+        // que de casser toute la liste des produits.
+        if ($this->columnExists('stock_levels', 'location_id')) {
+            $locationJoin = 'LEFT JOIN warehouse_locations sl_loc ON sl_loc.id = sl.location_id';
+            $locationSummary = "GROUP_CONCAT(DISTINCT CASE WHEN sl.quantity <> 0 AND sl.location_id IS NOT NULL
+                                   THEN CONCAT(sl_loc.code, ' (', sl.quantity, ')') END
+                                   ORDER BY sl_loc.code SEPARATOR ', ') AS location_summary";
+        } else {
+            $locationJoin = '';
+            $locationSummary = "'' AS location_summary";
+        }
+
         $countSql = $warehouseId !== null
             ? "SELECT COUNT(DISTINCT p.id) FROM products p {$stockJoin} {$whereSql}"
             : "SELECT COUNT(*) FROM products p {$whereSql}";
@@ -79,7 +97,8 @@ final class ProductRepository extends PdoCrudRepository
                 u.code AS unit_code,
                 b.name AS brand_name,
                 t.rate AS tax_rate,
-                COALESCE(SUM(sl.quantity), 0) AS stock_total
+                COALESCE(SUM(sl.quantity), 0) AS stock_total,
+                {$locationSummary}
             FROM products p
             LEFT JOIN categories c ON c.id = p.category_id
             LEFT JOIN suppliers s ON s.id = p.supplier_id
@@ -87,6 +106,7 @@ final class ProductRepository extends PdoCrudRepository
             LEFT JOIN brands b ON b.id = p.brand_id
             LEFT JOIN taxes t ON t.id = p.tax_id
             {$stockJoin}
+            {$locationJoin}
             {$whereSql}
             GROUP BY p.id
             ORDER BY p.id DESC
@@ -153,6 +173,7 @@ final class ProductRepository extends PdoCrudRepository
             SELECT sl.warehouse_id, sl.variant_id, sl.location_id,
                    w.code AS warehouse_code, w.name AS warehouse_name,
                    loc.code AS location_code, loc.description AS location_description,
+                   zone.code AS zone_code, zone.name AS zone_name,
                    sl.quantity, sl.reserved_quantity,
                    v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl,
                    (
@@ -169,6 +190,7 @@ final class ProductRepository extends PdoCrudRepository
             FROM stock_levels sl
             INNER JOIN warehouses w ON w.id = sl.warehouse_id
             LEFT JOIN warehouse_locations loc ON loc.id = sl.location_id
+            LEFT JOIN warehouse_zones zone ON zone.id = loc.zone_id
             LEFT JOIN product_variants v ON v.id = sl.variant_id
             WHERE sl.product_id = :id
             ORDER BY w.name ASC, (sl.location_id IS NOT NULL) ASC, loc.code ASC, v.size ASC, v.color ASC

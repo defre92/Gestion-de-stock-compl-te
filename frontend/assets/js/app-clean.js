@@ -255,6 +255,8 @@ const crudModules = {
             { key: 'tax_rate', label: 'TVA', format: (value) => (value !== null && value !== undefined ? `${Number(value)}%` : '-') },
             { key: 'valuation_method', label: 'Valorisation' },
             { key: 'is_active', label: 'Actif', format: (v) => (Number(v) === 1 ? 'Oui' : 'Non') },
+            // Ou aller chercher l'article, sans ouvrir sa fiche.
+            { key: 'location_summary', label: 'Emplacements', format: (value) => (value ? sanitize(value) : '<span class="muted">non range</span>') },
             { key: 'has_variants', label: 'Variantes', format: (v) => (Number(v) === 1 ? 'Oui' : 'Non') },
             { key: 'tags', label: 'Tags', format: (value) => renderTagBadges(value) },
         ],
@@ -3481,11 +3483,14 @@ async function renderProductDetail(productId) {
             <p>${renderTagBadges(product.tags)}</p>
         </div>
         <div class="tab-panel hidden" data-tab-panel="stock">
+            ${renderProductLocationSummary(stockRows)}
             ${renderSimpleTable(stockRows, [
                 ['warehouse_code', 'Code'],
                 ['warehouse_name', 'Entrepot'],
                 ['variant_label', 'Variante'],
-                ['location_code', 'Emplacement', (value) => sanitize(value || 'Non precise')],
+                ['zone_name', 'Zone', (value) => sanitize(value || '-')],
+                ['location_code', 'Emplacement', (value, row) => sanitize(
+                    value ? (row.location_description ? `${value} - ${row.location_description}` : value) : 'Non precise')],
                 ['quantity', 'Quantite'],
                 ['reserved_quantity', 'Reserve'],
             ])}
@@ -4430,6 +4435,49 @@ async function warnIfStockedElsewhere(productId, session) {
         L'ecart portera donc sur la totalite de la quantite saisie, et la finalisation creera ce stock
         dans ${sanitize(session.warehouse_name)} sans toucher a l'autre entrepot.
         Verifie que la session porte bien sur le bon entrepot.`;
+}
+
+/**
+ * Resume "ou est ce produit", en tete de l'onglet Stock d'une fiche produit.
+ *
+ * Le tableau detaille ligne par ligne, mais la question courante - dans quelle
+ * allee vais-je le chercher - merite une reponse en une phrase, avant le
+ * tableau. Les lignes a quantite nulle sont ecartees : un emplacement vide
+ * n'est pas un endroit ou aller.
+ */
+function renderProductLocationSummary(stockRows) {
+    const rows = (Array.isArray(stockRows) ? stockRows : []).filter((row) => Number(row.quantity) !== 0);
+
+    if (rows.length === 0) {
+        return '<p class="feedback">Ce produit n\'a de stock dans aucun entrepot.</p>';
+    }
+
+    // Regroupement par entrepot, puis liste des emplacements de chacun.
+    const byWarehouse = new Map();
+    for (const row of rows) {
+        const name = row.warehouse_name ?? row.warehouse_code ?? '?';
+        if (!byWarehouse.has(name)) {
+            byWarehouse.set(name, { total: 0, places: [] });
+        }
+        const entry = byWarehouse.get(name);
+        entry.total += Number(row.quantity);
+        entry.places.push({
+            label: row.location_code
+                ? `${row.location_code}${row.zone_code ? ` (zone ${row.zone_code})` : ''}`
+                : 'non range',
+            quantity: Number(row.quantity),
+            located: Boolean(row.location_code),
+        });
+    }
+
+    const blocs = [...byWarehouse.entries()].map(([name, entry]) => {
+        const places = entry.places
+            .map((place) => `<strong>${sanitize(place.label)}</strong> : ${place.quantity}`)
+            .join(' &nbsp;|&nbsp; ');
+        return `<p><strong>${sanitize(name)}</strong> \u2014 total ${entry.total}<br><span class="muted">${places}</span></p>`;
+    });
+
+    return `<div class="panel-inline">${blocs.join('')}</div>`;
 }
 
 function renderPaginationBar(meta, rowCount) {
