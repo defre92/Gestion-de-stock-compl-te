@@ -17,8 +17,14 @@ final class PurchaseRequestController
     {
         $page = (int)$request->query('page', 1);
         $perPage = (int)$request->query('per_page', 20);
+        // scope=open : demandes encore a traiter (defaut de l'ecran) ;
+        // scope=archived : converties/refusees ; scope=all : les deux.
+        $filters = [
+            'scope' => (string)$request->query('scope', 'all'),
+            'status' => (string)$request->query('status', ''),
+        ];
 
-        JsonResponse::send($this->service->paginate($page, $perPage));
+        JsonResponse::send($this->service->paginate($page, $perPage, $filters));
     }
 
     public function show(int $id): void

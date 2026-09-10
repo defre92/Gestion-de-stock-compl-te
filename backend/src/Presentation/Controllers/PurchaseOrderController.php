@@ -17,8 +17,14 @@ final class PurchaseOrderController
     {
         $page = (int)$request->query('page', 1);
         $perPage = (int)$request->query('per_page', 20);
+        // scope=open : commandes en cours (defaut de l'ecran) ;
+        // scope=archived : recues/annulees ; scope=all : les deux.
+        $filters = [
+            'scope' => (string)$request->query('scope', 'all'),
+            'status' => (string)$request->query('status', ''),
+        ];
 
-        JsonResponse::send($this->service->paginate($page, $perPage));
+        JsonResponse::send($this->service->paginate($page, $perPage, $filters));
     }
 
     public function show(int $id): void

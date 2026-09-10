@@ -16,15 +16,69 @@ final class PurchaseOrderRepository
         $this->pdo = Database::connection();
     }
 
-    public function paginate(int $page, int $perPage): array
+    /**
+     * Statuts terminaux d'une commande d'achat : entierement recue ou annulee,
+     * il n'y a plus rien a receptionner dessus (PurchaseOrderService refuse
+     * d'ailleurs toute reception sur ces deux statuts). Ce sont ces commandes
+     * que l'ecran range dans "Commandes passees".
+     */
+    private const ARCHIVED_STATUSES = ['RECEIVED', 'CANCELLED'];
+
+    /**
+     * @param array{scope?: string, status?: string} $filters
+     *   scope: 'open' = commandes encore en cours, 'archived' =
+     *   recues/annulees, 'all' (defaut) = tout. status: filtre exact
+     *   supplementaire.
+     */
+    public function paginate(int $page, int $perPage, array $filters = []): array
     {
         $page = max(1, $page);
         $perPage = max(1, min(100, $perPage));
         $offset = ($page - 1) * $perPage;
 
-        $total = (int)$this->pdo->query('SELECT COUNT(*) FROM purchase_orders')->fetchColumn();
+        $scope = strtolower((string)($filters['scope'] ?? 'all'));
+        if (!in_array($scope, ['open', 'archived', 'all'], true)) {
+            $scope = 'all';
+        }
 
-        $sql = '
+        $placeholders = [];
+        foreach (self::ARCHIVED_STATUSES as $index => $status) {
+            $placeholders[':archived' . $index] = $status;
+        }
+        $inList = implode(', ', array_keys($placeholders));
+
+        $conditions = [];
+        $params = [];
+        if ($scope === 'open') {
+            $conditions[] = "po.status NOT IN ({$inList})";
+            $params += $placeholders;
+        } elseif ($scope === 'archived') {
+            $conditions[] = "po.status IN ({$inList})";
+            $params += $placeholders;
+        }
+
+        $status = trim((string)($filters['status'] ?? ''));
+        if ($status !== '') {
+            $conditions[] = 'po.status = :status';
+            $params[':status'] = strtoupper($status);
+        }
+
+        $whereSql = $conditions === [] ? '' : 'WHERE ' . implode(' AND ', $conditions);
+
+        $countStmt = $this->pdo->prepare("SELECT COUNT(*) FROM purchase_orders po {$whereSql}");
+        $countStmt->execute($params);
+        $total = (int)$countStmt->fetchColumn();
+
+        // Compteurs des deux vues, pour que le bouton de bascule annonce
+        // combien de commandes il cache ou revele sans second appel.
+        $openTotal = (int)$this->pdo->query(
+            'SELECT COUNT(*) FROM purchase_orders WHERE status NOT IN (' . $this->quotedArchivedStatuses() . ')'
+        )->fetchColumn();
+        $archivedTotal = (int)$this->pdo->query(
+            'SELECT COUNT(*) FROM purchase_orders WHERE status IN (' . $this->quotedArchivedStatuses() . ')'
+        )->fetchColumn();
+
+        $sql = "
             SELECT po.*, s.name AS supplier_name, w.name AS warehouse_name, u.full_name AS ordered_by_name,
                    pr.request_number AS purchase_request_number
             FROM purchase_orders po
@@ -32,11 +86,15 @@ final class PurchaseOrderRepository
             INNER JOIN warehouses w ON w.id = po.warehouse_id
             LEFT JOIN users u ON u.id = po.ordered_by
             LEFT JOIN purchase_requests pr ON pr.id = po.purchase_request_id
+            {$whereSql}
             ORDER BY po.id DESC
             LIMIT :limit OFFSET :offset
-        ';
+        ";
 
         $stmt = $this->pdo->prepare($sql);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
         $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
         $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
         $stmt->execute();
@@ -48,8 +106,20 @@ final class PurchaseOrderRepository
                 'per_page' => $perPage,
                 'total' => $total,
                 'last_page' => (int)max(1, ceil($total / $perPage)),
+                'scope' => $scope,
+                'open_total' => $openTotal,
+                'archived_total' => $archivedTotal,
             ],
         ];
+    }
+
+    /** Liste SQL des statuts terminaux, pour les deux COUNT sans parametres. */
+    private function quotedArchivedStatuses(): string
+    {
+        return implode(', ', array_map(
+            fn (string $status): string => $this->pdo->quote($status),
+            self::ARCHIVED_STATUSES
+        ));
     }
 
     public function findById(int $id): ?array

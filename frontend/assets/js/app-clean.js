@@ -19,6 +19,11 @@ const state = {
     // sans aucun moyen de voir les suivants.
     crudPages: {},
     crudPerPage: 25,
+    // Vue courante des deux ecrans d'achat : 'open' = ce qu'il reste a
+    // traiter (defaut), 'archived' = ce qui est termine (demandes converties
+    // ou refusees, commandes recues ou annulees). Sans ca, une demande
+    // convertie il y a six mois continuait d'encombrer la liste de travail.
+    purchaseScopes: { 'purchase-requests': 'open', 'purchase-orders': 'open' },
     // Filtre entrepot de l'ecran Produits. Quand il est actif, la colonne
     // Stock n'affiche que la quantite de cet entrepot - sinon on lirait un
     // total tous entrepots confondus a cote d'un filtre "entrepot X".
@@ -2824,8 +2829,15 @@ async function renderPurchaseRequests() {
     const root = document.getElementById('appContent');
     await refreshLookups();
 
-    const response = await apiRequest('/purchase-requests');
+    // Par defaut on n'affiche que les demandes encore a traiter : une demande
+    // convertie en commande ou refusee n'a plus rien a apporter dans la liste
+    // de travail, et au bout de quelques mois elle noierait les autres. Le
+    // bouton de bascule donne acces aux demandes passees, sans rien supprimer.
+    const scope = state.purchaseScopes['purchase-requests'] ?? 'open';
+    const page = state.crudPages['purchase-requests'] ?? 1;
+    const response = await apiRequest(`/purchase-requests${toQueryString({ scope, page, per_page: state.crudPerPage })}`);
     const rows = normalizeRows(response);
+    const meta = response?.meta ?? null;
     const writable = canWrite('purchase-requests');
 
     // Lignes en cours de saisie pour la prochaine demande a creer.
@@ -2869,7 +2881,10 @@ async function renderPurchaseRequests() {
             ` : '<p class="muted">Acces en lecture seule sur ce module.</p>'}
         </section>
         <section class="panel">
-            <h4>Demandes achat</h4>
+            <div class="panel-head">
+                <h4>${scope === 'open' ? 'Demandes achat en cours' : 'Demandes achat passees (converties ou refusees)'}</h4>
+                ${renderPurchaseScopeToggle('purchase-requests', meta)}
+            </div>
             ${renderSimpleTable(rows, [
                 ['request_number', 'Numero'],
                 ['status', 'Statut'],
@@ -2878,8 +2893,12 @@ async function renderPurchaseRequests() {
                 ['requested_at', 'Date'],
                 ['id', 'Detail', (value) => `<button type="button" class="btn btn-soft" data-view-request="${value}">Voir le detail</button>`],
             ])}
+            ${renderPaginationBar(meta, rows.length)}
         </section>
     `;
+
+    setupPagination('purchase-requests', meta, renderPurchaseRequests);
+    setupPurchaseScopeToggle('purchase-requests', renderPurchaseRequests);
 
     const lineForm = document.getElementById('requestLineForm');
     const lineProductSelect = lineForm?.elements.namedItem('product_id');
@@ -3015,12 +3034,29 @@ async function renderPurchaseOrders() {
     const root = document.getElementById('appContent');
     await refreshLookups();
 
-    const listResponse = await apiRequest('/purchase-orders');
+    // Meme principe que pour les demandes : la liste affiche par defaut les
+    // commandes en cours, les commandes recues ou annulees passent derriere le
+    // bouton de bascule.
+    const scope = state.purchaseScopes['purchase-orders'] ?? 'open';
+    const page = state.crudPages['purchase-orders'] ?? 1;
+    const listResponse = await apiRequest(`/purchase-orders${toQueryString({ scope, page, per_page: state.crudPerPage })}`);
     const rows = normalizeRows(listResponse);
+    const meta = listResponse?.meta ?? null;
     const writable = canWrite('purchase-orders');
-    const orderOptions = rows.map((row) => `<option value="${row.id}">${sanitize(row.order_number)} | ${sanitize(row.status)}</option>`).join('');
 
-    const requestsResponse = await apiRequest('/purchase-requests');
+    // Les listes deroulantes "Commande" (changement de statut, reception) ne
+    // suivent PAS la vue affichee : elles proposent toujours les commandes
+    // encore en cours, quelle que soit la page ou la vue consultee. On ne
+    // recoit pas une commande deja recue ou annulee, et il ne faut pas non
+    // plus qu'elles soient limitees aux 25 lignes de la page courante.
+    const openOrdersResponse = await apiRequest('/purchase-orders?scope=open&per_page=100');
+    const orderOptions = normalizeRows(openOrdersResponse)
+        .map((row) => `<option value="${row.id}">${sanitize(row.order_number)} | ${sanitize(localizeValue(row.status, 'status'))}</option>`)
+        .join('');
+
+    // Idem pour les demandes convertibles : uniquement celles qui restent a
+    // traiter, sans dependre de la pagination de l'ecran des demandes.
+    const requestsResponse = await apiRequest('/purchase-requests?scope=open&per_page=100');
     const requestRows = normalizeRows(requestsResponse);
     // Seules les demandes pas encore transformees en commande peuvent etre liees.
     const convertibleRequests = requestRows.filter((row) => ['SUBMITTED', 'APPROVED'].includes(row.status));
@@ -3092,7 +3128,10 @@ async function renderPurchaseOrders() {
         </section>
 
         <section class="panel">
-            <h4>Commandes achat</h4>
+            <div class="panel-head">
+                <h4>${scope === 'open' ? 'Commandes achat en cours' : 'Commandes achat passees (recues ou annulees)'}</h4>
+                ${renderPurchaseScopeToggle('purchase-orders', meta)}
+            </div>
             ${renderSimpleTable(rows, [
                 ['order_number', 'Numero'],
                 ['status', 'Statut'],
@@ -3103,8 +3142,12 @@ async function renderPurchaseOrders() {
                 ['ordered_at', 'Date'],
                 ['id', 'Detail', (value) => `<button type="button" class="btn btn-soft" data-view-order="${value}">Voir le detail</button>`],
             ])}
+            ${renderPaginationBar(meta, rows.length)}
         </section>
     `;
+
+    setupPagination('purchase-orders', meta, renderPurchaseOrders);
+    setupPurchaseScopeToggle('purchase-orders', renderPurchaseOrders);
 
     const lineForm = document.getElementById('orderLineForm');
     const itemsPreview = document.getElementById('orderItemsPreview');
@@ -4597,7 +4640,11 @@ function renderPaginationBar(meta, rowCount) {
     `;
 }
 
-function setupPagination(module, meta) {
+function setupPagination(module, meta, rerender = null) {
+    // `rerender` : les ecrans qui ne passent pas par renderCrud (demandes et
+    // commandes d'achat) fournissent leur propre fonction de rendu. Par
+    // defaut on retombe sur renderCrud, le cas de tous les referentiels.
+    const refresh = rerender ?? (() => renderCrud(module));
     const lastPage = Math.max(1, Number(meta?.last_page ?? 1));
     const page = Number(meta?.page ?? 1);
 
@@ -4606,7 +4653,7 @@ function setupPagination(module, meta) {
             return;
         }
         state.crudPages[module] = page - 1;
-        await renderCrud(module);
+        await refresh();
     });
 
     document.getElementById('crudNextPage')?.addEventListener('click', async () => {
@@ -4614,7 +4661,7 @@ function setupPagination(module, meta) {
             return;
         }
         state.crudPages[module] = page + 1;
-        await renderCrud(module);
+        await refresh();
     });
 
     document.getElementById('crudPerPage')?.addEventListener('change', async (event) => {
@@ -4622,7 +4669,40 @@ function setupPagination(module, meta) {
         // repart de la premiere, seule position dont le sens est garanti.
         state.crudPerPage = Number(event.target.value) || 25;
         state.crudPages[module] = 1;
-        await renderCrud(module);
+        await refresh();
+    });
+}
+
+/**
+ * Bouton de bascule "en cours" / "passees" des deux ecrans d'achat, avec le
+ * nombre d'elements de l'autre vue pour que l'utilisateur sache ce qu'il y
+ * trouvera avant de cliquer.
+ */
+function renderPurchaseScopeToggle(module, meta) {
+    const scope = state.purchaseScopes[module] ?? 'open';
+    const isRequests = module === 'purchase-requests';
+    const archivedTotal = Number(meta?.archived_total ?? 0);
+    const openTotal = Number(meta?.open_total ?? 0);
+
+    const label = scope === 'open'
+        ? (isRequests
+            ? `Voir les demandes passees (${archivedTotal})`
+            : `Voir les commandes passees (${archivedTotal})`)
+        : (isRequests
+            ? `Revenir aux demandes en cours (${openTotal})`
+            : `Revenir aux commandes en cours (${openTotal})`);
+
+    return `<button type="button" class="btn btn-soft" id="purchaseScopeToggle">${label}</button>`;
+}
+
+function setupPurchaseScopeToggle(module, rerender) {
+    document.getElementById('purchaseScopeToggle')?.addEventListener('click', async () => {
+        const scope = state.purchaseScopes[module] ?? 'open';
+        state.purchaseScopes[module] = scope === 'open' ? 'archived' : 'open';
+        // Changer de vue change le nombre de pages : la page courante n'a
+        // plus de sens, on repart de la premiere.
+        state.crudPages[module] = 1;
+        await rerender();
     });
 }
 

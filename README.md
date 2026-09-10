@@ -613,6 +613,50 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+## Achats : les listes ne gardent que ce qui reste a traiter
+
+Les deux ecrans d'achat affichaient **toutes** les lignes depuis la creation
+de la base. Une demande convertie en commande ou refusee, une commande
+entierement recue ou annulee : il n'y a plus rien a en faire, mais elles
+continuaient de s'empiler devant les quelques lignes reellement en cours. Au
+bout de quelques mois d'utilisation, l'ecran devient inutilisable.
+
+Chaque ecran a maintenant **deux vues**, avec un bouton pour passer de l'une
+a l'autre :
+
+| Ecran | Vue par defaut | Vue "passees" |
+| --- | --- | --- |
+| Demandes achat | tout sauf converties et refusees | `CONVERTED`, `REJECTED` |
+| Commandes achat | tout sauf recues et annulees | `RECEIVED`, `CANCELLED` |
+
+Le bouton annonce le nombre de lignes de l'autre vue ("Voir les demandes
+passees (37)"), pour savoir ce qu'on y trouvera avant de cliquer.
+
+**Rien n'est supprime ni archive en base** : c'est un simple filtre
+d'affichage, l'historique reste entier et consultable en un clic. Le detail
+d'une ligne passee s'ouvre normalement.
+
+**Le filtre est applique cote serveur** (`?scope=open` / `?scope=archived` /
+`?scope=all` sur `GET /purchase-requests` et `GET /purchase-orders`, plus un
+`?status=` exact si besoin). Un filtre applique dans le navigateur n'aurait
+trie que les 20 lignes de la premiere page - donc rien du tout des que le
+volume monte. Sans parametre, l'API se comporte exactement comme avant.
+
+**Pagination ajoutee sur ces deux ecrans**, qui n'en avaient pas : ils
+affichaient les 20 premieres lignes renvoyees par l'API, sans barre de
+navigation ni indication qu'il en existait d'autres. Meme barre que les
+ecrans de referentiels (25/50/100 par page), et le changement de vue remet
+la pagination a la premiere page.
+
+**Les listes deroulantes ne suivent pas la vue affichee.** Le selecteur de
+commande du changement de statut et celui de la reception proposent
+toujours les commandes **en cours**, quelle que soit la vue ou la page
+consultee : on ne receptionne pas une commande deja recue ou annulee (le
+backend le refuse de toute facon). Meme chose pour la liste des demandes
+convertibles a la creation d'une commande. Elles etaient jusqu'ici
+construites a partir des 20 lignes de la premiere page - une commande plus
+ancienne devenait invisible et donc non receptionnable.
+
 ## Variantes "dimensions" pour le materiel
 
 Migration `202602270014_dimension_variants`, reglage

@@ -22,9 +22,10 @@ final class PurchaseOrderService
     ) {
     }
 
-    public function paginate(int $page, int $perPage): array
+    /** @param array{scope?: string, status?: string} $filters */
+    public function paginate(int $page, int $perPage, array $filters = []): array
     {
-        return $this->repository->paginate($page, $perPage);
+        return $this->repository->paginate($page, $perPage, $filters);
     }
 
     public function findById(int $id): array
