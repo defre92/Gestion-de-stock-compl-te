@@ -28,6 +28,20 @@ final class ImportService
             throw new HttpException('Type d\'import non pris en charge', 422);
         }
 
+        // L'import lit du CSV, et RIEN d'autre. Le stockage de fichiers, lui,
+        // accepte aussi .xlsx et .xls (il sert aussi aux pieces jointes) : sans
+        // ce controle, un classeur Excel depose ici etait accepte puis lu comme
+        // du texte - donnant un import "reussi" rempli de lignes absurdes, ou
+        // une erreur incomprehensible. Le message dit quoi faire.
+        $extension = strtolower(pathinfo((string)($file['name'] ?? ''), PATHINFO_EXTENSION));
+        if ($extension !== 'csv') {
+            throw new HttpException(
+                'Ce fichier n\'est pas un CSV. Dans Excel : Fichier > Enregistrer sous > '
+                . 'CSV UTF-8 (delimite par des virgules), puis importe le fichier .csv obtenu.',
+                422
+            );
+        }
+
         $stored = $this->storage->storeUploadedFile($file, 'imports/' . $entity);
 
         $jobId = $this->jobRepository->create([
@@ -121,10 +135,10 @@ final class ImportService
             ');
             $stmt->execute([
                 ':name' => $name,
-                ':contact_name' => $row['contact_name'] ?? null,
-                ':phone' => $row['phone'] ?? null,
-                ':email' => $row['email'] ?? null,
-                ':address' => $row['address'] ?? null,
+                ':contact_name' => $this->nullIfBlank($row['contact_name'] ?? null),
+                ':phone' => $this->nullIfBlank($row['phone'] ?? null),
+                ':email' => $this->nullIfBlank($row['email'] ?? null),
+                ':address' => $this->nullIfBlank($row['address'] ?? null),
             ]);
             return;
         }
@@ -151,10 +165,10 @@ final class ImportService
                 $stmt->execute([
                     ':code' => $code,
                     ':name' => $name,
-                    ':email' => $row['email'] ?? null,
-                    ':phone' => $row['phone'] ?? null,
-                    ':address' => $row['address'] ?? null,
-                    ':status' => strtoupper((string)($row['status'] ?? 'ACTIVE')),
+                    ':email' => $this->nullIfBlank($row['email'] ?? null),
+                    ':phone' => $this->nullIfBlank($row['phone'] ?? null),
+                    ':address' => $this->nullIfBlank($row['address'] ?? null),
+                    ':status' => $this->parseStatus($row['status'] ?? null),
                 ]);
             } else {
                 $stmt = $pdo->prepare('
@@ -163,10 +177,10 @@ final class ImportService
                 ');
                 $stmt->execute([
                     ':name' => $name,
-                    ':email' => $row['email'] ?? null,
-                    ':phone' => $row['phone'] ?? null,
-                    ':address' => $row['address'] ?? null,
-                    ':status' => strtoupper((string)($row['status'] ?? 'ACTIVE')),
+                    ':email' => $this->nullIfBlank($row['email'] ?? null),
+                    ':phone' => $this->nullIfBlank($row['phone'] ?? null),
+                    ':address' => $this->nullIfBlank($row['address'] ?? null),
+                    ':status' => $this->parseStatus($row['status'] ?? null),
                 ]);
             }
             return;
@@ -206,15 +220,15 @@ final class ImportService
             ');
             $stmt->execute([
                 ':sku' => $sku,
-                ':barcode' => $row['barcode'] ?? null,
+                ':barcode' => $this->nullIfBlank($row['barcode'] ?? null),
                 ':name' => $name,
-                ':description' => $row['description'] ?? null,
+                ':description' => $this->nullIfBlank($row['description'] ?? null),
                 ':category_id' => $categoryId,
                 ':supplier_id' => $supplierId,
                 ':unit_price' => $this->parseDecimal($row['unit_price'] ?? 0),
                 ':cost_price' => $this->parseDecimal($row['cost_price'] ?? 0),
                 ':reorder_level' => $this->parseInteger($row['reorder_level'] ?? 0),
-                ':status' => strtoupper((string)($row['status'] ?? 'ACTIVE')),
+                ':status' => $this->parseStatus($row['status'] ?? null),
             ]);
             return;
         }
@@ -268,6 +282,43 @@ final class ImportService
             ]);
             return;
         }
+    }
+
+    /**
+     * Colonne facultative laissee vide -> NULL, et non chaine vide.
+     *
+     * Un modele CSV contient toutes les colonnes, y compris celles qu'on ne
+     * remplit pas : la cellule vide arrivait alors en base sous forme de ''.
+     * Inoffensif pour un telephone, beaucoup moins pour une colonne ENUM.
+     */
+    private function nullIfBlank(mixed $value): ?string
+    {
+        $raw = trim((string)($value ?? ''));
+        return $raw === '' ? null : $raw;
+    }
+
+    /**
+     * Statut ACTIVE / INACTIVE, avec un message utilisable en cas de faute.
+     *
+     * Avant : une colonne "status" presente mais VIDE envoyait '' dans une
+     * colonne ENUM, et MySQL repondait "Data truncated for column 'status'" -
+     * message incomprehensible pour l'utilisateur, alors que sa ligne etait
+     * parfaitement legitime. Vide = ACTIVE, comme le formulaire de saisie.
+     */
+    private function parseStatus(mixed $value): string
+    {
+        $status = strtoupper(trim((string)($value ?? '')));
+        if ($status === '') {
+            return 'ACTIVE';
+        }
+
+        if (!in_array($status, ['ACTIVE', 'INACTIVE'], true)) {
+            throw new \RuntimeException(
+                'La colonne "status" doit valoir ACTIVE ou INACTIVE (ou rester vide), valeur recue : ' . $status
+            );
+        }
+
+        return $status;
     }
 
     /**

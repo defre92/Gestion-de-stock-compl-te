@@ -613,6 +613,66 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+## Import CSV : modele telechargeable et colonnes exactes
+
+L'ecran **Importations CSV** affichait une seule ligne listant les en-tetes de
+toutes les entites a la suite. Il affiche maintenant, pour l'entite
+selectionnee, un tableau des colonnes attendues : nom exact, obligatoire ou
+non, ce qu'on y met, et un exemple. Un bouton **"Telecharger le modele"**
+genere le fichier CSV pret a remplir (en-tetes exacts + une ligne d'exemple,
+UTF-8 avec BOM pour qu'Excel n'abime pas les accents). Le modele est construit
+dans le navigateur, sans route serveur supplementaire.
+
+Un classeur Excel `modele-import-gestion-stock.xlsx` (un onglet par entite,
+plus un mode d'emploi) est egalement fourni hors application.
+
+### Colonnes par entite
+
+**Produits** (`products`) : `sku`*, `name`*, `category_name`*, `supplier_name`,
+`barcode`, `description`, `unit_price`, `cost_price`, `reorder_level`,
+`status`. La categorie et le fournisseur cites sont **crees automatiquement**
+s'ils n'existent pas. Un `sku` deja present met la fiche a jour.
+
+**Fournisseurs** (`suppliers`) : `name`*, `contact_name`, `phone`, `email`,
+`address`. Un nom deja present est mis a jour.
+
+**Clients** (`customers`) : `name`*, `code`, `email`, `phone`, `address`,
+`status`. Avec un `code`, la fiche est mise a jour ; **sans `code`, une
+nouvelle fiche est creee a chaque import**.
+
+**Stocks initiaux** (`initial-stocks`) : `sku`*, `warehouse_code`*,
+`quantity`. Le SKU et le code entrepot doivent **deja exister**. La quantite
+**remplace** le stock existant sans emplacement precis, elle ne s'y ajoute pas.
+
+(`*` = obligatoire.) L'ordre des colonnes est libre, les colonnes
+facultatives peuvent etre absentes, le separateur peut etre `;` ou `,`
+(detection automatique), et les prix acceptent la virgule francaise.
+
+### Trois defauts corriges en testant ce modele
+
+- **Un `.xlsx` depose directement etait accepte** puis lu comme du texte :
+  import "reussi" rempli de lignes absurdes, ou erreur incomprehensible. Le
+  stockage de fichiers autorise `.xlsx` parce qu'il sert aussi aux pieces
+  jointes ; l'import verifie desormais l'extension lui-meme et repond quoi
+  faire ("Fichier > Enregistrer sous > CSV UTF-8").
+- **Une colonne facultative presente mais vide cassait la ligne.** Un modele
+  contient toutes les colonnes, y compris celles qu'on ne remplit pas.
+  `status` vide envoyait `''` dans une colonne ENUM et MySQL repondait
+  `Data truncated for column 'status'` - message illisible pour une ligne
+  parfaitement legitime. Vide vaut maintenant `ACTIVE`, comme dans le
+  formulaire de saisie.
+- **Une faute de frappe sur le statut** (`ACTIF` au lieu de `ACTIVE`) donnait
+  la meme erreur MySQL. Elle donne maintenant : *La colonne "status" doit
+  valoir ACTIVE ou INACTIVE (ou rester vide), valeur recue : ACTIF*. Les
+  autres colonnes facultatives laissees vides sont enregistrees a `NULL` et
+  non a chaine vide.
+
+Verifie de bout en bout : les quatre CSV exportes depuis le classeur Excel
+importes sur une base reelle (prix `89,90` conserve avec ses centimes, code
+barre `3760001234567` non transforme en notation scientifique), reimportes une
+seconde fois sans creer de doublon ni gonfler le stock, plus les cas d'erreur
+ci-dessus.
+
 ## Achats : les listes ne gardent que ce qui reste a traiter
 
 Les deux ecrans d'achat affichaient **toutes** les lignes depuis la creation

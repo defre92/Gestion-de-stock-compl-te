@@ -1,0 +1,4 @@
+﻿sku;name;category_name;supplier_name;barcode;description;unit_price;cost_price;reorder_level;status
+MAT-PLAN-001;Plan de travail stratifie 160x60;Materiel;Bois Diffusion;3760001234567;Chant ABS, epaisseur 38 mm;89,90;54,30;5;ACTIVE
+MAT-PLAN-002;Plan de travail stratifie 180x60;Materiel;Bois Diffusion;3760001234568;Chant ABS, epaisseur 38 mm;99,90;61,00;5;ACTIVE
+BUR-CHAISE-01;Chaise de bureau ergonomique;Bureau;Mobilier Pro;;Assise reglable, accoudoirs 3D;159,00;92,50;3;ACTIVE

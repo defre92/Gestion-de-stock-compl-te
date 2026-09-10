@@ -3478,9 +3478,10 @@ async function renderImports() {
                 </select></label>
                 <label><span>Fichier CSV</span><input type="file" name="file" accept=".csv,text/csv" required></label>
                 <button type="submit" class="btn btn-primary">Importer</button>
+                <button type="button" class="btn btn-soft" id="downloadTemplateBtn">Telecharger le modele de l'entite choisie</button>
                 <p id="importFeedback" class="feedback"></p>
             </form>
-            <p class="muted">Headers recommandes: products(sku,name,category_name,supplier_name,unit_price,cost_price,reorder_level,status,barcode), suppliers(name,contact_name,phone,email,address), customers(code,name,email,phone,address,status), initial-stocks(sku,warehouse_code,quantity).</p>
+            <div id="importTemplateHelp">${renderImportTemplateHelp('products')}</div>
             ` : '<p class="muted">Acces en lecture seule sur ce module.</p>'}
         </section>
         <section class="panel">
@@ -3500,6 +3501,22 @@ async function renderImports() {
 
     const form = document.getElementById('importForm');
     const feedback = document.getElementById('importFeedback');
+
+    // L'aide affichee suit l'entite choisie : les colonnes attendues ne sont
+    // pas les memes, et une liste unique de tous les en-tetes de toutes les
+    // entites (ce qui etait affiche avant) n'aide personne.
+    const entitySelect = form?.elements.namedItem('entity');
+    const helpBox = document.getElementById('importTemplateHelp');
+    entitySelect?.addEventListener('change', () => {
+        if (helpBox) {
+            helpBox.innerHTML = renderImportTemplateHelp(String(entitySelect.value));
+        }
+    });
+
+    document.getElementById('downloadTemplateBtn')?.addEventListener('click', () => {
+        downloadImportTemplate(String(entitySelect?.value ?? 'products'));
+    });
+
     form?.addEventListener('submit', async (event) => {
         event.preventDefault();
         feedback.textContent = '';
@@ -3527,6 +3544,109 @@ async function renderImports() {
             feedback.classList.add('is-error');
         }
     });
+}
+
+// Colonnes attendues par l'import CSV, par entite. Source de verite cote
+// interface : elles doivent correspondre exactement a ce que lit
+// ImportService::importRow (backend). Les colonnes obligatoires sont marquees
+// required, les autres peuvent etre laissees vides ou absentes.
+const IMPORT_TEMPLATES = {
+    products: {
+        label: 'Produits',
+        columns: [
+            { key: 'sku', required: true, help: 'Reference unique. Un SKU deja present met le produit a jour.', sample: 'MAT-PLAN-001' },
+            { key: 'name', required: true, help: 'Nom du produit.', sample: 'Plan de travail stratifie' },
+            { key: 'category_name', required: true, help: 'Nom de la categorie. Creee automatiquement si elle n\'existe pas.', sample: 'Materiel' },
+            { key: 'supplier_name', required: false, help: 'Nom du fournisseur. Cree automatiquement si besoin.', sample: 'Bois Diffusion' },
+            { key: 'barcode', required: false, help: 'Code barre (EAN, UPC...).', sample: '3760001234567' },
+            { key: 'description', required: false, help: 'Description libre.', sample: 'Chant ABS, epaisseur 38 mm' },
+            { key: 'unit_price', required: false, help: 'Prix de vente. La virgule decimale est acceptee.', sample: '89,90' },
+            { key: 'cost_price', required: false, help: 'Prix d\'achat.', sample: '54,30' },
+            { key: 'reorder_level', required: false, help: 'Seuil de reapprovisionnement (entier).', sample: '5' },
+            { key: 'status', required: false, help: 'ACTIVE ou INACTIVE. Vide = ACTIVE.', sample: 'ACTIVE' },
+        ],
+    },
+    suppliers: {
+        label: 'Fournisseurs',
+        columns: [
+            { key: 'name', required: true, help: 'Nom du fournisseur. Un nom deja present est mis a jour.', sample: 'Bois Diffusion' },
+            { key: 'contact_name', required: false, help: 'Personne a contacter.', sample: 'Marie Dupont' },
+            { key: 'phone', required: false, help: 'Telephone.', sample: '+32 81 00 00 00' },
+            { key: 'email', required: false, help: 'Adresse e-mail.', sample: 'contact@bois-diffusion.be' },
+            { key: 'address', required: false, help: 'Adresse postale.', sample: 'Rue du Chantier 12, 5000 Namur' },
+        ],
+    },
+    customers: {
+        label: 'Clients',
+        columns: [
+            { key: 'name', required: true, help: 'Nom du client.', sample: 'Menuiserie Lambert' },
+            { key: 'code', required: false, help: 'Code client. S\'il est renseigne, un code deja present est mis a jour ; sinon une nouvelle fiche est creee a chaque import.', sample: 'CLI-001' },
+            { key: 'email', required: false, help: 'Adresse e-mail.', sample: 'info@menuiserie-lambert.be' },
+            { key: 'phone', required: false, help: 'Telephone.', sample: '+32 2 000 00 00' },
+            { key: 'address', required: false, help: 'Adresse postale.', sample: 'Chaussee de Wavre 300, 1040 Bruxelles' },
+            { key: 'status', required: false, help: 'ACTIVE ou INACTIVE. Vide = ACTIVE.', sample: 'ACTIVE' },
+        ],
+    },
+    'initial-stocks': {
+        label: 'Stocks initiaux',
+        columns: [
+            { key: 'sku', required: true, help: 'SKU d\'un produit DEJA existant. Importe les produits d\'abord.', sample: 'MAT-PLAN-001' },
+            { key: 'warehouse_code', required: true, help: 'Code de l\'entrepot (ecran Entrepots), pas son nom.', sample: 'WH-002' },
+            { key: 'quantity', required: false, help: 'Quantite. REMPLACE le stock existant sans emplacement precis, ce n\'est pas un ajout.', sample: '12' },
+        ],
+    },
+};
+
+function renderImportTemplateHelp(entity) {
+    const template = IMPORT_TEMPLATES[entity] ?? IMPORT_TEMPLATES.products;
+    const rows = template.columns.map((column) => `
+        <tr>
+            <td><code>${sanitize(column.key)}</code></td>
+            <td>${column.required ? '<strong>obligatoire</strong>' : 'facultative'}</td>
+            <td>${sanitize(column.help)}</td>
+            <td>${sanitize(column.sample)}</td>
+        </tr>
+    `).join('');
+
+    return `
+        <p class="muted">
+            Colonnes attendues pour <strong>${sanitize(template.label)}</strong>. L'ordre des colonnes
+            n'a pas d'importance, les colonnes facultatives peuvent etre absentes.
+            Separateur point-virgule ou virgule, fichier en UTF-8
+            (dans Excel : Fichier &gt; Enregistrer sous &gt; CSV UTF-8).
+        </p>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Colonne</th><th>Obligatoire</th><th>Contenu</th><th>Exemple</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>
+    `;
+}
+
+/**
+ * Genere et telecharge le modele CSV de l'entite choisie : en-tetes exacts
+ * plus une ligne d'exemple. Entierement cote navigateur, aucune route
+ * supplementaire cote serveur.
+ */
+function downloadImportTemplate(entity) {
+    const template = IMPORT_TEMPLATES[entity] ?? IMPORT_TEMPLATES.products;
+    const escape = (value) => (/[";\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value);
+    const header = template.columns.map((column) => escape(column.key)).join(';');
+    const sample = template.columns.map((column) => escape(column.sample)).join(';');
+
+    // BOM UTF-8 : sans lui, Excel ouvre le fichier en Windows-1252 et casse
+    // les accents. Le lecteur CSV du backend retire ce BOM a la lecture.
+    const content = `\uFEFF${header}\n${sample}\n`;
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `modele-import-${entity}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
 }
 
 async function renderProductDetail(productId) {
