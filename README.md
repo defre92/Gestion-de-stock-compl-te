@@ -660,6 +660,24 @@ l'emplacement : deux allees du meme produit sont deux comptages distincts.
   contient `location_id` (nullable). Passees en `NOT EXISTS`. Verifie par trois
   chargements consecutifs : 280 lignes de stock, zero doublon.
 
+### Correctif : les emplacements manquaient sur l'ecran Mouvements
+
+Les champs "Emplacement source" et "Emplacement destination" n'avaient jamais
+ete ajoutes au formulaire de l'ecran **Mouvements** - seulement a celui de la
+fiche produit. Le code qui les alimente etait bien present, mais pointait vers
+des elements inexistants : silencieux, et invisible aux verifications
+syntaxiques.
+
+Cause : lors de l'ajout initial, le script de modification effectuait trois
+remplacements et le troisieme a echoue sur une assertion. Le script s'est
+interrompu **sans rien ecrire**, y compris les deux remplacements deja
+calcules. Seule la partie rejouee ensuite a ete conservee.
+
+Sont retablis sur l'ecran Mouvements : les deux selecteurs d'emplacement, leur
+envoi dans la requete, et les colonnes de l'historique. Un controle de symetrie
+verifie desormais que chaque element apparait bien **deux fois** dans le
+fichier - une fois par formulaire.
+
 ### Vue rapide : ou se trouve un produit
 
 Le suivi par emplacement existait mais restait invisible : il fallait ouvrir la

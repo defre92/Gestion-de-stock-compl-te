@@ -1583,7 +1583,15 @@ async function renderMovements() {
                     <small class="field-hint">Ce produit utilise des variantes : choisis celle concernee par ce mouvement.</small>
                 </div>
                 ${selectField('warehouse_id', 'Entrepot source', state.lookups.warehouses, 'id', 'name', true)}
+                <label><span>Emplacement source (optionnel)</span>
+                    <select name="source_location_id" id="movementSourceLocation" disabled>
+                        <option value="">Choisis d'abord un entrepot</option>
+                    </select></label>
                 ${selectField('destination_warehouse_id', 'Entrepot destination', state.lookups.warehouses, 'id', 'name', false)}
+                <label><span>Emplacement destination (optionnel)</span>
+                    <select name="destination_location_id" id="movementDestinationLocation" disabled>
+                        <option value="">Choisis d'abord un entrepot</option>
+                    </select></label>
                 <label><span>Type</span><select name="type" required>
                     <option value="IN">Entree</option>
                     <option value="OUT">Sortie</option>
@@ -1796,6 +1804,8 @@ async function renderMovements() {
             variant_id: variantId,
             warehouse_id: warehouseId,
             destination_warehouse_id: data.get('destination_warehouse_id') ? Number(data.get('destination_warehouse_id')) : null,
+            source_location_id: data.get('source_location_id') ? Number(data.get('source_location_id')) : null,
+            destination_location_id: data.get('destination_location_id') ? Number(data.get('destination_location_id')) : null,
             type,
             quantity,
             reason_code: String(data.get('reason_code') ?? ''),
