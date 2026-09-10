@@ -4540,3 +4540,59 @@ JOIN warehouses w ON w.is_default = 1
 JOIN warehouse_locations l ON l.warehouse_id = w.id AND l.code = 'C2'
 WHERE p.sku = 'DEMO-ELE-001'
   AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.location_id = l.id AND sl.variant_id IS NULL);
+
+-- ----------------------------------------------------------------------------
+-- Variantes "dimensions" de demonstration (option dimension_variants_enabled)
+-- ----------------------------------------------------------------------------
+-- Troisieme saveur de variantes : largeur / hauteur / profondeur / poids, en
+-- texte LIBRE (l'unite fait partie de la valeur saisie). Ici un tableau blanc
+-- decline en trois formats et un caisson en deux profondeurs : c'est le cas
+-- typique du materiel, du mobilier et de la decoupe sur mesure.
+-- Active `dimension_variants_enabled` dans l'ecran Parametres pour voir les
+-- champs et ces variantes dans le module Variantes.
+
+INSERT INTO product_variants (product_id, sku, width, height, depth, weight, is_active)
+SELECT p.id, 'DEMO-BUR-004-90X60', '90 cm', '60 cm', NULL, '6 kg', 1
+FROM products p WHERE p.sku = 'DEMO-BUR-004'
+ON DUPLICATE KEY UPDATE width = VALUES(width), height = VALUES(height), depth = VALUES(depth), weight = VALUES(weight), is_active = VALUES(is_active);
+
+INSERT INTO product_variants (product_id, sku, width, height, depth, weight, is_active)
+SELECT p.id, 'DEMO-BUR-004-120X90', '120 cm', '90 cm', NULL, '11 kg', 1
+FROM products p WHERE p.sku = 'DEMO-BUR-004'
+ON DUPLICATE KEY UPDATE width = VALUES(width), height = VALUES(height), depth = VALUES(depth), weight = VALUES(weight), is_active = VALUES(is_active);
+
+INSERT INTO product_variants (product_id, sku, width, height, depth, weight, is_active)
+SELECT p.id, 'DEMO-BUR-004-180X120', '180 cm', '120 cm', NULL, '23,5 kg', 1
+FROM products p WHERE p.sku = 'DEMO-BUR-004'
+ON DUPLICATE KEY UPDATE width = VALUES(width), height = VALUES(height), depth = VALUES(depth), weight = VALUES(weight), is_active = VALUES(is_active);
+
+INSERT INTO product_variants (product_id, sku, width, height, depth, weight, is_active)
+SELECT p.id, 'DEMO-BUR-S11-P42', '40 cm', '55 cm', '42 cm', '18 kg', 1
+FROM products p WHERE p.sku = 'DEMO-BUR-S11'
+ON DUPLICATE KEY UPDATE width = VALUES(width), height = VALUES(height), depth = VALUES(depth), weight = VALUES(weight), is_active = VALUES(is_active);
+
+INSERT INTO product_variants (product_id, sku, width, height, depth, weight, is_active)
+SELECT p.id, 'DEMO-BUR-S11-P60', '40 cm', '55 cm', '60 cm', '21 kg', 1
+FROM products p WHERE p.sku = 'DEMO-BUR-S11'
+ON DUPLICATE KEY UPDATE width = VALUES(width), height = VALUES(height), depth = VALUES(depth), weight = VALUES(weight), is_active = VALUES(is_active);
+
+-- Un peu de stock sur ces variantes, meme protection NOT EXISTS que plus haut
+-- (location_id nullable dans la cle unique de stock_levels).
+INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
+SELECT v.product_id, v.id, w.id, 12, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
+WHERE v.sku = 'DEMO-BUR-004-90X60'
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
+
+INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
+SELECT v.product_id, v.id, w.id, 5, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
+WHERE v.sku = 'DEMO-BUR-004-120X90'
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
+
+INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
+SELECT v.product_id, v.id, w.id, 3, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
+WHERE v.sku = 'DEMO-BUR-S11-P60'
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
+
+-- Les deux produits concernes doivent etre marques "a des variantes", sinon le
+-- selecteur de variante n'apparait pas dans les mouvements de stock.
+UPDATE products SET has_variants = 1 WHERE sku IN ('DEMO-BUR-004', 'DEMO-BUR-S11');

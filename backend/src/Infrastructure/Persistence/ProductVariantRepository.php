@@ -14,6 +14,13 @@ final class ProductVariantRepository extends PdoCrudRepository
         'color',
         'vintage',
         'volume_cl',
+        // Dimensions libres (texte) : "120 cm", "2 m", "3/4 pouce", "sur
+        // mesure"... volontairement non numeriques, voir la migration
+        // 202602270014_dimension_variants.sql.
+        'width',
+        'height',
+        'depth',
+        'weight',
         'attributes_json',
         'unit_price',
         'is_active',

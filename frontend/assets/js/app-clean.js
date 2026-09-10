@@ -219,7 +219,7 @@ const crudModules = {
             // une des deux options est activee dans Parametres (sinon le module
             // Variantes est masque et le champ n'aurait nulle part ou etre
             // exploite). Le libelle s'adapte a l'option reellement active.
-            if (state.clothingVariantsEnabled || state.bottleVariantsEnabled) {
+            if (anyVariantsEnabled()) {
                 fields.push({ key: 'has_variants', label: `Ce produit a des variantes (${variantsAttributesLabel()})`, type: 'select', options: [
                     { value: '0', label: 'Non' },
                     { value: '1', label: 'Oui - gerer les variantes dans le module dedie' },
@@ -283,6 +283,20 @@ const crudModules = {
                 fields.push(
                     { key: 'vintage', label: 'Millesime', type: 'number' },
                     { key: 'volume_cl', label: 'Contenance en cl', type: 'number' },
+                );
+            }
+            // Dimensions LIBRES (texte) : materiel, mobilier, decoupe, tissu au
+            // metre... L'unite fait partie de la valeur saisie ("120 cm",
+            // "2 m", "3/4 pouce", "sur mesure"), rien n'est impose. Les champs
+            // numeriques Largeur/Hauteur/Profondeur/Poids de la FICHE PRODUIT
+            // restent disponibles en parallele pour les cotes d'un article sans
+            // variante : les deux coexistent selon les articles.
+            if (state.dimensionVariantsEnabled) {
+                fields.push(
+                    { key: 'width', label: 'Largeur (unite libre, ex: 120 cm)', type: 'text' },
+                    { key: 'height', label: 'Hauteur (unite libre, ex: 200 cm)', type: 'text' },
+                    { key: 'depth', label: 'Profondeur (unite libre, ex: 60 cm)', type: 'text' },
+                    { key: 'weight', label: 'Poids (unite libre, ex: 12,5 kg)', type: 'text' },
                 );
             }
             fields.push(
@@ -456,11 +470,19 @@ boot().catch((error) => {
 });
 
 async function boot() {
-    const [meResponse, lookupResponse, clothingSettingResponse, bottleSettingResponse, valuationSettingResponse] = await Promise.all([
+    const [
+        meResponse,
+        lookupResponse,
+        clothingSettingResponse,
+        bottleSettingResponse,
+        dimensionSettingResponse,
+        valuationSettingResponse,
+    ] = await Promise.all([
         apiRequest('/auth/me'),
         apiRequest('/lookups/options'),
         apiRequest('/settings?setting_key=clothing_variants_enabled').catch(() => null),
         apiRequest('/settings?setting_key=bottle_variants_enabled').catch(() => null),
+        apiRequest('/settings?setting_key=dimension_variants_enabled').catch(() => null),
         apiRequest('/settings?setting_key=default_valuation_method').catch(() => null),
     ]);
 
@@ -468,8 +490,10 @@ async function boot() {
     state.lookups = lookupResponse.data;
     const clothingRow = normalizeRows(clothingSettingResponse)[0];
     const bottleRow = normalizeRows(bottleSettingResponse)[0];
+    const dimensionRow = normalizeRows(dimensionSettingResponse)[0];
     state.clothingVariantsEnabled = String(clothingRow?.setting_value ?? '0') === '1';
     state.bottleVariantsEnabled = String(bottleRow?.setting_value ?? '0') === '1';
+    state.dimensionVariantsEnabled = String(dimensionRow?.setting_value ?? '0') === '1';
     syncValuationSettingState(normalizeRows(valuationSettingResponse)[0]?.setting_value);
 
     const userPill = document.getElementById('userPill');
@@ -518,7 +542,19 @@ function variantsAttributesLabel() {
     if (state.bottleVariantsEnabled) {
         parts.push('millesime/contenance');
     }
+    if (state.dimensionVariantsEnabled) {
+        parts.push('largeur/hauteur/profondeur/poids');
+    }
     return parts.length === 0 ? 'aucune option activee' : parts.join(' ou ');
+}
+
+// Les reglages qui pilotent le module Variantes. Regroupes ici pour qu'une
+// quatrieme "saveur" ne demande pas de repasser sur chaque appel.
+const VARIANT_SETTING_KEYS = ['clothing_variants_enabled', 'bottle_variants_enabled', 'dimension_variants_enabled'];
+
+/** Au moins une "saveur" de variantes est-elle activee dans Parametres ? */
+function anyVariantsEnabled() {
+    return Boolean(state.clothingVariantsEnabled || state.bottleVariantsEnabled || state.dimensionVariantsEnabled);
 }
 
 function syncVariantsSettingState(settingKey, settingValue) {
@@ -527,11 +563,13 @@ function syncVariantsSettingState(settingKey, settingValue) {
         state.clothingVariantsEnabled = enabled;
     } else if (settingKey === 'bottle_variants_enabled') {
         state.bottleVariantsEnabled = enabled;
+    } else if (settingKey === 'dimension_variants_enabled') {
+        state.dimensionVariantsEnabled = enabled;
     }
 
     // Reaffiche/masque immediatement le lien "Variantes" sans attendre un
     // rechargement complet de la page.
-    const hasEitherEnabled = state.clothingVariantsEnabled || state.bottleVariantsEnabled;
+    const hasEitherEnabled = anyVariantsEnabled();
     const existingLink = document.querySelector('[data-module="product-variants"]');
     if (hasEitherEnabled && !existingLink) {
         const productsLink = document.querySelector('[data-module="products"]');
@@ -548,10 +586,11 @@ function syncVariantsSettingState(settingKey, settingValue) {
 }
 
 function applyVariantsVisibility() {
-    // Module optionnel (vetement: taille/couleur, OU bouteille:
-    // millesime/contenance) : masque le lien de navigation tant qu'aucune
-    // des deux options n'est activee dans Parametres.
-    if (!state.clothingVariantsEnabled && !state.bottleVariantsEnabled) {
+    // Module optionnel (vetement: taille/couleur, bouteille:
+    // millesime/contenance, OU materiel: largeur/hauteur/profondeur/poids) :
+    // masque le lien de navigation tant qu'aucune de ces options n'est
+    // activee dans Parametres.
+    if (!anyVariantsEnabled()) {
         document.querySelector('[data-module="product-variants"]')?.remove();
     }
 }
@@ -1374,7 +1413,7 @@ async function renderCrud(module) {
                 try {
                     await apiRequest(`${config.endpoint}/${id}`, { method: 'DELETE' });
                     await refreshLookups();
-                    if (['clothing_variants_enabled', 'bottle_variants_enabled'].includes(deletedSettingKey)) {
+                    if (VARIANT_SETTING_KEYS.includes(deletedSettingKey)) {
                         syncVariantsSettingState(deletedSettingKey, '0');
                     }
                     await renderCrud(module);
@@ -1433,7 +1472,7 @@ async function renderCrud(module) {
             try {
                 const saveResponse = await apiRequest(path, { method, body: payload });
                 await refreshLookups();
-                if (module === 'settings' && ['clothing_variants_enabled', 'bottle_variants_enabled'].includes(payload.setting_key)) {
+                if (module === 'settings' && VARIANT_SETTING_KEYS.includes(payload.setting_key)) {
                     syncVariantsSettingState(payload.setting_key, payload.setting_value);
                 }
                 if (module === 'settings' && payload.setting_key === 'default_valuation_method') {
@@ -3962,6 +4001,7 @@ const VARIANT_GENERATOR_MAX = 200;
 function renderVariantGenerator() {
     const clothing = state.clothingVariantsEnabled;
     const bottle = state.bottleVariantsEnabled;
+    const dimension = state.dimensionVariantsEnabled;
 
     const attributeFields = [];
     if (clothing) {
@@ -3979,6 +4019,20 @@ function renderVariantGenerator() {
         attributeFields.push(`
             <label><span>Contenances en cl (nombres entiers)</span>
                 <input type="text" name="gen_volumes" placeholder="37, 75, 150"></label>`);
+    }
+    if (dimension) {
+        attributeFields.push(`
+            <label><span>Largeurs (unite libre)</span>
+                <input type="text" name="gen_widths" placeholder="60 cm, 80 cm, 1 m"></label>`);
+        attributeFields.push(`
+            <label><span>Hauteurs (unite libre)</span>
+                <input type="text" name="gen_heights" placeholder="180 cm, 200 cm"></label>`);
+        attributeFields.push(`
+            <label><span>Profondeurs (unite libre)</span>
+                <input type="text" name="gen_depths" placeholder="40 cm, 60 cm"></label>`);
+        attributeFields.push(`
+            <label><span>Poids (unite libre)</span>
+                <input type="text" name="gen_weights" placeholder="12,5 kg, 25 kg"></label>`);
     }
 
     const report = lastVariantGenerationReport;
@@ -4127,6 +4181,15 @@ function setupVariantGenerator() {
             dimensions.push({ key: 'volume_cl', values: volumes });
         }
 
+        // Dimensions libres : aucune validation de format, c'est le principe -
+        // "60 cm", "1 m", "3/4 pouce" et "sur mesure" sont tous acceptes.
+        for (const [field, key] of [['gen_widths', 'width'], ['gen_heights', 'height'], ['gen_depths', 'depth'], ['gen_weights', 'weight']]) {
+            const values = parseVariantList(form.elements[field]?.value);
+            if (values.length > 0) {
+                dimensions.push({ key, values });
+            }
+        }
+
         if (dimensions.length === 0) {
             feedback.textContent = 'Renseigne au moins une liste de valeurs.';
             feedback.classList.add('is-error');
@@ -4174,6 +4237,10 @@ function setupVariantGenerator() {
                 color: combo.color ?? '',
                 vintage: combo.vintage ?? '',
                 volume_cl: combo.volume_cl ?? '',
+                width: combo.width ?? '',
+                height: combo.height ?? '',
+                depth: combo.depth ?? '',
+                weight: combo.weight ?? '',
                 unit_price: price,
                 is_active: 1,
                 exists: existingSkus.has(sku.toUpperCase()),
@@ -4185,6 +4252,7 @@ function setupVariantGenerator() {
 
         const hasClothing = dimensions.some((d) => d.key === 'size' || d.key === 'color');
         const hasBottle = dimensions.some((d) => d.key === 'vintage' || d.key === 'volume_cl');
+        const hasDimension = dimensions.some((d) => ['width', 'height', 'depth', 'weight'].includes(d.key));
 
         preview.innerHTML = `
             <div class="table-wrap">
@@ -4193,6 +4261,7 @@ function setupVariantGenerator() {
                         <th>SKU genere</th>
                         ${hasClothing ? '<th>Taille</th><th>Couleur</th>' : ''}
                         ${hasBottle ? '<th>Millesime</th><th>Contenance</th>' : ''}
+                        ${hasDimension ? '<th>Largeur</th><th>Hauteur</th><th>Profondeur</th><th>Poids</th>' : ''}
                         <th>Etat</th>
                     </tr></thead>
                     <tbody>
@@ -4201,6 +4270,7 @@ function setupVariantGenerator() {
                                 <td>${sanitize(row.sku)}</td>
                                 ${hasClothing ? `<td>${sanitize(row.size || '-')}</td><td>${sanitize(row.color || '-')}</td>` : ''}
                                 ${hasBottle ? `<td>${sanitize(row.vintage || '-')}</td><td>${sanitize(row.volume_cl ? row.volume_cl + ' cl' : '-')}</td>` : ''}
+                                ${hasDimension ? `<td>${sanitize(row.width || '-')}</td><td>${sanitize(row.height || '-')}</td><td>${sanitize(row.depth || '-')}</td><td>${sanitize(row.weight || '-')}</td>` : ''}
                                 <td>${row.exists ? 'Existe deja - ignoree' : 'A creer'}</td>
                             </tr>
                         `).join('')}
@@ -4243,6 +4313,10 @@ function setupVariantGenerator() {
                         color: combo.color,
                         vintage: combo.vintage,
                         volume_cl: combo.volume_cl,
+                        width: combo.width,
+                        height: combo.height,
+                        depth: combo.depth,
+                        weight: combo.weight,
                         unit_price: combo.unit_price,
                         is_active: 1,
                     },
@@ -4794,14 +4868,20 @@ function renderTagBadges(tags) {
 
 function variantDescriptor(v) {
     // Libelle d'une variante, quel que soit son "type" (vetement:
-    // taille/couleur, ou bouteille: millesime/contenance) - v peut venir
-    // soit d'un objet variante complet (size/color/vintage/volume_cl), soit
-    // d'une ligne jointe (variant_size/variant_color/variant_vintage/
-    // variant_volume_cl), les deux formats sont acceptes.
+    // taille/couleur, bouteille: millesime/contenance, ou materiel:
+    // largeur/hauteur/profondeur/poids) - v peut venir soit d'un objet
+    // variante complet (size/color/vintage/volume_cl/width/height/depth/
+    // weight), soit d'une ligne jointe (variant_size/variant_color/
+    // variant_vintage/variant_volume_cl/variant_width/...), les deux formats
+    // sont acceptes.
     const size = v.size ?? v.variant_size;
     const color = v.color ?? v.variant_color;
     const vintage = v.vintage ?? v.variant_vintage;
     const volumeCl = v.volume_cl ?? v.variant_volume_cl;
+    const width = v.width ?? v.variant_width;
+    const height = v.height ?? v.variant_height;
+    const depth = v.depth ?? v.variant_depth;
+    const weight = v.weight ?? v.variant_weight;
     const sku = v.sku ?? v.variant_sku;
 
     const clothing = [size, color].filter(Boolean);
@@ -4818,6 +4898,26 @@ function variantDescriptor(v) {
     }
     if (bottle.length > 0) {
         return bottle.join(' / ');
+    }
+
+    // Dimensions libres : "L 120 cm / H 200 cm / P 60 cm / Poids 12,5 kg". La
+    // valeur est affichee telle qu'elle a ete saisie, unite comprise. Meme
+    // libelle que cote backend (StockService::refreshProductAlert).
+    const dimensions = [];
+    if (width) {
+        dimensions.push(`L ${width}`);
+    }
+    if (height) {
+        dimensions.push(`H ${height}`);
+    }
+    if (depth) {
+        dimensions.push(`P ${depth}`);
+    }
+    if (weight) {
+        dimensions.push(`Poids ${weight}`);
+    }
+    if (dimensions.length > 0) {
+        return dimensions.join(' / ');
     }
 
     return sku || '-';
@@ -5139,6 +5239,9 @@ const RAW_VALUE_KEYS = new Set([
     'unit_code', 'warehouse_code', 'destination_warehouse_code', 'serial_number',
     'setting_key', 'setting_value', 'descriptor', 'variant_sku', 'note', 'notes',
     'category_name', 'brand_name', 'supplier_name', 'customer_name', 'size', 'color',
+    // Dimensions de variante : texte libre saisi par l'utilisateur ("2 m",
+    // "3/4 pouce"), a n'interpreter sous aucun pretexte.
+    'width', 'height', 'depth', 'weight',
 ]);
 
 const VALUE_LABELS = {

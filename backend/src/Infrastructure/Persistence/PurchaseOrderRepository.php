@@ -74,7 +74,7 @@ final class PurchaseOrderRepository
 
         $itemStmt = $this->pdo->prepare('
             SELECT poi.*, p.sku, p.name AS product_name,
-                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl
+                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl, v.width AS variant_width, v.height AS variant_height, v.depth AS variant_depth, v.weight AS variant_weight
             FROM purchase_order_items poi
             INNER JOIN products p ON p.id = poi.product_id
             LEFT JOIN product_variants v ON v.id = poi.variant_id

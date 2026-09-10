@@ -33,11 +33,11 @@ Application de gestion de stock professionnelle avec separation stricte Frontend
 - Administration: roles, utilisateurs, audit.
 - Avance: import CSV multi-entites, pieces jointes, etiquettes/code-barres.
 
-## Variantes produit - optionnel, 2 "saveurs" disponibles
+## Variantes produit - optionnel, 3 "saveurs" disponibles
 
 Fonctionnalite optionnelle pour les catalogues avec variantes. Desactivee
 par defaut, elle ne change rien pour une installation qui n'en a pas besoin.
-**Deux options independantes**, chacune activable ou non selon l'activite
+**Trois options independantes**, chacune activable ou non selon l'activite
 concernee :
 
 - `clothing_variants_enabled` = `1` : taille + couleur — couvre le
@@ -45,19 +45,31 @@ concernee :
   champ "Taille / Pointure", pas besoin d'une option separee).
 - `bottle_variants_enabled` = `1` : millesime + contenance en cl (vins,
   spiritueux, boissons).
+- `dimension_variants_enabled` = `1` : largeur + hauteur + profondeur +
+  poids (materiel, mobilier, decoupe sur mesure, tissu au metre).
+  **Ces quatre champs sont libres** : l'unite fait partie de la valeur
+  saisie, on peut donc ecrire "120 cm", "2 m", "3/4 pouce", "12,5 kg" ou
+  meme "sur mesure" sans etre bloque par une unite imposee.
 
-Les deux cles se creent dans l'ecran Parametres. Des qu'au moins une des
-deux est activee, l'entree "Variantes" apparait dans le menu lateral sous
+Ces dimensions de variante ne remplacent pas les champs numeriques
+Largeur/Hauteur/Profondeur/Poids de la **fiche produit** : les deux
+coexistent selon les articles. La fiche produit porte les cotes d'un article
+qui n'a qu'une seule taille ; la variante porte les cotes de chaque
+declinaison d'un article qui en a plusieurs, chacune avec son propre stock.
+
+Les cles se creent dans l'ecran Parametres. Des qu'au moins une des trois
+est activee, l'entree "Variantes" apparait dans le menu lateral sous
 **Referentiels**, juste apres Produits - avec un seul et meme module (pas
-deux ecrans separes) : chaque variante ne remplit que les champs qui la
-concernent (taille/couleur OU millesime/contenance), les autres restent
-vides. Le module reste masque si aucune des deux n'est activee.
+trois ecrans separes) : chaque variante ne remplit que les champs qui la
+concernent (taille/couleur, millesime/contenance OU dimensions), les autres
+restent vides. Le module reste masque si aucune des trois n'est activee.
 
 Le formulaire suit la meme regle : le champ "Ce produit a des variantes"
 n'apparait sur la fiche produit que si au moins une option est active, et
-son libelle s'adapte a l'option reellement activee (taille/couleur,
-millesime/contenance, ou les deux). Les champs de la variante elle-meme
-(taille, couleur / millesime, contenance) n'apparaissent que dans le module
+son libelle s'adapte aux options reellement activees (taille/couleur,
+millesime/contenance, dimensions, ou plusieurs a la fois). Les champs de la
+variante elle-meme (taille, couleur / millesime, contenance / largeur,
+hauteur, profondeur, poids) n'apparaissent que dans le module
 Variantes, jamais dans le formulaire produit : un produit porte **plusieurs**
 variantes, il ne peut donc pas les saisir sur sa propre fiche.
 
@@ -71,9 +83,11 @@ enregistre dessus (controle cote backend).
 
 **Generation en lot** : le module Variantes propose un panneau "Generer des
 variantes en lot". On choisit le produit, on saisit les listes de valeurs
-separees par des virgules (tailles et couleurs, et/ou millesimes et
-contenances) et le generateur cree toutes les combinaisons. Un vetement en
-5 tailles x 4 couleurs = 20 variantes en une operation au lieu de 20 saisies.
+separees par des virgules (tailles et couleurs, millesimes et contenances,
+et/ou largeurs, hauteurs, profondeurs et poids) et le generateur cree toutes
+les combinaisons. Un vetement en 5 tailles x 4 couleurs = 20 variantes en une
+operation au lieu de 20 saisies ; un plan de travail en 4 largeurs x 3
+profondeurs = 12 references de la meme facon.
 
 - Le prefixe des SKU se pre-remplit avec le SKU du produit et reste
   modifiable ; chaque SKU est construit comme `PREFIXE-TAILLE-COULEUR`
@@ -99,7 +113,7 @@ lot, les variantes deja creees etant ignorees.
 **Pourquoi une seule table plutot que deux** : le stock, les mouvements,
 les alertes, les livraisons, les achats et les inventaires ne raisonnent
 tous qu'en `variant_id` - ils sont deja entierement agnostiques du type
-d'attribut. Reutiliser `product_variants` pour les deux "saveurs" evite de
+d'attribut. Reutiliser `product_variants` pour les trois "saveurs" evite de
 dupliquer toute cette mecanique (et donc tous les bugs potentiels) pour
 chaque nouveau type de variante qu'on voudrait ajouter plus tard (ex:
 pointure pour la chaussure, format pour l'electromenager...).
@@ -107,12 +121,12 @@ pointure pour la chaussure, format pour l'electromenager...).
 **Par produit** : chaque produit choisit individuellement s'il utilise des
 variantes (case "Ce produit a des variantes" sur sa fiche,
 `products.has_variants`). Un catalogue mixte (certains produits avec
-variantes, d'autres sans, voire un melange vetement/bouteille) est le cas
-normal.
+variantes, d'autres sans, voire un melange vetement/bouteille/materiel) est
+le cas normal.
 
 **Modele de donnees** : table `product_variants` (SKU propre, code-barre,
-taille, couleur, millesime, contenance en cl, prix optionnel qui surcharge
-celui du produit, `attributes_json` en reserve pour d'autres attributs
+taille, couleur, millesime, contenance en cl, largeur, hauteur, profondeur et
+poids en texte libre, prix optionnel qui surcharge celui du produit, `attributes_json` en reserve pour d'autres attributs
 futurs sans nouvelle migration). `stock_levels`, `stock_movements` et
 `stock_alerts` ont tous une colonne `variant_id` nullable : le stock,
 l'historique des mouvements et les alertes de stock bas sont donc suivis
@@ -291,17 +305,18 @@ jouees puis fichier execute trois fois de suite) :
 
 | Element | Quantite |
 | --- | --- |
-| Produits | 144 (dont 24 a variantes, 6 desactives, 34 en FIFO) |
-| Variantes | 160 (taille/couleur, pointure, millesime/contenance) |
-| Lignes de stock | 280 (produits et variantes) |
+| Produits | 144 (dont 26 a variantes, 6 desactives, 34 en FIFO) |
+| Variantes | 165 (taille/couleur, pointure, millesime/contenance, dimensions) |
+| Lignes de stock | 294 (produits et variantes) |
 | Categories / fournisseurs / marques | 9 / 7 / 7 |
 | Unites / taxes / tags | 3 / 3 / 7 |
 | Scenario complet | demande d'achat, commande, livraison, inventaire, mouvements, alertes |
 
 De quoi remplir 6 pages de catalogue a 25 lignes par page, avec des articles
 volontairement sous leur seuil pour alimenter le tableau de bord et l'ecran
-Alertes. Pour voir les variantes, active `clothing_variants_enabled` et/ou
-`bottle_variants_enabled` dans l'ecran Parametres.
+Alertes. Pour voir les variantes, active `clothing_variants_enabled`,
+`bottle_variants_enabled` et/ou `dimension_variants_enabled` dans l'ecran
+Parametres.
 
 **Ne touche jamais**: `users`, `roles`, `personal_access_tokens`. Aucun
 compte, aucun mot de passe n'est cree ou modifie par cette action -
@@ -597,6 +612,50 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
 - **Statut des jobs d'import.** Un import de 500 lignes dont une seule est
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
+
+## Variantes "dimensions" pour le materiel
+
+Migration `202602270014_dimension_variants`, reglage
+`dimension_variants_enabled`. Troisieme "saveur" de variantes, sur le meme
+principe que taille/couleur et millesime/contenance : quatre colonnes
+supplementaires sur `product_variants` - `width`, `height`, `depth`,
+`weight` - et rien d'autre a changer, puisque le stock, les mouvements, les
+alertes, les livraisons, les achats et les inventaires ne raisonnent qu'en
+`variant_id`.
+
+**Valeurs libres, et c'est voulu.** Ces quatre colonnes sont des `VARCHAR`,
+pas des `DECIMAL`. Un utilisateur doit pouvoir saisir "120 cm", "2 m",
+"3/4 pouce", "1,20 x 0,80" ou "sur mesure" sans qu'une unite lui soit
+imposee. Ces valeurs sont des libelles de variante, pas des donnees de
+calcul : rien dans l'application ne les additionne ni ne les convertit.
+
+**Les deux niveaux coexistent.** La fiche produit garde ses champs
+numeriques `width_cm` / `height_cm` / `depth_cm` / `weight_kg` : ils portent
+les cotes d'un article qui n'existe qu'en une seule taille. Les dimensions
+de variante portent les cotes de chaque declinaison d'un article qui en a
+plusieurs, chacune avec son propre SKU, son propre prix et son propre stock.
+Selon les articles, on utilise l'un, l'autre, ou les deux.
+
+**Affichage.** Le libelle de variante devient `L 120 cm / H 90 cm / P 60 cm
+/ 23,5 kg`, dans les listes, les mouvements, les livraisons, les inventaires
+et les messages d'alerte de stock bas - la meme regle de priorite est
+appliquee cote frontend (`variantDescriptor`) et cote backend
+(`StockService`) : vetement, puis bouteille, puis dimensions, puis le SKU a
+defaut.
+
+**Generation en lot.** Le generateur de variantes accepte les quatre
+nouvelles listes (largeurs, hauteurs, profondeurs, poids) comme axes du
+produit cartesien : 4 largeurs x 3 profondeurs = 12 references en une
+operation. Aucune validation de format n'est appliquee sur ces axes, par
+construction.
+
+**Donnees de demo.** Cinq variantes de dimensions sont livrees dans
+`catalog-demo.sql` (un tableau blanc en trois formats, un caisson en deux
+profondeurs), avec du stock, en `NOT EXISTS` comme le reste du fichier.
+
+L'option est a `0` par defaut : une installation existante ne voit
+strictement aucun changement tant qu'elle n'est pas activee dans l'ecran
+Parametres.
 
 ## Stock suivi par emplacement
 

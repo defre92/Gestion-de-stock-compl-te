@@ -310,10 +310,12 @@ final class StockService
 
         $variantLabel = '';
         if ($variantId !== null) {
-            $variant = Database::connection()->prepare('SELECT sku, size, color, vintage, volume_cl FROM product_variants WHERE id = :id');
+            $variant = Database::connection()->prepare('SELECT sku, size, color, vintage, volume_cl, width, height, depth, weight FROM product_variants WHERE id = :id');
             $variant->execute([':id' => $variantId]);
             $variantRow = $variant->fetch();
             if ($variantRow) {
+                // Meme ordre de priorite que variantDescriptor() cote frontend :
+                // vetement, puis bouteille, puis dimensions, puis le SKU.
                 $descriptors = array_filter([$variantRow['size'] ?? null, $variantRow['color'] ?? null]);
                 if ($descriptors === []) {
                     $bottleDescriptors = [];
@@ -324,6 +326,18 @@ final class StockService
                         $bottleDescriptors[] = $variantRow['volume_cl'] . 'cl';
                     }
                     $descriptors = $bottleDescriptors;
+                }
+                if ($descriptors === []) {
+                    $dimensionDescriptors = [];
+                    foreach (['width' => 'L', 'height' => 'H', 'depth' => 'P'] as $column => $prefix) {
+                        if (!empty($variantRow[$column])) {
+                            $dimensionDescriptors[] = $prefix . ' ' . $variantRow[$column];
+                        }
+                    }
+                    if (!empty($variantRow['weight'])) {
+                        $dimensionDescriptors[] = 'Poids ' . $variantRow['weight'];
+                    }
+                    $descriptors = $dimensionDescriptors;
                 }
                 $variantLabel = $descriptors !== [] ? ' (' . implode('/', $descriptors) . ')' : ' (' . $variantRow['sku'] . ')';
             }
