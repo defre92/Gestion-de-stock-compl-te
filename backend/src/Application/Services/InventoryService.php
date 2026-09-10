@@ -106,7 +106,13 @@ final class InventoryService
             throw new HttpException('Ce produit utilise des variantes : precise laquelle', 422);
         }
 
-        $expectedQty = $this->repository->expectedQuantity((int)$session['warehouse_id'], $productId, $variantId);
+        // L'emplacement, quand il est renseigne, restreint le comptage a cet
+        // emplacement precis : on compare alors a ce que la base dit de CETTE
+        // allee, pas au total de l'entrepot. Sans lui, on compte le produit
+        // dans l'entrepot entier, comme avant.
+        $locationId = !empty($payload['location_id']) ? (int)$payload['location_id'] : null;
+
+        $expectedQty = $this->repository->expectedQuantity((int)$session['warehouse_id'], $productId, $variantId, $locationId);
         $differenceQty = $countedQty - $expectedQty;
 
         $id = $this->repository->addCount([
@@ -116,7 +122,7 @@ final class InventoryService
             'expected_qty' => $expectedQty,
             'counted_qty' => $countedQty,
             'difference_qty' => $differenceQty,
-            'location_id' => isset($payload['location_id']) ? (int)$payload['location_id'] : null,
+            'location_id' => $locationId,
             'counted_by' => $actorId,
             'notes' => $payload['notes'] ?? null,
         ]);
@@ -145,7 +151,10 @@ final class InventoryService
             // Cle produit+variante: sans le variant_id ici, deux variantes
             // du meme produit comptees dans la meme session s'ecraseraient
             // l'une l'autre et une seule generait un ajustement.
-            $key = $item['product_id'] . '-' . ($item['variant_id'] ?? '0');
+            // La cle inclut l'emplacement : deux allees du meme produit comptees
+            // dans la meme session sont deux comptages distincts, chacun
+            // generant son propre ajustement.
+            $key = $item['product_id'] . '-' . ($item['variant_id'] ?? '0') . '-' . ($item['location_id'] ?? '0');
             $isNewer = !isset($latestPerProduct[$key])
                 || (int)$item['id'] > (int)$latestPerProduct[$key]['id'];
             if ($isNewer) {
@@ -180,6 +189,11 @@ final class InventoryService
                     'reason_code' => 'INVENTORY',
                     'reference_type' => 'INVENTORY_SESSION',
                     'reference_id' => $sessionId,
+                    // L'ajustement doit viser l'emplacement qui a ete compte,
+                    // sinon un produit reparti sur plusieurs allees serait
+                    // rejete ("precise l'emplacement") ou ajuste au mauvais
+                    // endroit.
+                    'destination_location_id' => $item['location_id'] ?? null,
                     'notes' => 'Ajustement genere par la session d\'inventaire',
                 ], $actorId, $ip);
             }

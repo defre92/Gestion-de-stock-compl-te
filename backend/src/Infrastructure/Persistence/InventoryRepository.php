@@ -155,20 +155,33 @@ final class InventoryRepository
         return (int)$stmt->fetchColumn();
     }
 
-    public function expectedQuantity(int $warehouseId, int $productId, ?int $variantId = null): int
+    /**
+     * Quantite attendue lors d'un comptage.
+     *
+     * Avec un emplacement, on compare a ce que la base dit de CET emplacement.
+     * Sans emplacement, on compare au total de l'entrepot : c'est le
+     * comportement historique, et le seul qui ait du sens quand on compte un
+     * produit sans preciser ou il se trouve.
+     */
+    public function expectedQuantity(int $warehouseId, int $productId, ?int $variantId = null, ?int $locationId = null): int
     {
         $sql = '
-            SELECT COALESCE(quantity, 0)
+            SELECT COALESCE(SUM(quantity), 0)
             FROM stock_levels
-            WHERE warehouse_id = :warehouse_id AND product_id = :product_id AND variant_id ' . ($variantId !== null ? '= :variant_id' : 'IS NULL') . '
-            LIMIT 1
-        ';
+            WHERE warehouse_id = :warehouse_id AND product_id = :product_id AND variant_id '
+            . ($variantId !== null ? '= :variant_id' : 'IS NULL')
+            . ($locationId !== null ? ' AND location_id = :location_id' : '');
+
         $stmt = $this->pdo->prepare($sql);
         $params = [':warehouse_id' => $warehouseId, ':product_id' => $productId];
         if ($variantId !== null) {
             $params[':variant_id'] = $variantId;
         }
+        if ($locationId !== null) {
+            $params[':location_id'] = $locationId;
+        }
         $stmt->execute($params);
+
         return (int)($stmt->fetchColumn() ?: 0);
     }
 

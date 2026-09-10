@@ -100,6 +100,12 @@ final class DeliveryService
                     throw new HttpException("Un numero de serie ne peut etre associe qu'a une ligne de quantite 1 (ligne {$index})", 422);
                 }
                 $lines[$index]['serial_id'] = $serialId;
+                // La sortie de stock doit venir de l'emplacement ou se trouve
+                // reellement cet exemplaire, pas d'une allee choisie au hasard
+                // par la repartition automatique.
+                $lines[$index]['source_location_id'] = $serial['location_id'] !== null
+                    ? (int)$serial['location_id']
+                    : null;
             }
 
             $lineTotal = $qty * $unitPrice;
@@ -132,6 +138,7 @@ final class DeliveryService
                     'product_id' => (int)$line['product_id'],
                     'variant_id' => $line['variant_id'] ?? null,
                     'warehouse_id' => $warehouseId,
+                    'source_location_id' => $line['source_location_id'] ?? null,
                     'type' => 'OUT',
                     'quantity' => (int)$line['quantity'],
                     'reason_code' => 'DELIVERY',
@@ -141,7 +148,7 @@ final class DeliveryService
                 ], $actorId, $ip);
 
                 if (!empty($line['serial_id'])) {
-                    $this->productSerialRepository->updateStatus((int)$line['serial_id'], 'OUT', null, 'BL ' . $deliveryNumber);
+                    $this->productSerialRepository->updateStatus((int)$line['serial_id'], 'OUT', null, 'BL ' . $deliveryNumber, null);
                 }
             }
 
@@ -191,11 +198,18 @@ final class DeliveryService
                 ], $actorId, $ip);
 
                 if (!empty($line['serial_id'])) {
+                    // L'exemplaire revient dans l'entrepot mais sans
+                    // emplacement : on ne sait pas ou il sera range au retour,
+                    // et le mouvement d'entree ci-dessus alimente lui aussi la
+                    // ligne "sans emplacement precis". Les deux restent donc
+                    // coherents ; c'est a l'operateur de le ranger ensuite via
+                    // "Remettre en stock" ou un transfert interne.
                     $this->productSerialRepository->updateStatus(
                         (int)$line['serial_id'],
                         'IN_STOCK',
                         (int)$delivery['warehouse_id'],
-                        'Annulation BL ' . $delivery['delivery_number']
+                        'Annulation BL ' . $delivery['delivery_number'],
+                        null
                     );
                 }
             }

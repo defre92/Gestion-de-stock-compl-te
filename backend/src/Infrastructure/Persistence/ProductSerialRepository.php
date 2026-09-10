@@ -55,10 +55,12 @@ final class ProductSerialRepository
 
         $sql = "
             SELECT ps.*, p.sku, p.name AS product_name, w.name AS warehouse_name,
+                   loc.code AS location_code, loc.description AS location_description,
                    v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl
             FROM product_serials ps
             INNER JOIN products p ON p.id = ps.product_id
             LEFT JOIN warehouses w ON w.id = ps.warehouse_id
+            LEFT JOIN warehouse_locations loc ON loc.id = ps.location_id
             LEFT JOIN product_variants v ON v.id = ps.variant_id
             {$where}
             ORDER BY ps.id DESC
@@ -88,10 +90,12 @@ final class ProductSerialRepository
     {
         $stmt = $this->pdo->prepare('
             SELECT ps.*, p.sku, p.name AS product_name, w.name AS warehouse_name,
+                   loc.code AS location_code, loc.description AS location_description,
                    v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl
             FROM product_serials ps
             INNER JOIN products p ON p.id = ps.product_id
             LEFT JOIN warehouses w ON w.id = ps.warehouse_id
+            LEFT JOIN warehouse_locations loc ON loc.id = ps.location_id
             LEFT JOIN product_variants v ON v.id = ps.variant_id
             WHERE ps.id = :id
             LIMIT 1
@@ -106,10 +110,12 @@ final class ProductSerialRepository
     {
         $stmt = $this->pdo->prepare('
             SELECT ps.*, p.sku, p.name AS product_name, w.name AS warehouse_name,
+                   loc.code AS location_code, loc.description AS location_description,
                    v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl
             FROM product_serials ps
             INNER JOIN products p ON p.id = ps.product_id
             LEFT JOIN warehouses w ON w.id = ps.warehouse_id
+            LEFT JOIN warehouse_locations loc ON loc.id = ps.location_id
             LEFT JOIN product_variants v ON v.id = ps.variant_id
             WHERE ps.serial_number = :serial_number
             LIMIT 1
@@ -148,7 +154,7 @@ final class ProductSerialRepository
      * produit/entrepot. Retourne les ids crees. Toute la liste echoue en bloc
      * si un seul SN est deja utilise (evite un enregistrement partiel silencieux).
      */
-    public function createMany(int $productId, ?int $warehouseId, array $serialNumbers, ?int $createdBy, ?int $variantId = null): array
+    public function createMany(int $productId, ?int $warehouseId, array $serialNumbers, ?int $createdBy, ?int $variantId = null, ?int $locationId = null): array
     {
         // L'appelant peut avoir ouvert sa propre transaction (le service
         // enchaine desormais creation des series ET mouvement de stock, les
@@ -161,8 +167,8 @@ final class ProductSerialRepository
 
         try {
             $stmt = $this->pdo->prepare('
-                INSERT INTO product_serials (product_id, variant_id, serial_number, warehouse_id, status, created_by, created_at, updated_at)
-                VALUES (:product_id, :variant_id, :serial_number, :warehouse_id, \'IN_STOCK\', :created_by, NOW(), NOW())
+                INSERT INTO product_serials (product_id, variant_id, serial_number, warehouse_id, location_id, status, created_by, created_at, updated_at)
+                VALUES (:product_id, :variant_id, :serial_number, :warehouse_id, :location_id, \'IN_STOCK\', :created_by, NOW(), NOW())
             ');
 
             $ids = [];
@@ -172,6 +178,7 @@ final class ProductSerialRepository
                     ':variant_id' => $variantId,
                     ':serial_number' => $serialNumber,
                     ':warehouse_id' => $warehouseId,
+                    ':location_id' => $locationId,
                     ':created_by' => $createdBy,
                 ]);
                 $ids[] = (int)$this->pdo->lastInsertId();
@@ -189,12 +196,15 @@ final class ProductSerialRepository
         }
     }
 
-    public function updateStatus(int $id, string $status, ?int $warehouseId, ?string $notes): void
+    public function updateStatus(int $id, string $status, ?int $warehouseId, ?string $notes, ?int $locationId = null): void
     {
+        // Un exemplaire sorti n'est plus nulle part : entrepot ET emplacement
+        // repassent a NULL (l'appelant transmet null pour les deux).
         $stmt = $this->pdo->prepare('
             UPDATE product_serials
             SET status = :status,
                 warehouse_id = :warehouse_id,
+                location_id = :location_id,
                 notes = COALESCE(:notes, notes),
                 updated_at = NOW()
             WHERE id = :id
@@ -203,6 +213,7 @@ final class ProductSerialRepository
             ':id' => $id,
             ':status' => $status,
             ':warehouse_id' => $warehouseId,
+            ':location_id' => $locationId,
             ':notes' => $notes,
         ]);
     }

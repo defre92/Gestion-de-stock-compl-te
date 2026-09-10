@@ -41,6 +41,123 @@ final class StockService
         ];
     }
 
+    /**
+     * Verifie qu'un emplacement appartient bien a l'entrepot concerne.
+     *
+     * Sans ce controle, on pourrait ranger un article dans une allee d'un
+     * autre entrepot : la ligne de stock existerait, mais son emplacement
+     * designerait un endroit ou l'article n'est pas.
+     */
+    private function assertLocationBelongsTo(?int $locationId, int $warehouseId): void
+    {
+        if ($locationId === null) {
+            return;
+        }
+
+        $stmt = Database::connection()->prepare('SELECT warehouse_id FROM warehouse_locations WHERE id = :id LIMIT 1');
+        $stmt->execute([':id' => $locationId]);
+        $found = $stmt->fetchColumn();
+
+        if ($found === false) {
+            throw new HttpException('Emplacement introuvable', 404);
+        }
+
+        if ((int)$found !== $warehouseId) {
+            throw new HttpException("L'emplacement choisi n'appartient pas a l'entrepot de ce mouvement", 422);
+        }
+    }
+
+    /**
+     * Retire une quantite du stock d'un entrepot.
+     *
+     * Avec un emplacement precis, on ne pioche que dans celui-la : sortir 5
+     * pieces de l'allee B1 doit echouer s'il n'y en a que 3, meme si
+     * l'entrepot en contient 40 ailleurs - sinon la quantite de B1 deviendrait
+     * fausse.
+     *
+     * Sans emplacement, on consomme sur l'ensemble de l'entrepot, en
+     * commencant par le stock non range puis emplacement par emplacement.
+     * C'est ce qui permet aux operations qui ne connaissent pas d'emplacement
+     * (livraison, reception, sortie rapide) de continuer a fonctionner
+     * exactement comme avant.
+     */
+    private function consumeFromWarehouse(int $productId, int $warehouseId, ?int $variantId, int $quantity, ?int $locationId, string $errorMessage): void
+    {
+        if ($locationId !== null) {
+            $row = $this->productRepository->stockLevel($productId, $warehouseId, $variantId, true, $locationId);
+            $available = (int)($row['quantity'] ?? 0);
+            if ($available < $quantity) {
+                throw new HttpException(
+                    "Stock insuffisant a l'emplacement choisi ({$available} disponible(s) pour {$quantity} demande(s))",
+                    422
+                );
+            }
+
+            $this->productRepository->upsertStockLevel($productId, $warehouseId, $available - $quantity, $variantId, $locationId);
+            return;
+        }
+
+        $rows = $this->productRepository->stockRowsForWarehouse($productId, $warehouseId, $variantId, true);
+        $total = array_sum(array_map(static fn (array $row): int => $row['quantity'], $rows));
+
+        if ($total < $quantity) {
+            throw new HttpException($errorMessage, 422);
+        }
+
+        $remaining = $quantity;
+        foreach ($rows as $row) {
+            if ($remaining <= 0) {
+                break;
+            }
+            if ($row['quantity'] <= 0) {
+                continue;
+            }
+
+            $taken = min($row['quantity'], $remaining);
+            $this->productRepository->setStockRowQuantity($row['id'], $row['quantity'] - $taken);
+            $remaining -= $taken;
+        }
+
+        if ($remaining > 0) {
+            // Ne devrait jamais arriver : le total a ete verifie plus haut,
+            // sous verrou. On refuse plutot que de laisser passer une sortie
+            // partielle silencieuse.
+            throw new HttpException($errorMessage, 422);
+        }
+    }
+
+    /**
+     * Ajustement d'inventaire : la quantite saisie REMPLACE la quantite en
+     * place, elle ne s'y ajoute pas.
+     *
+     * Sans emplacement precis, l'operation n'a de sens que si le produit tient
+     * sur une seule ligne dans cet entrepot. Reparti sur trois emplacements,
+     * "le stock vaut 12" ne dit pas lesquels valent quoi : on refuse plutot
+     * que d'ecraser arbitrairement.
+     */
+    private function applyAdjustment(int $productId, int $warehouseId, ?int $variantId, int $quantity, ?int $locationId): void
+    {
+        $this->assertLocationBelongsTo($locationId, $warehouseId);
+
+        if ($locationId !== null) {
+            $this->productRepository->upsertStockLevel($productId, $warehouseId, $quantity, $variantId, $locationId);
+            return;
+        }
+
+        $rows = $this->productRepository->stockRowsForWarehouse($productId, $warehouseId, $variantId, true);
+        $withStock = array_values(array_filter($rows, static fn (array $row): bool => $row['quantity'] !== 0));
+
+        if (count($withStock) > 1) {
+            throw new HttpException(
+                'Ce produit est reparti sur plusieurs emplacements dans cet entrepot : precise l\'emplacement a ajuster.',
+                422
+            );
+        }
+
+        $target = $withStock[0]['location_id'] ?? ($rows[0]['location_id'] ?? null);
+        $this->productRepository->upsertStockLevel($productId, $warehouseId, $quantity, $variantId, $target);
+    }
+
     public function createMovement(array $payload, int $actorId, ?string $ip): int
     {
         $productId = (int)($payload['product_id'] ?? 0);
@@ -49,6 +166,8 @@ final class StockService
         $type = strtoupper((string)($payload['type'] ?? ''));
         $quantity = (int)($payload['quantity'] ?? 0);
         $destinationWarehouseId = isset($payload['destination_warehouse_id']) ? (int)$payload['destination_warehouse_id'] : null;
+        $sourceLocationId = !empty($payload['source_location_id']) ? (int)$payload['source_location_id'] : null;
+        $destinationLocationId = !empty($payload['destination_location_id']) ? (int)$payload['destination_location_id'] : null;
 
         if ($productId <= 0 || $warehouseId <= 0 || $quantity <= 0 || !in_array($type, ['IN', 'OUT', 'ADJUSTMENT', 'TRANSFER'], true)) {
             throw new HttpException('Donnees de mouvement de stock invalides', 422);
@@ -75,22 +194,27 @@ final class StockService
         }
 
         try {
-            // FOR UPDATE : on verrouille la ligne de stock le temps de la
-            // lire, la recalculer et la reecrire, pour que deux mouvements
-            // simultanes sur le meme article ne s'ecrasent pas l'un l'autre.
-            $current = $this->productRepository->stockLevel($productId, $warehouseId, $variantId, true);
-            $currentQty = $current['quantity'] ?? 0;
-            $nextQty = $currentQty;
-
+            // Le stock est suivi par EMPLACEMENT depuis la migration
+            // 202602270012. Une "ligne de stock" est donc identifiee par
+            // produit + variante + entrepot + emplacement, l'emplacement NULL
+            // representant le stock present dans l'entrepot sans rangement
+            // precis. Toutes les lectures posent un verrou (FOR UPDATE) : sans
+            // lui, deux mouvements simultanes sur le meme article lisent la
+            // meme quantite et le second ecrase le premier.
             if ($type === 'IN') {
-                $nextQty = $currentQty + $quantity;
+                // Pour une entree, l'emplacement pertinent est celui ou l'on
+                // range : la destination, ou a defaut la source si l'operateur
+                // n'a rempli que ce champ.
+                $target = $destinationLocationId ?? $sourceLocationId;
+                $this->assertLocationBelongsTo($target, $warehouseId);
+
+                $current = $this->productRepository->stockLevel($productId, $warehouseId, $variantId, true, $target);
+                $this->productRepository->upsertStockLevel($productId, $warehouseId, ($current['quantity'] ?? 0) + $quantity, $variantId, $target);
             } elseif ($type === 'OUT') {
-                $nextQty = $currentQty - $quantity;
-                if ($nextQty < 0) {
-                    throw new HttpException('Stock insuffisant', 422);
-                }
+                $this->assertLocationBelongsTo($sourceLocationId, $warehouseId);
+                $this->consumeFromWarehouse($productId, $warehouseId, $variantId, $quantity, $sourceLocationId, 'Stock insuffisant');
             } elseif ($type === 'ADJUSTMENT') {
-                $nextQty = $quantity;
+                $this->applyAdjustment($productId, $warehouseId, $variantId, $quantity, $destinationLocationId ?? $sourceLocationId);
             } else {
                 if (!$destinationWarehouseId || $destinationWarehouseId === $warehouseId) {
                     throw new HttpException('Un entrepot de destination valide est requis pour un transfert', 422);
@@ -101,26 +225,34 @@ final class StockService
                     throw new HttpException('Entrepot de destination introuvable', 404);
                 }
 
-                $nextQty = $currentQty - $quantity;
-                if ($nextQty < 0) {
-                    throw new HttpException('Stock insuffisant pour ce transfert', 422);
-                }
+                $this->assertLocationBelongsTo($sourceLocationId, $warehouseId);
+                $this->assertLocationBelongsTo($destinationLocationId, $destinationWarehouseId);
 
-                $destinationCurrent = $this->productRepository->stockLevel($productId, $destinationWarehouseId, $variantId, true);
-                $destinationQty = ($destinationCurrent['quantity'] ?? 0) + $quantity;
+                $this->consumeFromWarehouse($productId, $warehouseId, $variantId, $quantity, $sourceLocationId, 'Stock insuffisant pour ce transfert');
 
-                $this->productRepository->upsertStockLevel($productId, $destinationWarehouseId, $destinationQty, $variantId);
+                $destinationCurrent = $this->productRepository->stockLevel($productId, $destinationWarehouseId, $variantId, true, $destinationLocationId);
+                $this->productRepository->upsertStockLevel(
+                    $productId,
+                    $destinationWarehouseId,
+                    ($destinationCurrent['quantity'] ?? 0) + $quantity,
+                    $variantId,
+                    $destinationLocationId
+                );
             }
 
-            $this->productRepository->upsertStockLevel($productId, $warehouseId, $nextQty, $variantId);
+            // balance_after devient le total de l'entrepot apres l'operation,
+            // et non plus celui d'une seule ligne : avec plusieurs
+            // emplacements, la quantite d'une ligne isolee ne veut plus dire
+            // grand-chose dans un historique.
+            $nextQty = $this->productRepository->warehouseQuantity($productId, $warehouseId, $variantId);
 
             $movementId = $this->movementRepository->create([
                 'product_id' => $productId,
                 'variant_id' => $variantId,
                 'warehouse_id' => $warehouseId,
                 'destination_warehouse_id' => $destinationWarehouseId,
-                'source_location_id' => isset($payload['source_location_id']) ? (int)$payload['source_location_id'] : null,
-                'destination_location_id' => isset($payload['destination_location_id']) ? (int)$payload['destination_location_id'] : null,
+                'source_location_id' => $sourceLocationId,
+                'destination_location_id' => $destinationLocationId,
                 'type' => $type,
                 'quantity' => $quantity,
                 'balance_after' => $nextQty,
@@ -137,9 +269,15 @@ final class StockService
                     'variant_id' => $variantId,
                     'warehouse_id' => $destinationWarehouseId,
                     'destination_warehouse_id' => null,
+                    'destination_location_id' => $destinationLocationId,
                     'type' => 'IN',
                     'quantity' => $quantity,
-                    'balance_after' => (int)($this->productRepository->stockLevel($productId, $destinationWarehouseId, $variantId)['quantity'] ?? 0),
+                    // Total de l'entrepot de destination, et non la quantite
+                    // d'une seule ligne : le stock transfere peut arriver dans
+                    // un emplacement precis, auquel cas la ligne "sans
+                    // emplacement" vaut 0 et l'historique afficherait un solde
+                    // faux.
+                    'balance_after' => $this->productRepository->warehouseQuantity($productId, $destinationWarehouseId, $variantId),
                     'reference_type' => 'TRANSFER',
                     'reference_id' => $movementId,
                     'notes' => 'Mouvement d\'entree genere automatiquement par le transfert',

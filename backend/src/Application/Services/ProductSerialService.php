@@ -30,7 +30,7 @@ final class ProductSerialService
      * Le message d'erreur est reformule : "Stock insuffisant" brut n'aurait
      * aucun sens pour quelqu'un qui vient de cliquer sur "Marquer sorti".
      */
-    private function moveStock(int $productId, ?int $variantId, ?int $warehouseId, string $type, int $quantity, string $reason, string $notes, int $actorId, ?string $ip): void
+    private function moveStock(int $productId, ?int $variantId, ?int $warehouseId, string $type, int $quantity, string $reason, string $notes, int $actorId, ?string $ip, ?int $locationId = null): void
     {
         if ($warehouseId === null || $quantity <= 0) {
             return;
@@ -43,6 +43,11 @@ final class ProductSerialService
                 'warehouse_id' => $warehouseId,
                 'type' => $type,
                 'quantity' => $quantity,
+                // Le mouvement vise l'emplacement du numero de serie : ranger
+                // l'exemplaire en A1 doit incrementer A1, pas le stock non
+                // localise de l'entrepot.
+                'source_location_id' => $type === 'OUT' ? $locationId : null,
+                'destination_location_id' => $type === 'OUT' ? null : $locationId,
                 'reason_code' => $reason,
                 'reference_type' => 'PRODUCT_SERIAL',
                 'notes' => $notes,
@@ -106,6 +111,12 @@ final class ProductSerialService
         $variantId = isset($payload['variant_id']) && $payload['variant_id'] !== ''
             ? (int)$payload['variant_id']
             : null;
+        // Un numero de serie designe UN article physique : savoir dans quelle
+        // allee il se trouve est precisement ce qu'on cherche quand on va le
+        // chercher a la main.
+        $locationId = isset($payload['location_id']) && $payload['location_id'] !== ''
+            ? (int)$payload['location_id']
+            : null;
 
         // Accepte soit un seul SN (serial_number), soit une liste (serial_numbers,
         // un par ligne cote frontend) pour enregistrer un lot recu d'un coup.
@@ -156,7 +167,7 @@ final class ProductSerialService
         }
 
         try {
-            $ids = $this->repository->createMany($productId, $warehouseId, $serials, $actorId, $variantId);
+            $ids = $this->repository->createMany($productId, $warehouseId, $serials, $actorId, $variantId, $locationId);
 
             if ($createsStockEntry) {
                 $this->moveStock(
@@ -168,7 +179,8 @@ final class ProductSerialService
                     'SERIAL_IN',
                     'Entree de ' . count($ids) . ' article(s) suivi(s) par numero de serie',
                     $actorId,
-                    $ip
+                    $ip,
+                    $locationId
                 );
             }
 
@@ -211,8 +223,9 @@ final class ProductSerialService
             // On lit l'entrepot AVANT le changement de statut : updateStatus le
             // remet a NULL pour une sortie, on ne saurait plus d'ou decrementer.
             $warehouseId = $serial['warehouse_id'] !== null ? (int)$serial['warehouse_id'] : null;
+            $locationId = $serial['location_id'] !== null ? (int)$serial['location_id'] : null;
 
-            $this->repository->updateStatus($id, 'OUT', null, $notes);
+            $this->repository->updateStatus($id, 'OUT', null, $notes, null);
             $this->moveStock(
                 (int)$serial['product_id'],
                 $serial['variant_id'] !== null ? (int)$serial['variant_id'] : null,
@@ -222,7 +235,8 @@ final class ProductSerialService
                 'SERIAL_OUT',
                 'Sortie du numero de serie ' . $serial['serial_number'],
                 $actorId,
-                $ip
+                $ip,
+                $locationId
             );
 
             $this->auditRepository->log($actorId, 'MARK_OUT', 'product_serial', $id, [], $ip);
@@ -238,7 +252,7 @@ final class ProductSerialService
         }
     }
 
-    public function markInStock(int $id, int $warehouseId, int $actorId, ?string $ip, ?string $notes): void
+    public function markInStock(int $id, int $warehouseId, int $actorId, ?string $ip, ?string $notes, ?int $locationId = null): void
     {
         $serial = $this->repository->findById($id);
         if (!$serial) {
@@ -255,7 +269,7 @@ final class ProductSerialService
         }
 
         try {
-            $this->repository->updateStatus($id, 'IN_STOCK', $warehouseId, $notes);
+            $this->repository->updateStatus($id, 'IN_STOCK', $warehouseId, $notes, $locationId);
             $this->moveStock(
                 (int)$serial['product_id'],
                 $serial['variant_id'] !== null ? (int)$serial['variant_id'] : null,
@@ -265,7 +279,8 @@ final class ProductSerialService
                 'SERIAL_RETURN',
                 'Retour en stock du numero de serie ' . $serial['serial_number'],
                 $actorId,
-                $ip
+                $ip,
+                $locationId
             );
 
             $this->auditRepository->log($actorId, 'MARK_IN_STOCK', 'product_serial', $id, [], $ip);
@@ -325,7 +340,8 @@ final class ProductSerialService
                     'SERIAL_DELETED',
                     'Suppression du numero de serie ' . $serial['serial_number'] . ' (article absent du stock)',
                     $actorId,
-                    $ip
+                    $ip,
+                    $serial['location_id'] !== null ? (int)$serial['location_id'] : null
                 );
             }
 

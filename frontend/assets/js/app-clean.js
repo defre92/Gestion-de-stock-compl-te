@@ -1890,10 +1890,15 @@ async function renderProductSerials() {
             <form id="serialCreateForm" class="form-grid">
                 ${selectField('product_id', 'Produit', state.lookups.products, 'id', 'name', true, presetProductId ?? '')}
                 ${selectField('warehouse_id', 'Entrepot de stockage', state.lookups.warehouses, 'id', 'name', true)}
+                <label><span>Emplacement (optionnel)</span>
+                    <select name="location_id" id="serialCreateLocation" disabled>
+                        <option value="">Choisis d'abord un entrepot</option>
+                    </select></label>
                 <small class="full field-hint">
                     Un numero de serie designe un objet physique unique : il ne
-                    pourra etre livre que depuis cet entrepot. Verifie-le avant
-                    d'enregistrer un lot.
+                    pourra etre livre que depuis cet entrepot, et l'emplacement
+                    indique dans quelle allee aller le chercher. Verifie-les
+                    avant d'enregistrer un lot.
                 </small>
                 <label class="full">
                     <span>Numero(s) de serie (un par ligne, pour enregistrer plusieurs exemplaires recus en une fois)</span>
@@ -1927,6 +1932,7 @@ async function renderProductSerials() {
                 ['serial_number', 'Numero de serie'],
                 ['product_name', 'Produit'],
                 ['warehouse_name', 'Entrepot'],
+                ['location_code', 'Emplacement', (value) => sanitize(value || '-')],
                 ['status', 'Statut'],
                 ['created_at', 'Enregistre le'],
                 ...(writable ? [['id', 'Actions', (value, row) => `
@@ -1970,6 +1976,7 @@ async function renderProductSerials() {
                     <p>Numero de serie: ${sanitize(found.serial_number)}</p>
                     <p>Statut: ${sanitize(found.status)}</p>
                     <p>Entrepot: ${sanitize(found.warehouse_name ?? '-')}</p>
+                    <p>Emplacement: ${sanitize(found.location_code ?? 'Non precise')}${found.location_description ? ` (${sanitize(found.location_description)})` : ''}</p>
                 </div>
                 <div class="table-wrap" style="margin-top:12px">
                     <h5>Historique des ventes</h5>
@@ -1987,6 +1994,13 @@ async function renderProductSerials() {
     });
 
     const createForm = document.getElementById('serialCreateForm');
+
+    // Les emplacements proposes sont ceux de l'entrepot choisi.
+    const serialWarehouseSelect = createForm?.elements.namedItem('warehouse_id');
+    const serialLocationSelect = document.getElementById('serialCreateLocation');
+    const syncSerialLocations = () => fillLocationOptions(serialLocationSelect, serialWarehouseSelect?.value ?? '');
+    serialWarehouseSelect?.addEventListener('change', syncSerialLocations);
+    syncSerialLocations();
     const createFeedback = document.getElementById('serialCreateFeedback');
     createForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -2003,6 +2017,7 @@ async function renderProductSerials() {
             product_id: Number(data.get('product_id')),
             warehouse_id: warehouseId,
             serial_numbers: serialNumbers,
+            location_id: data.get('location_id') ? Number(data.get('location_id')) : null,
             creates_stock_entry: String(data.get('creates_stock_entry') ?? '1') === '1',
         };
 
@@ -2032,14 +2047,14 @@ async function renderProductSerials() {
             // connaitre l'identifiant numerique de l'entrepot et le taper a la
             // main, sans aucune verification. Taper 3 au lieu de 1 remettait
             // l'article en stock au mauvais endroit, en silence.
-            const warehouseId = await askWarehouse('Dans quel entrepot cet article revient-il ?');
-            if (!warehouseId) {
+            const destination = await askWarehouse('Ou cet article revient-il ?');
+            if (!destination) {
                 return;
             }
             try {
                 await apiRequest(`/product-serials/${btn.dataset.markIn}/mark-in-stock`, {
                     method: 'POST',
-                    body: { warehouse_id: Number(warehouseId) },
+                    body: { warehouse_id: destination.warehouseId, location_id: destination.locationId },
                 });
                 await renderProductSerials();
             } catch (error) {
@@ -2599,7 +2614,13 @@ async function renderInventorySessionDetail(sessionId) {
                     <small class="field-hint">Ce produit utilise des variantes : compte chacune separement.</small>
                 </div>
                 <label><span>Quantite comptee</span><input type="number" name="counted_qty" min="0" required></label>
-                ${selectField('location_id', 'Emplacement', state.lookups.warehouse_locations, 'id', 'code', false)}
+                <label><span>Emplacement (optionnel)</span>
+                    <select name="location_id" id="inventoryCountLocation"></select></label>
+                <small class="full field-hint">
+                    Sans emplacement, tu comptes le produit dans tout l'entrepot.
+                    Avec un emplacement, tu ne comptes que cette allee et l'ecart
+                    ne portera que sur elle.
+                </small>
                 <label class="full"><span>Notes</span><textarea name="notes"></textarea></label>
                 <button type="submit" class="btn btn-primary">Ajouter comptage</button>
                 <p id="inventoryCountFeedback" class="feedback"></p>
@@ -2630,6 +2651,10 @@ async function renderInventorySessionDetail(sessionId) {
             window.alert(error.message);
         }
     });
+
+    // Les emplacements proposes sont ceux de l'entrepot de la session : une
+    // session d'inventaire ne porte que sur un entrepot.
+    fillLocationOptions(document.getElementById('inventoryCountLocation'), session.warehouse_id);
 
     // Chargement differe : le panneau n'a de sens qu'en mode GLOBAL, et le
     // backend le dit lui-meme via `applicable`.
@@ -3460,9 +3485,9 @@ async function renderProductDetail(productId) {
                 ['warehouse_code', 'Code'],
                 ['warehouse_name', 'Entrepot'],
                 ['variant_label', 'Variante'],
+                ['location_code', 'Emplacement', (value) => sanitize(value || 'Non precise')],
                 ['quantity', 'Quantite'],
                 ['reserved_quantity', 'Reserve'],
-                ['last_location_code', 'Dernier emplacement'],
             ])}
             <div class="panel-actions">
                 <button type="button" class="btn btn-soft" id="gotoProductSerialsBtn">Numeros de serie de ce produit</button>

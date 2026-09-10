@@ -150,7 +150,9 @@ final class ProductRepository extends PdoCrudRepository
         // "ou cet article a ete range la derniere fois", pas un inventaire
         // par emplacement.
         $whStmt = $this->pdo->prepare('
-            SELECT sl.warehouse_id, sl.variant_id, w.code AS warehouse_code, w.name AS warehouse_name,
+            SELECT sl.warehouse_id, sl.variant_id, sl.location_id,
+                   w.code AS warehouse_code, w.name AS warehouse_name,
+                   loc.code AS location_code, loc.description AS location_description,
                    sl.quantity, sl.reserved_quantity,
                    v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl,
                    (
@@ -166,9 +168,10 @@ final class ProductRepository extends PdoCrudRepository
                    ) AS last_location_code
             FROM stock_levels sl
             INNER JOIN warehouses w ON w.id = sl.warehouse_id
+            LEFT JOIN warehouse_locations loc ON loc.id = sl.location_id
             LEFT JOIN product_variants v ON v.id = sl.variant_id
             WHERE sl.product_id = :id
-            ORDER BY w.name ASC, v.size ASC, v.color ASC
+            ORDER BY w.name ASC, (sl.location_id IS NOT NULL) ASC, loc.code ASC, v.size ASC, v.color ASC
         ');
         $whStmt->execute([':id' => $id]);
         $result['stock_by_warehouse'] = array_map(static function (array $row): array {
@@ -281,15 +284,25 @@ final class ProductRepository extends PdoCrudRepository
      * "stock insuffisant" peut laisser passer une quantite indisponible.
      * Sans effet hors transaction, ce qui est le cas des simples lectures.
      */
-    public function stockLevel(int $productId, int $warehouseId, ?int $variantId = null, bool $forUpdate = false): ?array
+    public function stockLevel(int $productId, int $warehouseId, ?int $variantId = null, bool $forUpdate = false, ?int $locationId = null): ?array
     {
-        $sql = 'SELECT warehouse_id, quantity FROM stock_levels WHERE product_id = :product_id AND warehouse_id = :warehouse_id AND variant_id '
-            . ($variantId !== null ? '= :variant_id' : 'IS NULL') . ' LIMIT 1'
+        // Depuis le suivi par emplacement, une ligne de stock est identifiee
+        // par produit + variante + entrepot + EMPLACEMENT. $locationId a NULL
+        // ne veut pas dire "n'importe lequel" mais bien "l'emplacement non
+        // precise" : c'est une ligne a part entiere, celle du stock present
+        // dans l'entrepot sans rangement connu.
+        $sql = 'SELECT warehouse_id, location_id, quantity FROM stock_levels WHERE product_id = :product_id AND warehouse_id = :warehouse_id AND variant_id '
+            . ($variantId !== null ? '= :variant_id' : 'IS NULL')
+            . ' AND location_id ' . ($locationId !== null ? '= :location_id' : 'IS NULL')
+            . ' LIMIT 1'
             . ($forUpdate ? ' FOR UPDATE' : '');
         $stmt = $this->pdo->prepare($sql);
         $params = [':product_id' => $productId, ':warehouse_id' => $warehouseId];
         if ($variantId !== null) {
             $params[':variant_id'] = $variantId;
+        }
+        if ($locationId !== null) {
+            $params[':location_id'] = $locationId;
         }
         $stmt->execute($params);
         $row = $stmt->fetch();
@@ -298,46 +311,120 @@ final class ProductRepository extends PdoCrudRepository
             return null;
         }
 
-        return ['warehouse_id' => (int)$row['warehouse_id'], 'quantity' => (int)$row['quantity']];
+        return [
+            'warehouse_id' => (int)$row['warehouse_id'],
+            'location_id' => $row['location_id'] !== null ? (int)$row['location_id'] : null,
+            'quantity' => (int)$row['quantity'],
+        ];
     }
 
-    public function upsertStockLevel(int $productId, int $warehouseId, int $quantity, ?int $variantId = null): void
+    /**
+     * Toutes les lignes de stock d'un produit dans un entrepot, une par
+     * emplacement.
+     *
+     * Triees emplacement non precise d'abord, puis par emplacement : c'est
+     * l'ordre dans lequel une sortie sans emplacement pioche (on consomme
+     * d'abord ce qui n'est range nulle part, avant d'aller defaire un
+     * rangement).
+     *
+     * @return array<int, array{id:int, location_id:int|null, quantity:int}>
+     */
+    public function stockRowsForWarehouse(int $productId, int $warehouseId, ?int $variantId = null, bool $forUpdate = false): array
     {
-        // ON DUPLICATE KEY UPDATE s'appuie sur uq_stock_level (product_id,
-        // warehouse_id, variant_id). MySQL ne considere pas deux NULL comme
-        // egaux dans un index unique : pour un produit SANS variante
-        // (variant_id NULL), on verifie donc d'abord manuellement si une
-        // ligne existe deja, plutot que de compter sur ON DUPLICATE KEY.
-        if ($variantId === null) {
-            $existing = $this->stockLevel($productId, $warehouseId, null);
-            if ($existing === null) {
-                $stmt = $this->pdo->prepare('
-                    INSERT INTO stock_levels (product_id, warehouse_id, variant_id, quantity, updated_at)
-                    VALUES (:product_id, :warehouse_id, NULL, :quantity, NOW())
-                ');
-                $stmt->execute([':product_id' => $productId, ':warehouse_id' => $warehouseId, ':quantity' => $quantity]);
-                return;
-            }
+        $sql = 'SELECT id, location_id, quantity FROM stock_levels
+                WHERE product_id = :product_id AND warehouse_id = :warehouse_id AND variant_id '
+            . ($variantId !== null ? '= :variant_id' : 'IS NULL')
+            . ' ORDER BY (location_id IS NOT NULL) ASC, location_id ASC'
+            . ($forUpdate ? ' FOR UPDATE' : '');
 
-            $stmt = $this->pdo->prepare('
-                UPDATE stock_levels SET quantity = :quantity, updated_at = NOW()
-                WHERE product_id = :product_id AND warehouse_id = :warehouse_id AND variant_id IS NULL
-            ');
-            $stmt->execute([':product_id' => $productId, ':warehouse_id' => $warehouseId, ':quantity' => $quantity]);
+        $stmt = $this->pdo->prepare($sql);
+        $params = [':product_id' => $productId, ':warehouse_id' => $warehouseId];
+        if ($variantId !== null) {
+            $params[':variant_id'] = $variantId;
+        }
+        $stmt->execute($params);
+
+        return array_map(static fn (array $row): array => [
+            'id' => (int)$row['id'],
+            'location_id' => $row['location_id'] !== null ? (int)$row['location_id'] : null,
+            'quantity' => (int)$row['quantity'],
+        ], $stmt->fetchAll());
+    }
+
+    /** Quantite totale d'un produit dans un entrepot, tous emplacements confondus. */
+    public function warehouseQuantity(int $productId, int $warehouseId, ?int $variantId = null): int
+    {
+        $sql = 'SELECT COALESCE(SUM(quantity), 0) FROM stock_levels
+                WHERE product_id = :product_id AND warehouse_id = :warehouse_id AND variant_id '
+            . ($variantId !== null ? '= :variant_id' : 'IS NULL');
+
+        $stmt = $this->pdo->prepare($sql);
+        $params = [':product_id' => $productId, ':warehouse_id' => $warehouseId];
+        if ($variantId !== null) {
+            $params[':variant_id'] = $variantId;
+        }
+        $stmt->execute($params);
+
+        return (int)$stmt->fetchColumn();
+    }
+
+    /**
+     * Ecrit la quantite d'UNE ligne de stock (produit + variante + entrepot +
+     * emplacement), en la creant si elle n'existe pas.
+     *
+     * On n'utilise volontairement pas ON DUPLICATE KEY UPDATE : la cle unique
+     * contient `variant_id` et `location_id`, tous deux nullables, et MySQL
+     * n'applique pas l'unicite des qu'une colonne de la cle vaut NULL. S'y
+     * fier creerait des lignes en double a chaque ecriture - le piege a deja
+     * coute plusieurs bugs dans ce projet (import de stock, donnees de demo).
+     * On cible donc explicitement la ligne existante.
+     */
+    public function upsertStockLevel(int $productId, int $warehouseId, int $quantity, ?int $variantId = null, ?int $locationId = null): void
+    {
+        $variantSql = $variantId !== null ? '= :variant_id' : 'IS NULL';
+        $locationSql = $locationId !== null ? '= :location_id' : 'IS NULL';
+
+        $params = [':product_id' => $productId, ':warehouse_id' => $warehouseId];
+        if ($variantId !== null) {
+            $params[':variant_id'] = $variantId;
+        }
+        if ($locationId !== null) {
+            $params[':location_id'] = $locationId;
+        }
+
+        $find = $this->pdo->prepare("
+            SELECT id FROM stock_levels
+            WHERE product_id = :product_id AND warehouse_id = :warehouse_id
+              AND variant_id {$variantSql} AND location_id {$locationSql}
+            LIMIT 1
+        ");
+        $find->execute($params);
+        $existingId = $find->fetchColumn();
+
+        if ($existingId) {
+            $stmt = $this->pdo->prepare('UPDATE stock_levels SET quantity = :quantity, updated_at = NOW() WHERE id = :id');
+            $stmt->execute([':quantity' => $quantity, ':id' => (int)$existingId]);
             return;
         }
 
         $stmt = $this->pdo->prepare('
-            INSERT INTO stock_levels (product_id, warehouse_id, variant_id, quantity, updated_at)
-            VALUES (:product_id, :warehouse_id, :variant_id, :quantity, NOW())
-            ON DUPLICATE KEY UPDATE quantity = VALUES(quantity), updated_at = NOW()
+            INSERT INTO stock_levels (product_id, warehouse_id, variant_id, location_id, quantity, updated_at)
+            VALUES (:product_id, :warehouse_id, :variant_id, :location_id, :quantity, NOW())
         ');
         $stmt->execute([
             ':product_id' => $productId,
             ':warehouse_id' => $warehouseId,
             ':variant_id' => $variantId,
+            ':location_id' => $locationId,
             ':quantity' => $quantity,
         ]);
+    }
+
+    /** Met a jour une ligne de stock deja identifiee par son id. */
+    public function setStockRowQuantity(int $stockLevelId, int $quantity): void
+    {
+        $stmt = $this->pdo->prepare('UPDATE stock_levels SET quantity = :quantity, updated_at = NOW() WHERE id = :id');
+        $stmt->execute([':quantity' => $quantity, ':id' => $stockLevelId]);
     }
 
     public function create(array $payload): int

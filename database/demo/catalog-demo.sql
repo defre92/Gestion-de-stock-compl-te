@@ -73,7 +73,7 @@ SELECT p.id, w.id, 120, 0
 FROM products p
 JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'SKU-USB32'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 -- NOT EXISTS et non ON DUPLICATE KEY UPDATE : variant_id vaut NULL ici, et
 -- MySQL n'applique pas l'unicite de (product_id, warehouse_id, variant_id)
@@ -84,7 +84,7 @@ SELECT p.id, w.id, 8, 0
 FROM products p
 JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'SKU-TONER'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 -- Referentiels annexes (unites, taxes, marques, tags) : nouveaux codes,
 -- collision peu probable, mais verifie les valeurs si tu as deja des taux
@@ -2938,1396 +2938,1399 @@ ON DUPLICATE KEY UPDATE size = VALUES(size), color = VALUES(color), vintage = VA
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 112, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-001'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 329, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-002'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 2, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-003'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 309, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-004'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 325, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-005'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 193, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-006'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 102, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-007'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 4, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-008'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 376, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-009'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 32, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-010'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 261, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-011'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 276, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-012'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 4, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-013'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 194, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-014'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 101, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-015'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 4, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-BUR-001'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 397, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-BUR-002'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 249, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-BUR-003'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 398, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-BUR-004'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 286, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-BUR-005'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 226, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-BUR-006'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 146, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-BUR-007'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 25, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-BUR-008'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 90, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ENT-001'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 54, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ENT-002'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 4, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ENT-003'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 121, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ENT-004'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 0, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ENT-005'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 364, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ENT-006'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 292, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ENT-007'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 245, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-PAP-001'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 0, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-PAP-002'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 76, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-PAP-003'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 156, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-PAP-004'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 247, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-PAP-005'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 333, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-PAP-006'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 178, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-PAP-007'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 53, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-PAP-008'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 176, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-PAP-009'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 91, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-PAP-010'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 167, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-PAP-011'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 305, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-PAP-012'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 384, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-SEC-001'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 205, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-SEC-002'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 2, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-SEC-003'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 397, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-SEC-004'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 6, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-SEC-005'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 2, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-SEC-006'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 6, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-SEC-007'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 380, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-SEC-008'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 82, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ELE-001'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 63, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ELE-002'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 123, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ELE-003'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 89, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ELE-004'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 85, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ELE-005'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 352, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ELE-006'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 175, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ELE-007'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 71, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ELE-008'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 159, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-PAP-S11'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 335, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-PAP-S12'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 6, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-PAP-S21'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 6, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-PAP-S22'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 310, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-PAP-S31'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 84, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-PAP-S32'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 316, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-PAP-S41'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 389, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-PAP-S42'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 80, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-PAP-S51'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 186, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-PAP-S52'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 2, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-S11'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 88, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-S12'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 243, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-S21'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 169, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-S22'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 223, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-S31'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 4, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-S32'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 232, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-S41'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 158, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-S42'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 278, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-S51'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 52, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-INF-S52'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 202, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-BUR-S11'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 295, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-BUR-S12'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 65, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-BUR-S21'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 143, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-BUR-S22'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 226, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-BUR-S31'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 347, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-BUR-S32'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 351, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-BUR-S41'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 129, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-BUR-S42'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 35, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-BUR-S51'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 6, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-BUR-S52'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 6, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ENT-S11'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 4, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ENT-S12'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 101, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ENT-S21'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 376, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ENT-S22'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 296, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ENT-S31'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 182, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ENT-S32'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 205, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ENT-S41'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 104, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ENT-S42'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 245, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ENT-S51'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 77, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ENT-S52'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 6, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-SEC-S11'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 0, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-SEC-S12'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 301, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-SEC-S21'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 325, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-SEC-S22'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 178, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-SEC-S31'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 358, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-SEC-S32'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 305, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-SEC-S41'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 279, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-SEC-S42'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 332, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-SEC-S51'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 257, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-SEC-S52'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 292, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ELE-S11'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 357, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ELE-S12'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 373, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ELE-S21'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 293, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ELE-S22'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 354, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ELE-S31'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 325, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ELE-S32'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 338, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ELE-S41'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 66, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ELE-S42'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 2, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ELE-S51'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity)
 SELECT p.id, w.id, 253, 0 FROM products p JOIN warehouses w ON w.is_default = 1
 WHERE p.sku = 'DEMO-ELE-S52'
-  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.product_id = p.id AND sl.warehouse_id = w.id AND sl.variant_id IS NULL AND sl.location_id IS NULL);
 
 
--- Stock par variante : ici variant_id est renseigne, la cle unique joue son
--- role et ON DUPLICATE KEY UPDATE suffit.
+-- Stock par variante. ATTENTION : depuis la migration 202602270012, la cle
+-- unique de stock_levels inclut location_id, qui est nullable - MySQL
+-- n'applique donc plus l'unicite sur ces lignes et ON DUPLICATE KEY UPDATE
+-- creerait un doublon a chaque rechargement. Comme pour les produits sans
+-- variante, on protege par NOT EXISTS.
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 50, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-001-S-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 68, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-001-S-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 36, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-001-M-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 41, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-001-M-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 3, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-001-L-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 13, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-001-L-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 89, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-001-XL-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 104, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-001-XL-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 116, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-002-S-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 109, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-002-S-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 55, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-002-M-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 5, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-002-M-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 23, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-002-L-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 22, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-002-L-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 61, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-002-XL-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 0, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-002-XL-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 30, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-003-S-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 40, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-003-S-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 21, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-003-M-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 15, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-003-M-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 43, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-003-L-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 15, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-003-L-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 106, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-003-XL-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 5, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-003-XL-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 93, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-004-S-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 89, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-004-S-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 62, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-004-M-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 97, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-004-M-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 51, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-004-L-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 29, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-004-L-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 93, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-004-XL-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 84, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-004-XL-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 77, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-005-S-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 74, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-005-S-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 88, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-005-M-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 5, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-005-M-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 5, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-005-L-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 83, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-005-L-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 34, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-005-XL-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 109, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-005-XL-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 18, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-006-S-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 77, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-006-S-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 93, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-006-M-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 59, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-006-M-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 93, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-006-L-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 120, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-006-L-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 18, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-006-XL-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 75, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-006-XL-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 71, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-007-S-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 114, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-007-S-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 120, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-007-M-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 58, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-007-M-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 68, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-007-L-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 20, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-007-L-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 84, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-007-XL-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 5, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-007-XL-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 16, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-008-S-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 119, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-008-S-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 60, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-008-M-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 38, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-008-M-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 24, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-008-L-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 8, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-008-L-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 99, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-008-XL-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 114, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-008-XL-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 5, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-009-S-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 103, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-009-S-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 107, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-009-M-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 37, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-009-M-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 54, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-009-L-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 5, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-009-L-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 117, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-009-XL-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 96, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-009-XL-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 3, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-010-S-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 87, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-010-S-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 28, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-010-M-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 55, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-010-M-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 108, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-010-L-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 69, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-010-L-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 60, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-010-XL-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 28, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-010-XL-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 65, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-011-S-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 107, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-011-S-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 64, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-011-M-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 3, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-011-M-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 47, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-011-L-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 18, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-011-L-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 28, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-011-XL-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 49, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-011-XL-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 116, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-012-S-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 0, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-012-S-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 110, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-012-M-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 115, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-012-M-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 5, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-012-L-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 74, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-012-L-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 49, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-012-XL-NOIR'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 74, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VET-012-XL-BLANC'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 33, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-CHA-001-39'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 69, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-CHA-001-41'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 81, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-CHA-001-43'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 105, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-CHA-001-45'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 3, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-CHA-002-39'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 85, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-CHA-002-41'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 38, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-CHA-002-43'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 88, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-CHA-002-45'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 32, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-CHA-003-39'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 70, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-CHA-003-41'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 94, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-CHA-003-43'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 76, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-CHA-003-45'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 32, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-CHA-004-39'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 78, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-CHA-004-41'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 5, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-CHA-004-43'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 79, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-CHA-004-45'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 3, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-001-2019-75'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 57, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-001-2019-150'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 73, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-001-2020-75'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 95, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-001-2020-150'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 79, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-001-2021-75'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 29, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-001-2021-150'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 49, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-002-2019-75'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 76, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-002-2019-150'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 18, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-002-2020-75'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 61, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-002-2020-150'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 21, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-002-2021-75'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 103, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-002-2021-150'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 15, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-003-2019-75'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 119, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-003-2019-150'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 101, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-003-2020-75'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 72, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-003-2020-150'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 114, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-003-2021-75'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 116, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-003-2021-150'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 5, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-004-2019-75'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 55, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-004-2019-150'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 42, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-004-2020-75'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 95, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-004-2020-150'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 68, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-004-2021-75'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 12, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-004-2021-150'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 106, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-005-2019-75'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 0, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-005-2019-150'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 88, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-005-2020-75'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 85, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-005-2020-150'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 79, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-005-2021-75'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 116, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-005-2021-150'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 100, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-006-2019-75'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 58, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-006-2019-150'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 39, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-006-2020-75'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 25, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-006-2020-150'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 35, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-006-2021-75'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 61, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-006-2021-150'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 61, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-007-2019-75'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 78, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-007-2019-150'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 56, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-007-2020-75'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 42, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-007-2020-150'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 34, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-007-2021-75'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 116, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-007-2021-150'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 60, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-008-2019-75'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 79, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-008-2019-150'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 116, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-008-2020-75'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 33, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-008-2020-150'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 84, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-008-2021-75'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 INSERT INTO stock_levels (product_id, variant_id, warehouse_id, quantity, reserved_quantity)
 SELECT v.product_id, v.id, w.id, 44, 0 FROM product_variants v JOIN warehouses w ON w.is_default = 1
 WHERE v.sku = 'DEMO-VIN-008-2021-150'
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+  AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl.variant_id = v.id AND sl.warehouse_id = w.id AND sl.location_id IS NULL);
 
 
 -- Quelques tags poses sur le catalogue etendu.

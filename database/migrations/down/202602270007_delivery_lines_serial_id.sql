@@ -1,12 +1,15 @@
+-- Annulation de 202602270007 : retire le lien entre une ligne de livraison et
+-- un numero de serie.
+--
+-- Ce fichier contenait auparavant une COPIE du "up" (des ADD COLUMN) : jouer
+-- l'annulation echouait sur une colonne deja existante, ou pire, laissait la
+-- base dans un etat different de celui attendu. Le bouton "Annuler le dernier
+-- lot" de frontend/migrate.php s'appuie sur ces fichiers.
+
 SET NAMES utf8mb4;
 
--- Cette colonne existe deja sur les installations ou elle a ete ajoutee a la
--- main (hors migration versionnee) - le IF NOT EXISTS evite une erreur sur
--- ces installations tout en corrigeant les installations neuves ou elle
--- manquait completement.
 ALTER TABLE delivery_lines
-    ADD COLUMN IF NOT EXISTS serial_id BIGINT NULL AFTER product_id;
+    DROP FOREIGN KEY IF EXISTS fk_delivery_lines_serial;
 
 ALTER TABLE delivery_lines
-    ADD CONSTRAINT fk_delivery_lines_serial
-    FOREIGN KEY IF NOT EXISTS (serial_id) REFERENCES product_serials (id) ON DELETE SET NULL;
+    DROP COLUMN IF EXISTS serial_id;

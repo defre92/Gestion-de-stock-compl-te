@@ -238,9 +238,14 @@ final class ImportService
             // la ligne existante : il en ajoutait une nouvelle, et le stock
             // total (calcule par SUM(quantity)) gonflait a chaque import.
             // On cible donc explicitement la ligne "sans variante".
+            // location_id IS NULL : depuis le suivi par emplacement, un produit
+            // peut avoir plusieurs lignes dans le meme entrepot. Un import de
+            // stock initial vise la ligne "sans emplacement precis", pas une
+            // ligne rangee au hasard.
             $existing = $pdo->prepare('
                 SELECT id FROM stock_levels
-                WHERE product_id = :product_id AND warehouse_id = :warehouse_id AND variant_id IS NULL
+                WHERE product_id = :product_id AND warehouse_id = :warehouse_id
+                  AND variant_id IS NULL AND location_id IS NULL
                 LIMIT 1
             ');
             $existing->execute([':product_id' => $productId, ':warehouse_id' => $warehouseId]);

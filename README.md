@@ -598,6 +598,95 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+## Stock suivi par emplacement
+
+Migration `202602270012_stock_by_location`. Le stock n'est plus suivi a la
+maille entrepot mais a la maille **emplacement** : on ne sait plus seulement
+"40 unites a Bruxelles", mais "24 en A1 et 16 en A2".
+
+### Modele
+
+`stock_levels` gagne une colonne `location_id` **nullable**, et sa cle unique
+devient `(product_id, warehouse_id, variant_id, location_id)`. Une ligne a
+`location_id NULL` represente du stock present dans l'entrepot sans rangement
+precis : c'est l'etat de toutes les lignes existantes apres la migration (rien
+n'est perdu ni deplace) et le cas normal d'un entrepot ou aucun emplacement
+n'est defini.
+
+`ON DELETE RESTRICT` sur l'emplacement : supprimer un emplacement qui contient
+encore du stock echoue proprement (409 avec message metier) plutot que de faire
+disparaitre des quantites.
+
+### Regles de mouvement
+
+| Operation | Avec emplacement | Sans emplacement |
+| --- | --- | --- |
+| Entree | ajoute a cet emplacement | ajoute a la ligne "non precise" |
+| Sortie | ne pioche que dans cet emplacement, echoue s'il n'y en a pas assez **meme si l'entrepot en a ailleurs** | consomme sur tout l'entrepot, en commencant par le stock non range puis emplacement par emplacement |
+| Ajustement | remplace la quantite de cet emplacement | accepte seulement si le produit tient sur une seule ligne, sinon refuse en demandant de preciser |
+| Transfert | sortie de l'emplacement source, entree dans l'emplacement destination | sortie repartie, entree en "non precise" |
+
+Un emplacement qui n'appartient pas a l'entrepot du mouvement est refuse : sans
+ce controle, la ligne de stock existerait mais designerait un endroit ou
+l'article n'est pas.
+
+`balance_after` d'un mouvement devient le **total de l'entrepot** apres
+l'operation : avec plusieurs emplacements, la quantite d'une seule ligne ne
+veut plus dire grand-chose dans un historique.
+
+### Ce qui continue de fonctionner sans rien preciser
+
+Livraisons, receptions de commande, numeros de serie et import de stock initial
+ne connaissent pas d'emplacement : ils travaillent sur l'entrepot entier, la
+sortie etant repartie automatiquement. Leur comportement est inchange.
+
+### Inventaire
+
+Le comptage accepte un emplacement, propose parmi ceux de l'entrepot de la
+session. Avec emplacement, l'ecart ne porte que sur cette allee et l'ajustement
+genere la vise precisement ; sans emplacement, on compte le produit dans tout
+l'entrepot comme avant. La cle de deduplication des comptages inclut
+l'emplacement : deux allees du meme produit sont deux comptages distincts.
+
+### Corrections liees
+
+- **Quatre migrations "down" etaient des copies de leur "up"** (007, 008, 009,
+  011) : elles ajoutaient des colonnes au lieu de les retirer. Le bouton
+  "Annuler le dernier lot" de `frontend/migrate.php` les aurait jouees telles
+  quelles - au mieux une erreur "colonne deja existante", au pire une base dans
+  un etat imprevu. Reecrites correctement.
+- **Donnees de demo** : les 160 insertions de stock par variante utilisaient
+  `ON DUPLICATE KEY UPDATE`, qui ne dedoublonne plus depuis que la cle unique
+  contient `location_id` (nullable). Passees en `NOT EXISTS`. Verifie par trois
+  chargements consecutifs : 280 lignes de stock, zero doublon.
+
+### Numeros de serie localises
+
+Migration `202602270013_product_serials_location`. Un numero de serie designe
+UN article physique : ne connaitre que son entrepot alors que le stock est
+localise n'avait pas de sens, d'autant que c'est justement l'exemplaire qu'on
+va chercher a la main.
+
+- `product_serials.location_id`, nullable, `ON DELETE RESTRICT` comme pour
+  `stock_levels`.
+- L'enregistrement propose l'emplacement parmi ceux de l'entrepot choisi, et le
+  mouvement d'entree genere vise **ce meme emplacement** : ranger un exemplaire
+  en A1 incremente A1, pas le stock non localise de l'entrepot.
+- Marquer sorti decremente l'emplacement ou l'exemplaire se trouvait ;
+  "Remettre en stock" demande entrepot **et** emplacement de retour (ils
+  peuvent differer de l'origine, un article revient rarement dans son allee).
+- **Une livraison sur numero de serie sort du stock de l'emplacement reel de
+  cet exemplaire**, au lieu de laisser la repartition automatique piocher
+  ailleurs. Verifie : un entrepot avec 50 unites non rangees et 1 exemplaire en
+  A2, livraison de cet exemplaire - A2 passe a 0, les 50 ne bougent pas.
+- Emplacement affiche dans la liste, dans la fiche de recherche par numero de
+  serie, et pris en compte a la suppression avec ajustement de stock.
+
+A l'annulation d'une livraison, l'exemplaire revient dans l'entrepot **sans**
+emplacement : on ne sait pas ou il sera range, et le mouvement d'entree
+alimente lui aussi la ligne non localisee - les deux restent coherents. C'est a
+l'operateur de le ranger ensuite.
+
 ### Entrepots, emplacements et stock initial
 
 **Filtre par entrepot sur la liste des produits.** Un produit n'appartient pas

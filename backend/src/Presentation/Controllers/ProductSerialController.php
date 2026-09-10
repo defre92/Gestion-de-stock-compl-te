@@ -60,8 +60,9 @@ final class ProductSerialController
     {
         $user = $request->attribute('auth_user');
         $warehouseId = (int)$request->input('warehouse_id', 0);
+        $locationId = (int)$request->input('location_id', 0) ?: null;
         $notes = $request->input('notes');
-        $this->service->markInStock($id, $warehouseId, (int)$user['id'], $_SERVER['REMOTE_ADDR'] ?? null, $notes !== null ? (string)$notes : null);
+        $this->service->markInStock($id, $warehouseId, (int)$user['id'], $_SERVER['REMOTE_ADDR'] ?? null, $notes !== null ? (string)$notes : null, $locationId);
 
         JsonResponse::send(['message' => 'Numero de serie remis en stock']);
     }
