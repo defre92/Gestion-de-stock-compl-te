@@ -1390,6 +1390,7 @@ async function renderCrud(module) {
             feedback.textContent = '';
             form.classList.remove('hidden');
             form.innerHTML = buildFormFields(config.fields, null, false) + formActions();
+            setupCategoryDefaultTax(module, form);
         });
 
         // IMPORTANT: #appContent (root) n'est jamais recree entre deux rendus du
@@ -1426,6 +1427,7 @@ async function renderCrud(module) {
                 feedback.textContent = '';
                 form.classList.remove('hidden');
                 form.innerHTML = buildFormFields(config.fields, item, true) + formActions();
+                setupCategoryDefaultTax(module, form);
                 return;
             }
 
@@ -4973,6 +4975,51 @@ function renderCrudTable(config, rows, canWrite, module = '') {
             </table>
         </div>
     `;
+}
+
+/**
+ * Pre-remplit la TVA d'un produit avec la taxe par defaut de sa categorie.
+ *
+ * Le reglage "Taxe defaut" existait sur la categorie mais n'etait applique
+ * nulle part : on le saisissait, aucun produit n'en heritait. Le serveur
+ * l'applique desormais a la creation (ProductRepository) et a l'import CSV ;
+ * ici on le rend VISIBLE au moment de la saisie, pour que l'utilisateur voie
+ * le taux propose et puisse le changer avant d'enregistrer - plutot que de
+ * decouvrir apres coup une TVA qu'il n'a pas choisie.
+ *
+ * La valeur deja saisie n'est jamais ecrasee : le pre-remplissage ne joue que
+ * si le champ TVA est vide.
+ */
+function setupCategoryDefaultTax(module, form) {
+    if (module !== 'products') {
+        return;
+    }
+
+    const categorySelect = form.elements.namedItem('category_id');
+    const taxSelect = form.elements.namedItem('tax_id');
+    if (!categorySelect || !taxSelect) {
+        return;
+    }
+
+    categorySelect.addEventListener('change', () => {
+        if (String(taxSelect.value ?? '') !== '') {
+            return;
+        }
+
+        const category = (state.lookups.categories ?? [])
+            .find((row) => String(row.id) === String(categorySelect.value));
+        const defaultTaxId = category?.default_tax_id;
+        if (!defaultTaxId) {
+            return;
+        }
+
+        // Uniquement si ce taux existe encore dans la liste (une taxe
+        // supprimee depuis laisserait sinon le champ sur une valeur fantome).
+        const exists = [...taxSelect.options].some((option) => String(option.value) === String(defaultTaxId));
+        if (exists) {
+            taxSelect.value = String(defaultTaxId);
+        }
+    });
 }
 
 function buildFormFields(fields, item = null, editing = false) {

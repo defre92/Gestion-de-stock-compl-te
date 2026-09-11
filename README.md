@@ -646,6 +646,35 @@ defaut" (`default_min_stock` / `default_max_stock`) etaient stockes mais
 n'etaient appliques nulle part - creer un produit dans une categorie n'en
 reprenait aucune valeur. Retires du formulaire, colonnes conservees en base.
 
+### "Taxe defaut" de la categorie : branchee, pas retiree
+
+Troisieme reglage inerte de la categorie, `default_tax_id` - mais celui-la
+meritait d'etre branche plutot que supprime : reprendre la TVA de la
+categorie evite de la ressaisir sur chaque fiche, et c'est le genre
+d'erreur qui se voit a la facturation.
+
+Un produit cree **sans TVA explicite** reprend desormais celle de sa
+categorie, aux trois endroits ou un produit peut naitre :
+
+- **le formulaire** : choisir une categorie pre-remplit le champ TVA, donc
+  l'utilisateur VOIT le taux propose et peut le changer avant d'enregistrer,
+  plutot que de decouvrir apres coup une TVA qu'il n'a pas choisie ;
+- **l'API** (`ProductRepository::create`), qui couvre aussi tout script
+  externe ;
+- **l'import CSV**, dont le fichier ne porte aucune colonne TVA : c'etait le
+  seul moyen qu'un import en masse arrive avec des taux corrects.
+
+Regles, dans les trois cas : la valeur saisie **prime toujours** ; le defaut
+ne s'applique qu'a la **creation** (reecrire silencieusement une fiche
+existante serait pire que de ne rien faire) ; un defaut pointant une taxe
+supprimee depuis est ignore plutot que d'ecrire une reference fantome ; et
+reimporter un produit existant ne touche pas a sa TVA.
+
+**Verifie** : categorie avec defaut et TVA vide -> le taux est repris ;
+categorie avec defaut mais TVA saisie -> la saisie est conservee ; categorie
+sans defaut -> rien ; taxe supprimee -> champ laisse vide. Teste dans les
+trois chemins (formulaire, API, import CSV).
+
 ### Pourquoi pas un vrai calcul de reapprovisionnement
 
 Dans un stock, ces notions ont un sens **quand le calcul existe derriere** :

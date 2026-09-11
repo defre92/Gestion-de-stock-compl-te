@@ -201,11 +201,23 @@ final class ImportService
                 $supplierId = $this->resolveSupplierId($pdo, $supplierName);
             }
 
+            // Meme regle que la creation depuis l'ecran Produits : un produit
+            // importe sans TVA reprend la taxe par defaut de sa categorie
+            // (categories.default_tax_id). Le fichier CSV ne porte pas de
+            // colonne TVA, c'est donc le seul moyen pour un import en masse
+            // d'arriver avec des taux corrects.
+            $taxStmt = $pdo->prepare('SELECT default_tax_id FROM categories WHERE id = :id LIMIT 1');
+            $taxStmt->execute([':id' => $categoryId]);
+            $defaultTaxId = $taxStmt->fetchColumn();
+            $taxId = ($defaultTaxId !== false && $defaultTaxId !== null && (int)$defaultTaxId > 0)
+                ? (int)$defaultTaxId
+                : null;
+
             $stmt = $pdo->prepare('
                 INSERT INTO products
-                (sku, barcode, name, description, category_id, supplier_id, unit_price, cost_price, reorder_level, status, created_at, updated_at)
+                (sku, barcode, name, description, category_id, supplier_id, tax_id, unit_price, cost_price, reorder_level, status, created_at, updated_at)
                 VALUES
-                (:sku, :barcode, :name, :description, :category_id, :supplier_id, :unit_price, :cost_price, :reorder_level, :status, NOW(), NOW())
+                (:sku, :barcode, :name, :description, :category_id, :supplier_id, :tax_id, :unit_price, :cost_price, :reorder_level, :status, NOW(), NOW())
                 ON DUPLICATE KEY UPDATE
                     barcode = VALUES(barcode),
                     name = VALUES(name),
@@ -225,6 +237,7 @@ final class ImportService
                 ':description' => $this->nullIfBlank($row['description'] ?? null),
                 ':category_id' => $categoryId,
                 ':supplier_id' => $supplierId,
+                ':tax_id' => $taxId,
                 ':unit_price' => $this->parseDecimal($row['unit_price'] ?? 0),
                 ':cost_price' => $this->parseDecimal($row['cost_price'] ?? 0),
                 ':reorder_level' => $this->parseInteger($row['reorder_level'] ?? 0),

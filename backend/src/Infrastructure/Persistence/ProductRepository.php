@@ -39,6 +39,42 @@ final class ProductRepository extends PdoCrudRepository
     ];
     protected array $filterable = ['category_id', 'supplier_id', 'status', 'is_active', 'brand_id', 'unit_id'];
 
+    /**
+     * A la creation, un produit sans TVA explicite reprend celle de sa
+     * categorie (categories.default_tax_id).
+     *
+     * Ce reglage existait depuis le debut mais n'etait applique NULLE PART :
+     * on saisissait une "taxe par defaut" sur la categorie et aucun produit
+     * n'en heritait. C'est justement le genre de champ qui donne l'illusion
+     * d'un parametrage - voir aussi les seuils multiples retires en
+     * migration 202602270015.
+     *
+     * Regle : la valeur saisie prime TOUJOURS. Le defaut ne s'applique que si
+     * aucune TVA n'est fournie, et uniquement a la creation - reprendre la
+     * main sur une fiche existante pour la reecrire silencieusement serait
+     * pire que de ne rien faire.
+     */
+    /** @param array<string, mixed> $payload @return array<string, mixed> */
+    private function applyCategoryDefaultTax(array $payload): array
+    {
+        $taxProvided = isset($payload['tax_id']) && trim((string)$payload['tax_id']) !== '';
+        $categoryId = isset($payload['category_id']) ? (int)$payload['category_id'] : 0;
+
+        if ($taxProvided || $categoryId <= 0 || !$this->columnExists('categories', 'default_tax_id')) {
+            return $payload;
+        }
+
+        $stmt = $this->pdo->prepare('SELECT default_tax_id FROM categories WHERE id = :id LIMIT 1');
+        $stmt->execute([':id' => $categoryId]);
+        $defaultTaxId = $stmt->fetchColumn();
+
+        if ($defaultTaxId !== false && $defaultTaxId !== null && (int)$defaultTaxId > 0) {
+            $payload['tax_id'] = (int)$defaultTaxId;
+        }
+
+        return $payload;
+    }
+
     public function paginate(int $page, int $perPage, array $filters = []): array
     {
         $page = max(1, $page);
@@ -460,7 +496,7 @@ final class ProductRepository extends PdoCrudRepository
 
     public function create(array $payload): int
     {
-        $id = parent::create($payload);
+        $id = parent::create($this->applyCategoryDefaultTax($payload));
         if ($id > 0) {
             $this->syncTags($id, $payload);
         }
