@@ -349,7 +349,9 @@ final class StockService
             $stock = (int)($product['stock_total'] ?? 0);
         }
 
-        $threshold = max((int)($product['min_stock'] ?? 0), (int)($product['reorder_level'] ?? 0));
+        // Un seul seuil : products.reorder_level (migration 202602270015).
+        // min_stock faisait doublon - meme role, valeur concurrente.
+        $threshold = (int)($product['reorder_level'] ?? 0);
 
         if ($stock > $threshold) {
             return;

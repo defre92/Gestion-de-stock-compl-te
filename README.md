@@ -613,6 +613,58 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+## Un seul seuil de stock, au lieu de quatre
+
+La fiche produit demandait **quatre** valeurs de seuil : "Seuil alerte"
+(`reorder_level`), "Stock mini" (`min_stock`), "Stock maxi" (`max_stock`) et
+"Stock securite" (`safety_stock`). Dans les faits :
+
+- `reorder_level` et `min_stock` faisaient **exactement la meme chose** :
+  l'alerte se declenchait sous le **plus eleve des deux**. Deux champs, un
+  seul role, et une valeur concurrente invisible ;
+- `max_stock` et `safety_stock` n'etaient lus **nulle part** - ni alerte, ni
+  rapport, ni controle a l'entree. Stockes, affiches, sans le moindre effet.
+  Saisir un "stock de securite" en croyant se proteger ne protegeait de rien.
+
+Le formulaire ne demande plus qu'un seuil, libelle sans ambiguite : **"Seuil
+d'alerte (alerte des que le stock descend a cette valeur)"**. Le code ne lit
+plus que `reorder_level`, dans les trois endroits qui s'en servaient :
+l'alerte generee a chaque mouvement (`StockService`), la liste de l'ecran
+Alertes (`ProductRepository::lowStock`) et le compteur du tableau de bord
+(`DashboardRepository`) - ces deux derniers comptaient la meme chose et
+doivent continuer a le faire.
+
+**Aucune alerte ne se desactive au passage.** La migration
+`202602270015_single_stock_threshold` remonte `reorder_level` au plus eleve
+des deux valeurs existantes : un article qui alertait a 10 via `min_stock`
+continue d'alerter a 10, desormais visible dans le champ unique. Les colonnes
+`min_stock`, `max_stock` et `safety_stock` **restent en base** - aucune
+donnee saisie n'est perdue, elles ne sont simplement plus demandees ni lues.
+
+Meme menage sur les **categories** : "Seuil mini defaut" et "Seuil maxi
+defaut" (`default_min_stock` / `default_max_stock`) etaient stockes mais
+n'etaient appliques nulle part - creer un produit dans une categorie n'en
+reprenait aucune valeur. Retires du formulaire, colonnes conservees en base.
+
+### Pourquoi pas un vrai calcul de reapprovisionnement
+
+Dans un stock, ces notions ont un sens **quand le calcul existe derriere** :
+le stock de securite absorbe les aleas, le point de commande vaut stock de
+securite + consommation pendant le delai de reappro, et le stock maxi donne
+la quantite a commander. Cela suppose de suivre les delais fournisseurs et
+les consommations, ce que l'application ne fait pas. Proposer les champs sans
+le calcul donnait l'illusion d'un pilotage fin la ou il n'y avait qu'un seul
+seuil reellement actif. Le jour ou ces donnees existeront, le champ maxi
+pourra etre rebranche (alerte de surstock, quantite suggeree en demande
+d'achat) - la colonne est toujours la.
+
+**Verifie** : un produit historique (seuil 3, `min_stock` 10) alerte toujours
+a 10 apres migration ; un produit passe sous son seuil par un mouvement de
+sortie declenche bien l'alerte ; le compteur du tableau de bord et la liste
+des alertes affichent le meme nombre ; et abaisser le seuil visible a 2
+desactive reellement l'alerte, alors que `min_stock` vaut toujours 10 en
+base - c'est-a-dire que le champ affiche dit maintenant la verite.
+
 ## Douchette : etiquette reellement scannable, et scan qui ouvre la fiche
 
 ### L'ancienne etiquette n'etait pas un code barre

@@ -1,0 +1,22 @@
+-- Annulation de 202602270015.
+--
+-- Cette migration n'a modifie AUCUNE structure : elle a seulement remonte
+-- products.reorder_level au niveau de min_stock la ou ce dernier etait plus
+-- eleve, pour qu'aucune alerte ne se desactive en silence.
+--
+-- Il n'y a donc rien a defaire cote schema, et la valeur precedente de
+-- reorder_level n'est pas restaurable (elle n'a ete sauvegardee nulle part -
+-- min_stock, lui, n'a pas ete touche et garde sa valeur d'origine). Ce
+-- fichier est volontairement un no-op explicite plutot qu'une copie du "up",
+-- erreur deja rencontree sur quatre migrations de ce projet.
+--
+-- Pour revenir a l'ancien comportement, il faut aussi restaurer le code :
+-- l'alerte lisait GREATEST(min_stock, reorder_level) et le formulaire
+-- produit affichait les quatre champs.
+
+-- Instruction neutre : le migrateur execute chaque fichier tel quel. Un
+-- SELECT renverrait un jeu de resultats que personne ne consomme, et PDO
+-- refuse alors la requete suivante ("Cannot execute queries while other
+-- unbuffered queries are active") - ce qui ferait echouer le rollback de
+-- TOUT le lot. SET ne renvoie rien.
+SET @note_202602270015 = 'Rien a annuler cote schema.';

@@ -72,16 +72,17 @@ const crudModules = {
             { key: 'parent_id', label: 'Categorie parent', type: 'select', optionsFrom: 'categories', optionLabel: 'name' },
             { key: 'name', label: 'Nom', type: 'text', required: true },
             { key: 'description', label: 'Description', type: 'textarea' },
-            { key: 'default_min_stock', label: 'Seuil mini defaut', type: 'number' },
-            { key: 'default_max_stock', label: 'Seuil maxi defaut', type: 'number' },
+            // default_min_stock / default_max_stock retires du formulaire :
+            // comme les seuils multiples de la fiche produit, ils etaient
+            // stockes mais n'etaient appliques nulle part - creer un produit
+            // dans une categorie n'en reprenait aucune valeur. Les colonnes
+            // restent en base.
             { key: 'default_tax_id', label: 'Taxe defaut', type: 'select', optionsFrom: 'taxes', optionLabel: 'name' },
         ],
         columns: [
             { key: 'id', label: 'ID' },
             { key: 'name', label: 'Nom' },
             { key: 'parent_id', label: 'Parent' },
-            { key: 'default_min_stock', label: 'Min' },
-            { key: 'default_max_stock', label: 'Max' },
             { key: 'updated_at', label: 'Maj' },
         ],
     },
@@ -200,10 +201,14 @@ const crudModules = {
             { key: 'unit_price', label: 'Prix vente', type: 'number', step: '0.01' },
             { key: 'cost_price', label: 'Prix achat', type: 'number', step: '0.01' },
             { key: 'tax_id', label: 'Taxe (TVA)', type: 'select', optionsFrom: 'taxes', optionLabel: 'name' },
-            { key: 'reorder_level', label: 'Seuil alerte', type: 'number' },
-            { key: 'min_stock', label: 'Stock mini', type: 'number' },
-            { key: 'max_stock', label: 'Stock maxi', type: 'number' },
-            { key: 'safety_stock', label: 'Stock securite', type: 'number' },
+            // UN SEUL seuil. Le formulaire en demandait quatre : "Seuil
+            // alerte", "Stock mini", "Stock maxi" et "Stock securite". Les
+            // deux premiers faisaient la meme chose (l'alerte se declenchait
+            // sous le plus eleve des deux), les deux autres n'etaient lus
+            // nulle part - saisir un "stock de securite" n'avait aucun effet.
+            // Les colonnes restent en base (aucune donnee perdue), voir la
+            // migration 202602270015.
+            { key: 'reorder_level', label: 'Seuil d\'alerte (alerte des que le stock descend a cette valeur)', type: 'number' },
             { key: 'valuation_method', label: 'Valorisation', type: 'select', defaultValue: state.defaultValuationMethod, options: [
                 { value: 'CUMP', label: 'CUMP (cout moyen pondere)' },
                 { value: 'FIFO', label: 'FIFO (premier entre, premier sorti)' },
@@ -2543,8 +2548,7 @@ async function renderAlerts() {
                 ['sku', 'SKU'],
                 ['name', 'Produit'],
                 ['stock_total', 'Stock'],
-                ['min_stock', 'Min'],
-                ['reorder_level', 'Seuil'],
+                ['reorder_level', "Seuil d'alerte"],
             ])}
         </section>
         <section class="panel">

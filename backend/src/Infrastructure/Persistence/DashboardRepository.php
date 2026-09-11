@@ -43,11 +43,12 @@ final class DashboardRepository
         $totals['out_of_stock'] = ($this->tableExists('stock_levels') && $this->tableExists('products'))
             ? $this->safeScalar('SELECT COUNT(*) FROM (SELECT p.id, COALESCE(SUM(sl.quantity),0) qty FROM products p LEFT JOIN stock_levels sl ON sl.product_id=p.id GROUP BY p.id HAVING qty <= 0) t', 0)
             : 0;
-        $hasMinStock = $this->columnExists('products', 'min_stock');
         if ($this->tableExists('stock_levels') && $this->tableExists('products')) {
-            $lowStockSql = $hasMinStock
-                ? 'SELECT COUNT(*) FROM (SELECT p.id, COALESCE(SUM(sl.quantity),0) qty FROM products p LEFT JOIN stock_levels sl ON sl.product_id=p.id GROUP BY p.id HAVING qty <= GREATEST(MAX(COALESCE(p.min_stock,0)), MAX(COALESCE(p.reorder_level,0)))) t'
-                : 'SELECT COUNT(*) FROM (SELECT p.id, COALESCE(SUM(sl.quantity),0) qty FROM products p LEFT JOIN stock_levels sl ON sl.product_id=p.id GROUP BY p.id HAVING qty <= MAX(COALESCE(p.reorder_level,0))) t';
+            // Meme regle que ProductRepository::lowStock() : un seul seuil,
+            // products.reorder_level (voir migration 202602270015). Le compteur
+            // du tableau de bord et la liste des alertes doivent compter la
+            // meme chose, sinon le chiffre affiche ne correspond a rien.
+            $lowStockSql = 'SELECT COUNT(*) FROM (SELECT p.id, COALESCE(SUM(sl.quantity),0) qty FROM products p LEFT JOIN stock_levels sl ON sl.product_id=p.id GROUP BY p.id HAVING qty <= MAX(COALESCE(p.reorder_level,0))) t';
             $totals['low_stock'] = $this->safeScalar($lowStockSql, 0);
         } else {
             $totals['low_stock'] = 0;

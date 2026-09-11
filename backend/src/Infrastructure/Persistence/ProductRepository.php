@@ -280,17 +280,18 @@ final class ProductRepository extends PdoCrudRepository
     public function lowStock(): array
     {
         // Requete compatible MySQL/MariaDB avec GROUP BY (MAX dans HAVING).
-        $hasMinStock = $this->columnExists('products', 'min_stock');
+        // UN SEUL seuil pilote l'alerte : p.reorder_level. Auparavant on
+        // prenait GREATEST(min_stock, reorder_level), deux champs pour un
+        // meme role - voir la migration 202602270015, qui a remonte
+        // reorder_level au plus eleve des deux pour qu'aucune alerte ne se
+        // desactive au passage.
         $hasIsActive = $this->columnExists('products', 'is_active');
 
         $where = $hasIsActive ? 'WHERE p.is_active = 1' : '';
-        $having = $hasMinStock
-            ? 'HAVING stock_total <= GREATEST(MAX(COALESCE(p.min_stock, 0)), MAX(COALESCE(p.reorder_level, 0)))'
-            : 'HAVING stock_total <= MAX(COALESCE(p.reorder_level, 0))';
+        $having = 'HAVING stock_total <= MAX(COALESCE(p.reorder_level, 0))';
 
         $sql = "
             SELECT p.id, p.sku, p.name,
-                   " . ($hasMinStock ? "MAX(COALESCE(p.min_stock, 0))" : "0") . " AS min_stock,
                    MAX(COALESCE(p.reorder_level, 0)) AS reorder_level,
                    COALESCE(SUM(sl.quantity), 0) AS stock_total
             FROM products p
