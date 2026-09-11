@@ -1700,7 +1700,7 @@ async function renderMovements() {
                     <select name="source_location_id" id="movementSourceLocation" disabled>
                         <option value="">Choisis d'abord un entrepot</option>
                     </select></label>
-                ${selectField('destination_warehouse_id', 'Entrepot destination', state.lookups.warehouses, 'id', 'name', false)}
+                ${selectField('destination_warehouse_id', 'Entrepot destination (vide = transfert dans le meme entrepot)', state.lookups.warehouses, 'id', 'name', false)}
                 <label><span>Emplacement destination (optionnel)</span>
                     <select name="destination_location_id" id="movementDestinationLocation" disabled>
                         <option value="">Choisis d'abord un entrepot</option>
@@ -1737,7 +1737,18 @@ async function renderMovements() {
             <h4>Historique mouvements</h4>
             ${renderSimpleTable(rows, [
                 ['created_at', 'Date'],
-                ['type', 'Type'],
+                // Un transfert entre deux entrepots ecrit DEUX lignes : la
+                // sortie de l'entrepot source et l'entree dans l'entrepot
+                // d'arrivee - chacun doit voir le mouvement dans son propre
+                // historique. Sans mention, la seconde ligne se lit comme une
+                // entree independante et on croit avoir recu deux fois la
+                // quantite. Le transfert interne (changement d'emplacement),
+                // lui, n'ecrit qu'une seule ligne.
+                ['type', 'Type', (value, row) => (
+                    String(value) === 'IN' && String(row.reference_type ?? '') === 'TRANSFER'
+                        ? 'Entree (arrivee d\'un transfert)'
+                        : sanitize(localizeValue(value, 'type'))
+                )],
                 ['product_name', 'Produit'],
                 ['variant_sku', 'Variante', (v, row) => (row.variant_id ? sanitize(variantDescriptor(row)) : '-')],
                 ['quantity', 'Quantite'],
@@ -1845,8 +1856,14 @@ async function renderMovements() {
 
     const refreshLocations = () => {
         fillLocationOptions(sourceLocationSelect, warehouseSelect?.value ?? '');
-        const destinationWarehouse = String(typeSelect?.value ?? '') === 'TRANSFER'
-            ? (destinationWarehouseSelect?.value ?? '')
+        // Transfert SANS entrepot de destination = transfert interne : les
+        // emplacements proposes sont ceux de l'entrepot source. Auparavant la
+        // liste restait vide tant qu'un second entrepot n'etait pas choisi,
+        // donc on ne pouvait pas simplement deplacer un article d'une allee a
+        // une autre.
+        const isTransfer = String(typeSelect?.value ?? '') === 'TRANSFER';
+        const destinationWarehouse = isTransfer && String(destinationWarehouseSelect?.value ?? '') !== ''
+            ? destinationWarehouseSelect.value
             : (warehouseSelect?.value ?? '');
         fillLocationOptions(destinationLocationSelect, destinationWarehouse);
     };
@@ -3785,7 +3802,7 @@ async function renderProductDetail(productId) {
                     <select name="source_location_id" id="productMoveSourceLocation" disabled>
                         <option value="">Choisis d'abord un entrepot</option>
                     </select></label>
-                ${selectField('destination_warehouse_id', 'Entrepot destination', state.lookups.warehouses, 'id', 'name', false)}
+                ${selectField('destination_warehouse_id', 'Entrepot destination (vide = transfert dans le meme entrepot)', state.lookups.warehouses, 'id', 'name', false)}
                 <label><span>Emplacement destination (optionnel)</span>
                     <select name="destination_location_id" id="productMoveDestinationLocation" disabled>
                         <option value="">Choisis d'abord un entrepot</option>
@@ -3940,8 +3957,12 @@ async function renderProductDetail(productId) {
 
     const refreshProductMoveLocations = () => {
         fillLocationOptions(moveSourceLocation, moveWarehouseSelect?.value ?? '');
-        const destinationWarehouse = String(moveTypeSelect?.value ?? '') === 'TRANSFER'
-            ? (moveDestinationWarehouse?.value ?? '')
+        // Meme regle que l'ecran Mouvements : un transfert sans entrepot de
+        // destination est un transfert INTERNE, les emplacements proposes sont
+        // alors ceux de l'entrepot source.
+        const isTransfer = String(moveTypeSelect?.value ?? '') === 'TRANSFER';
+        const destinationWarehouse = isTransfer && String(moveDestinationWarehouse?.value ?? '') !== ''
+            ? moveDestinationWarehouse.value
             : (moveWarehouseSelect?.value ?? '');
         fillLocationOptions(moveDestinationLocation, destinationWarehouse);
     };

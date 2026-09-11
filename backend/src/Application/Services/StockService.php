@@ -216,28 +216,70 @@ final class StockService
             } elseif ($type === 'ADJUSTMENT') {
                 $this->applyAdjustment($productId, $warehouseId, $variantId, $quantity, $destinationLocationId ?? $sourceLocationId);
             } else {
-                if (!$destinationWarehouseId || $destinationWarehouseId === $warehouseId) {
-                    throw new HttpException('Un entrepot de destination valide est requis pour un transfert', 422);
+                // Deux transferts possibles depuis que le stock est suivi par
+                // emplacement :
+                //  - EXTERNE : d'un entrepot vers un autre ;
+                //  - INTERNE : dans le MEME entrepot, d'un emplacement vers un
+                //    autre (ranger une palette de l'allee A1 vers A2). Le cas
+                //    interne etait refuse : l'ecran exigeait un entrepot de
+                //    destination different, alors qu'il n'y en a pas - on ne
+                //    pouvait donc pas deplacer un article dans son propre
+                //    entrepot autrement qu'en enchainant une sortie et une
+                //    entree, avec un historique faux et un risque d'ecart.
+                $isInternal = !$destinationWarehouseId || $destinationWarehouseId === $warehouseId;
+
+                if ($isInternal) {
+                    // Pas de second entrepot : la colonne destination reste
+                    // vide, le mouvement se lit "A1 -> A2 dans l'entrepot X".
+                    $destinationWarehouseId = null;
+
+                    if ($destinationLocationId === null) {
+                        throw new HttpException(
+                            'Transfert dans le meme entrepot : precise l\'emplacement de destination (sinon rien ne bouge).',
+                            422
+                        );
+                    }
+
+                    if ($destinationLocationId === $sourceLocationId) {
+                        throw new HttpException(
+                            'L\'emplacement de destination est identique a l\'emplacement source : il n\'y a rien a transferer.',
+                            422
+                        );
+                    }
+
+                    $this->assertLocationBelongsTo($sourceLocationId, $warehouseId);
+                    $this->assertLocationBelongsTo($destinationLocationId, $warehouseId);
+
+                    $this->consumeFromWarehouse($productId, $warehouseId, $variantId, $quantity, $sourceLocationId, 'Stock insuffisant pour ce transfert');
+
+                    $destinationCurrent = $this->productRepository->stockLevel($productId, $warehouseId, $variantId, true, $destinationLocationId);
+                    $this->productRepository->upsertStockLevel(
+                        $productId,
+                        $warehouseId,
+                        ($destinationCurrent['quantity'] ?? 0) + $quantity,
+                        $variantId,
+                        $destinationLocationId
+                    );
+                } else {
+                    $destinationWarehouse = $this->warehouseRepository->findById($destinationWarehouseId);
+                    if (!$destinationWarehouse) {
+                        throw new HttpException('Entrepot de destination introuvable', 404);
+                    }
+
+                    $this->assertLocationBelongsTo($sourceLocationId, $warehouseId);
+                    $this->assertLocationBelongsTo($destinationLocationId, $destinationWarehouseId);
+
+                    $this->consumeFromWarehouse($productId, $warehouseId, $variantId, $quantity, $sourceLocationId, 'Stock insuffisant pour ce transfert');
+
+                    $destinationCurrent = $this->productRepository->stockLevel($productId, $destinationWarehouseId, $variantId, true, $destinationLocationId);
+                    $this->productRepository->upsertStockLevel(
+                        $productId,
+                        $destinationWarehouseId,
+                        ($destinationCurrent['quantity'] ?? 0) + $quantity,
+                        $variantId,
+                        $destinationLocationId
+                    );
                 }
-
-                $destinationWarehouse = $this->warehouseRepository->findById($destinationWarehouseId);
-                if (!$destinationWarehouse) {
-                    throw new HttpException('Entrepot de destination introuvable', 404);
-                }
-
-                $this->assertLocationBelongsTo($sourceLocationId, $warehouseId);
-                $this->assertLocationBelongsTo($destinationLocationId, $destinationWarehouseId);
-
-                $this->consumeFromWarehouse($productId, $warehouseId, $variantId, $quantity, $sourceLocationId, 'Stock insuffisant pour ce transfert');
-
-                $destinationCurrent = $this->productRepository->stockLevel($productId, $destinationWarehouseId, $variantId, true, $destinationLocationId);
-                $this->productRepository->upsertStockLevel(
-                    $productId,
-                    $destinationWarehouseId,
-                    ($destinationCurrent['quantity'] ?? 0) + $quantity,
-                    $variantId,
-                    $destinationLocationId
-                );
             }
 
             // balance_after devient le total de l'entrepot apres l'operation,

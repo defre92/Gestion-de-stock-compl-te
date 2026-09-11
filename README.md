@@ -613,6 +613,51 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+## Transfert interne : deplacer un article d'un emplacement a un autre
+
+Depuis que le stock est suivi par emplacement, ranger une palette de l'allee
+A1 vers A2 est une operation courante. Elle etait pourtant **impossible** :
+le transfert exigeait un entrepot de destination **different** de l'entrepot
+source ("Un entrepot de destination valide est requis pour un transfert"), et
+il n'y en a pas quand on reste chez soi. Il fallait enchainer une sortie puis
+une entree - deux mouvements sans lien, un historique faux, et un ecart de
+stock a la moindre interruption entre les deux.
+
+Un transfert **sans entrepot de destination** est desormais un transfert
+**interne** : meme entrepot, de l'emplacement source vers l'emplacement de
+destination. Le champ s'appelle maintenant "Entrepot destination (vide =
+transfert dans le meme entrepot)", et la liste des emplacements de
+destination se remplit alors avec ceux de l'entrepot source - elle restait
+vide auparavant tant qu'un second entrepot n'etait pas choisi.
+
+Garde-fous : l'emplacement de destination est **obligatoire** (sinon rien ne
+bougerait), il doit **differer** de l'emplacement source, et la quantite doit
+etre disponible **a l'emplacement source** precisement. Les deux ecrans qui
+enregistrent un mouvement (ecran Mouvements et onglet Stock de la fiche
+produit) suivent la meme regle.
+
+### "J'en transfere 300 et il m'en compte 600"
+
+Les quantites, elles, etaient justes - c'est l'**historique** qui trompait.
+Un transfert entre deux entrepots ecrit **deux lignes** : la sortie de
+l'entrepot source, et l'entree dans l'entrepot d'arrivee. C'est necessaire
+(chaque entrepot doit voir le mouvement dans son propre historique), mais
+rien ne signalait que la seconde etait la contrepartie de la premiere : on
+lisait "Transfert 300" puis "Entree 300" et on croyait avoir recu deux fois
+la marchandise.
+
+La ligne generee s'affiche desormais **"Entree (arrivee d'un transfert)"**.
+Le transfert interne, lui, n'ecrit **qu'une seule ligne** : il n'y a qu'un
+entrepot.
+
+**Verifie sur une base reelle** : entree de 300 en A1, transfert interne de
+300 vers A2 -> total toujours 300, reparti A1=0 / A2=300, une seule ligne de
+mouvement ; transfert externe de 300 vers un second entrepot -> total
+toujours 300 (0 ici, 300 la-bas), et les deux lignes d'historique attendues ;
+refus documente sans emplacement de destination, avec un emplacement
+identique a la source, ou pour une quantite superieure au stock de
+l'emplacement.
+
 ## Un seul seuil de stock, au lieu de quatre
 
 La fiche produit demandait **quatre** valeurs de seuil : "Seuil alerte"
