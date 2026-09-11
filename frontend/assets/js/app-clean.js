@@ -186,7 +186,10 @@ const crudModules = {
         get fields() {
             const fields = [
             { key: 'sku', label: 'SKU', type: 'text', required: true },
-            { key: 'barcode', label: 'Code barre', type: 'text' },
+            // Champ libre : saisie au clavier ou lecture a la douchette, qui se
+            // comporte comme un clavier. Laisse vide, l'etiquette generee
+            // encode le SKU a la place (voir BarcodeController).
+            { key: 'barcode', label: 'Code barre', type: 'text', hint: 'Saisis-le, ou scanne le code imprime sur l\'article avec la douchette. Laisse vide pour que l\'etiquette encode le SKU.' },
             { key: 'name', label: 'Nom', type: 'text', required: true },
             { key: 'description', label: 'Description', type: 'textarea' },
             { key: 'category_id', label: 'Categorie', type: 'select', optionsFrom: 'categories', optionLabel: 'name', required: true },
@@ -278,7 +281,7 @@ const crudModules = {
             const fields = [
                 { key: 'product_id', label: 'Produit', type: 'select', optionsFrom: 'products', optionLabel: 'name', required: true },
                 { key: 'sku', label: 'SKU variante', type: 'text', required: true },
-                { key: 'barcode', label: 'Code barre', type: 'text' },
+                { key: 'barcode', label: 'Code barre', type: 'text', hint: 'Propre a cette variante. Scanne-le directement depuis l\'article si tu l\'as sous la main.' },
             ];
             // N'affiche que les champs correspondant aux options reellement
             // activees (Parametres) - si aucune des deux n'est active, ce
@@ -1391,6 +1394,7 @@ async function renderCrud(module) {
             form.classList.remove('hidden');
             form.innerHTML = buildFormFields(config.fields, null, false) + formActions();
             setupCategoryDefaultTax(module, form);
+            setupScannerFriendlyForm(form);
         });
 
         // IMPORTANT: #appContent (root) n'est jamais recree entre deux rendus du
@@ -1428,6 +1432,7 @@ async function renderCrud(module) {
                 form.classList.remove('hidden');
                 form.innerHTML = buildFormFields(config.fields, item, true) + formActions();
                 setupCategoryDefaultTax(module, form);
+                setupScannerFriendlyForm(form);
                 return;
             }
 
@@ -5022,6 +5027,45 @@ function setupCategoryDefaultTax(module, form) {
     });
 }
 
+/**
+ * Rend un formulaire compatible douchette.
+ *
+ * Une douchette se comporte comme un clavier : elle "tape" le code puis
+ * envoie Entree. Or, dans un formulaire HTML, Entree dans un champ texte
+ * declenche l'envoi du formulaire (soumission implicite). Scanner un code
+ * barre dans une fiche produit a moitie remplie l'enregistrait donc
+ * prematurement - ou affichait une erreur de champ obligatoire, sans que
+ * l'utilisateur comprenne ce qui venait de se passer.
+ *
+ * Entree passe desormais au champ suivant, comportement habituel d'une
+ * saisie au kilometre : on scanne, le curseur avance. L'enregistrement reste
+ * un clic explicite sur "Enregistrer".
+ */
+function setupScannerFriendlyForm(form) {
+    form.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') {
+            return;
+        }
+
+        const target = event.target;
+        // Un textarea a besoin d'Entree pour aller a la ligne, et le bouton
+        // Enregistrer doit rester actionnable au clavier.
+        if (!(target instanceof HTMLInputElement) || target.type === 'submit') {
+            return;
+        }
+
+        event.preventDefault();
+
+        const focusable = [...form.querySelectorAll('input, select, textarea, button')]
+            .filter((element) => !element.disabled && element.type !== 'hidden');
+        const next = focusable[focusable.indexOf(target) + 1];
+        next?.focus();
+        if (next instanceof HTMLInputElement) {
+            next.select();
+        }
+    });
+}
+
 function buildFormFields(fields, item = null, editing = false) {
     // Les champs createOnly n'ont de sens qu'a la creation (ex: stock initial).
     return fields.filter((field) => !(field.createOnly && editing)).map((field) => {
@@ -5055,7 +5099,8 @@ function buildFormFields(fields, item = null, editing = false) {
             return multiSelectField(field.key, field.label, resolveOptions(field), field.optionValue ?? 'id', field.optionLabel ?? 'label', selected);
         }
 
-        return `<label><span>${field.label}</span><input type="${field.type}" name="${field.key}" value="${sanitize(value)}" ${field.step ? `step="${field.step}"` : ''} ${required ? 'required' : ''}></label>`;
+        const hint = field.hint ? `<small class="field-hint">${field.hint}</small>` : '';
+        return `<label><span>${field.label}</span><input type="${field.type}" name="${field.key}" value="${sanitize(value)}" ${field.step ? `step="${field.step}"` : ''} ${required ? 'required' : ''}>${hint}</label>`;
     }).join('');
 }
 

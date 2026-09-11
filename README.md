@@ -724,6 +724,35 @@ L'etiquette porte le nom du produit, les barres, le code en clair (saisie
 manuelle possible si l'etiquette est abimee), le SKU et le prix. Sa largeur
 s'adapte a la longueur du code au lieu d'etre figee a 520 points.
 
+### Le champ "Code barre" d'une fiche produit
+
+C'est un champ libre, rempli de deux facons :
+
+- **a la main**, en recopiant le code imprime sur l'article (EAN du
+  fabricant, par exemple) ;
+- **a la douchette**, en scannant ce meme code : le lecteur se comporte comme
+  un clavier, il suffit de cliquer dans le champ et de scanner.
+
+Laisse **vide**, l'etiquette generee par l'application encode le **SKU** a la
+place : un article sans code barre fabricant reste donc etiquetable et
+scannable, avec sa propre reference.
+
+**Correctif douchette sur tous les formulaires.** Une douchette termine son
+envoi par Entree. Dans un formulaire HTML, Entree dans un champ texte
+declenche la **soumission implicite** : scanner un code barre dans une fiche
+produit a moitie remplie l'enregistrait prematurement, ou affichait une
+erreur de champ obligatoire sans que l'utilisateur comprenne ce qui venait
+de se passer. Entree passe desormais au **champ suivant** - comportement
+habituel d'une saisie au kilometre : on scanne, le curseur avance.
+L'enregistrement reste un clic explicite sur "Enregistrer", et Entree reste
+libre dans les zones de texte multiligne (aller a la ligne).
+
+**Limite connue** : `products.barcode` n'a pas de contrainte d'unicite. Deux
+produits peuvent porter le meme code barre ; le scan remonte alors deux
+articles et n'ouvre aucune fiche (comportement voulu : mieux vaut une liste
+qu'une fiche prise au hasard). Un controle d'unicite a l'enregistrement
+reste a ajouter si le besoin se confirme.
+
 ### Ce que fait un scan
 
 Une douchette USB ou Bluetooth se comporte comme un **clavier** : elle tape
