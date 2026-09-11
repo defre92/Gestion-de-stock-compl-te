@@ -117,8 +117,11 @@ $authController = new AuthController($authService);
 
 $categoryController = new CrudController(new CrudService(new CategoryRepository(), $auditRepository, 'category', ['name']));
 $supplierController = new CrudController(new CrudService(new SupplierRepository(), $auditRepository, 'supplier', ['name', 'status']));
-$productController = new CrudController(new CrudService(new ProductRepository(), $auditRepository, 'product', ['sku', 'name', 'category_id', 'status']));
-$productVariantController = new CrudController(new CrudService(new ProductVariantRepository(), $auditRepository, 'product_variant', ['product_id', 'sku']));
+// Le code barre doit rester unique : deux articles portant le meme code
+// rendraient le scan a la douchette ambigu (deux resultats, aucune fiche
+// ouverte). Controle applicatif, voir CrudService::assertUniqueFields.
+$productController = new CrudController(new CrudService(new ProductRepository(), $auditRepository, 'product', ['sku', 'name', 'category_id', 'status'], ['barcode' => 'code barre']));
+$productVariantController = new CrudController(new CrudService(new ProductVariantRepository(), $auditRepository, 'product_variant', ['product_id', 'sku'], ['barcode' => 'code barre']));
 $userController = new UserController(new UserService($userRepository, $roleRepository, $passwordService, $auditRepository, $authTokenRepository));
 $auditController = new AuditController($auditRepository);
 

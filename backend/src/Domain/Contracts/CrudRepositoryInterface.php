@@ -14,4 +14,14 @@ interface CrudRepositoryInterface
     public function update(int $id, array $payload): bool;
 
     public function delete(int $id): bool;
+
+    /**
+     * Premiere ligne dont $column vaut $value, en ignorant eventuellement un
+     * identifiant (celui de la ligne en cours de modification).
+     *
+     * Sert aux controles d'unicite applicatifs (voir CrudService).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function findByColumn(string $column, string $value, ?int $excludeId = null): ?array;
 }

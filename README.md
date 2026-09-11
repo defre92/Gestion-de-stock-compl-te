@@ -747,11 +747,44 @@ habituel d'une saisie au kilometre : on scanne, le curseur avance.
 L'enregistrement reste un clic explicite sur "Enregistrer", et Entree reste
 libre dans les zones de texte multiligne (aller a la ligne).
 
-**Limite connue** : `products.barcode` n'a pas de contrainte d'unicite. Deux
-produits peuvent porter le meme code barre ; le scan remonte alors deux
-articles et n'ouvre aucune fiche (comportement voulu : mieux vaut une liste
-qu'une fiche prise au hasard). Un controle d'unicite a l'enregistrement
-reste a ajouter si le besoin se confirme.
+### Unicite du code barre
+
+Deux articles portant le meme code barre rendent le scan ambigu : la
+douchette remonte deux resultats et n'ouvre aucune fiche. Un code barre deja
+utilise par un AUTRE article est donc refuse, avec un message qui **nomme
+l'article en conflit** ("Ce code barre est deja utilise par : Article A
+(UNI-A)") - sans quoi il faudrait le chercher a la main.
+
+Le controle est **applicatif** (`CrudService::assertUniqueFields`), pas une
+contrainte SQL, et c'est deliberé :
+
+- une base existante peut deja contenir des doublons, aucune contrainte
+  n'ayant jamais existe. Une contrainte SQL rendrait ces lignes
+  **immodifiables** - impossible de corriger le prix d'un article tant que
+  son doublon n'est pas resolu ;
+- en modification, la valeur n'est donc verifiee que si elle **change**.
+  Modifier un article en doublon sans toucher a son code barre reste
+  possible ; seule une saisie qui creerait ou deplacerait l'ambiguite est
+  bloquee.
+
+Un code barre **vide** n'entre jamais en conflit : plusieurs articles sans
+code barre est un cas normal (leur etiquette encode le SKU).
+
+Le controle s'applique aux **trois** chemins d'ecriture : l'ecran Produits,
+l'ecran Variantes (meme ambiguite entre deux variantes), et **l'import
+CSV** - ou la ligne fautive est rejetee en nommant l'article en conflit,
+l'import poursuivant les lignes suivantes. Sans cela, un import en masse
+pouvait creer des dizaines de doublons indetectables jusqu'au premier scan.
+
+`CrudService` accepte pour cela une liste generique de colonnes uniques
+(`['barcode' => 'code barre']`), reutilisable pour un autre referentiel sans
+code specifique.
+
+**Verifie** : creation d'un doublon refusee (409) ; deux articles sans code
+barre acceptes ; modification du prix d'un doublon **historique** toujours
+possible ; changement de code vers un code deja pris refuse ; changement vers
+un code libre accepte ; import CSV rejetant la seule ligne en doublon et
+important les deux autres ; et meme controle sur les variantes.
 
 ### Ce que fait un scan
 

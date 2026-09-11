@@ -201,6 +201,22 @@ final class ImportService
                 $supplierId = $this->resolveSupplierId($pdo, $supplierName);
             }
 
+            // Meme regle d'unicite que l'ecran Produits : un code barre deja
+            // porte par un AUTRE article rendrait le scan ambigu. L'import
+            // signale la ligne fautive et poursuit les suivantes, plutot que
+            // de creer en masse des doublons indetectables a l'usage.
+            $barcode = $this->nullIfBlank($row['barcode'] ?? null);
+            if ($barcode !== null) {
+                $dup = $pdo->prepare('SELECT sku, name FROM products WHERE barcode = :barcode AND sku <> :sku LIMIT 1');
+                $dup->execute([':barcode' => $barcode, ':sku' => $sku]);
+                $conflict = $dup->fetch();
+                if ($conflict) {
+                    throw new \RuntimeException(
+                        'Code barre deja utilise par : ' . $conflict['name'] . ' (' . $conflict['sku'] . ')'
+                    );
+                }
+            }
+
             // Meme regle que la creation depuis l'ecran Produits : un produit
             // importe sans TVA reprend la taxe par defaut de sa categorie
             // (categories.default_tax_id). Le fichier CSV ne porte pas de
@@ -232,7 +248,7 @@ final class ImportService
             ');
             $stmt->execute([
                 ':sku' => $sku,
-                ':barcode' => $this->nullIfBlank($row['barcode'] ?? null),
+                ':barcode' => $barcode,
                 ':name' => $name,
                 ':description' => $this->nullIfBlank($row['description'] ?? null),
                 ':category_id' => $categoryId,

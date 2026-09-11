@@ -125,6 +125,30 @@ abstract class PdoCrudRepository implements CrudRepositoryInterface
         return $stmt->execute(array_merge($this->prefixKeys($data), [':id' => $id]));
     }
 
+    public function findByColumn(string $column, string $value, ?int $excludeId = null): ?array
+    {
+        // $column ne vient jamais de la requete HTTP : il est declare dans le
+        // cablage des controleurs (index.php). On verifie tout de meme qu'il
+        // s'agit d'une colonne connue de cette table avant de l'interpoler.
+        if (!in_array($column, $this->fillable, true)) {
+            return null;
+        }
+
+        $sql = "SELECT * FROM {$this->table} WHERE {$column} = :value";
+        $params = [':value' => $value];
+        if ($excludeId !== null) {
+            $sql .= ' AND id <> :exclude_id';
+            $params[':exclude_id'] = $excludeId;
+        }
+        $sql .= ' LIMIT 1';
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        $row = $stmt->fetch();
+
+        return $row ?: null;
+    }
+
     public function delete(int $id): bool
     {
         $stmt = $this->pdo->prepare("DELETE FROM {$this->table} WHERE id = :id");
