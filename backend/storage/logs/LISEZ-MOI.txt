@@ -1,0 +1,17 @@
+Journaux techniques de l'application.
+
+php-error.log est cree AUTOMATIQUEMENT a la premiere erreur fatale du
+serveur (erreur de syntaxe, fichier manquant apres un deploiement
+incomplet, incompatibilite de classe...). Tant que tout fonctionne, ce
+fichier n'existe pas : c'est normal.
+
+En cas d'ecran "Erreur interne du serveur" sur toute l'application, c'est
+le premier endroit a regarder : la derniere ligne nomme le fichier et le
+numero de ligne fautifs. C'est aussi ce fichier a joindre a une demande
+d'assistance.
+
+Ce dossier doit rester accessible en ECRITURE par le serveur web (php).
+S'il ne l'est pas, le message part dans le journal d'erreurs PHP de
+l'hebergeur a la place - rien n'est perdu, mais c'est moins commode.
+
+Le contenu de ce dossier peut etre vide sans risque.

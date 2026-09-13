@@ -68,9 +68,19 @@ register_shutdown_function(static function () use ($appConfig): void {
         PHP_EOL
     );
 
+    // Le fichier n'est cree qu'a la premiere erreur fatale : tant que tout
+    // fonctionne, il n'existe pas. Si le dossier n'est pas accessible en
+    // ecriture (hebergement mutualise verrouille), on bascule sur le journal
+    // d'erreurs PHP de l'hebergeur : le detail ne doit pas etre perdu au
+    // moment precis ou on en a besoin.
     $logDir = __DIR__ . '/storage/logs';
+    $written = false;
     if (is_dir($logDir) || @mkdir($logDir, 0775, true)) {
-        @file_put_contents($logDir . '/php-error.log', $line, FILE_APPEND);
+        $written = @file_put_contents($logDir . '/php-error.log', $line, FILE_APPEND) !== false;
+    }
+
+    if (!$written) {
+        error_log('[gestion-stock] ' . trim($line));
     }
 
     if (PHP_SAPI === 'cli') {

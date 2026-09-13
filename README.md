@@ -635,6 +635,14 @@ chargement des deux classes ensemble, donc a l'execution.
 
 ### Ce qui a ete mis en place pour que ca ne se reproduise pas
 
+Le fichier `backend/storage/logs/php-error.log` **n'existe pas tant que tout
+fonctionne** : il est cree a la premiere erreur fatale. Le dossier, lui, est
+livre avec l'application (avec un `LISEZ-MOI.txt` et un `.htaccess` de
+refus), pour qu'on puisse verifier ses droits d'ecriture AVANT d'en avoir
+besoin. S'il n'est pas accessible en ecriture (hebergement mutualise
+verrouille), le detail part dans le journal d'erreurs PHP de l'hebergeur :
+rien n'est perdu.
+
 - **Filet de securite dans `backend/bootstrap.php`**
   (`register_shutdown_function`) : les erreurs que le gestionnaire
   d'exceptions ne voit pas - syntaxe, fichier manquant, signature
