@@ -613,6 +613,47 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+## Profils utilisateur : libelles francais et droits affiches
+
+Le formulaire d'un utilisateur proposait une liste de **codes techniques**
+(`ADMIN`, `MANAGER`, `STOREKEEPER`, `EMPLOYEE`), sans la moindre indication
+de ce que chacun autorise. On attribuait donc un profil au juge.
+
+- **Libelles en francais partout** : Administrateur, Responsable, Magasinier,
+  Acheteur, Employe, Lecture seule - dans la liste deroulante comme dans la
+  colonne Profil de la liste des utilisateurs.
+- **Aide sous le champ** : le profil choisi affiche immediatement ce qu'il
+  permet ("Tout ce qui touche au stock physique : mouvements, numeros de
+  serie, livraisons, inventaires. Pas d'achats, pas de catalogue, pas
+  d'administration.").
+- **Tableau "Profils et droits"** sur l'ecran Utilisateurs : pour chaque
+  profil, le resume et la **liste exacte des ecrans ou il peut enregistrer**.
+
+Ce tableau n'est pas une documentation ecrite a la main : il est **calcule a
+partir de la matrice que l'application applique reellement**
+(`ROLE_MATRIX`, qui alimente aussi `canWrite`). Il ne peut donc pas decrire
+autre chose que le comportement reel. Cote serveur, `RoleMiddleware`
+(`backend/public/index.php`) pose les memes regles : un profil qui n'a pas le
+droit se voit refuser l'operation meme en contournant l'interface. Toute
+evolution doit etre faite des deux cotes.
+
+### Deux incoherences corrigees au passage
+
+- **Le profil "Employe" n'existait pour personne.** L'installateur le cree
+  (`EMPLOYEE`), mais ni le frontend ni le backend ne le connaissaient : un
+  utilisateur ainsi cree se retrouvait en lecture seule **de fait**, sans que
+  personne l'ait decide ni annonce. Il est desormais un profil a part
+  entiere, documente comme "consultation uniquement".
+- **Le profil "Acheteur" n'etait pas creable.** `BUYER` est implemente
+  (achats, fournisseurs, clients) et reconnu par le backend, mais
+  l'installateur ne creait pas la ligne : il fallait l'ajouter a la main en
+  base pour pouvoir l'attribuer. Il fait maintenant partie des profils
+  installes par defaut.
+
+Un profil ajoute directement en base et inconnu de l'application reste
+possible : il est alors traite en **lecture seule**, et le formulaire le dit
+explicitement plutot que de laisser croire a des droits.
+
 ## Incident : toute l'API en erreur 500 (signatures de methodes)
 
 Symptome : **toutes** les routes de l'API repondent 500 en meme temps

@@ -327,6 +327,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ('ADMIN', 'Administrateur'),
                 ('MANAGER', 'Responsable stock'),
                 ('STOREKEEPER', 'Magasinier'),
+                -- ACHETEUR : profil reellement implemente (achats, fournisseurs,
+                -- clients) mais qui n'etait pas cree a l'installation, donc
+                -- impossible a attribuer sans ajouter la ligne a la main.
+                ('BUYER', 'Acheteur'),
                 ('EMPLOYEE', 'Employe')
                 ON DUPLICATE KEY UPDATE label = VALUES(label)
             ");

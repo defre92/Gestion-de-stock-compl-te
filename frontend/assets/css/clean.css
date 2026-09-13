@@ -138,6 +138,10 @@ h1 {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.8rem;
+    /* Chaque champ garde sa hauteur naturelle : sans cela, un champ dont le
+       voisin porte un texte d'aide s'etirait pour occuper toute la rangee, et
+       on se retrouvait avec une zone de saisie deux fois trop haute. */
+    align-items: start;
 }
 
 .form-grid .full {

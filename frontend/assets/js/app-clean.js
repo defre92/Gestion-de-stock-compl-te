@@ -448,7 +448,10 @@ const crudModules = {
             { key: 'full_name', label: 'Nom complet', type: 'text', required: true },
             { key: 'email', label: 'Email', type: 'email', required: true },
             { key: 'password', label: 'Mot de passe', type: 'password', requiredOnCreate: true },
-            { key: 'role', label: 'Profil', type: 'select', optionsFrom: 'roles', optionValue: 'code', optionLabel: 'code', required: true },
+            // optionLabel: 'code' affichait les codes techniques bruts
+            // (ADMIN, STOREKEEPER...). localizeOptions les traduit via
+            // ROLE_MATRIX, seule source de verite des droits.
+            { key: 'role', label: 'Profil', type: 'select', optionsFrom: 'roles', optionValue: 'code', optionLabel: 'code', localizeOptions: 'role', required: true },
             { key: 'is_active', label: 'Actif', type: 'select', options: [
                 { value: '1', label: 'Oui' },
                 { value: '0', label: 'Non' },
@@ -458,7 +461,7 @@ const crudModules = {
             { key: 'id', label: 'ID' },
             { key: 'full_name', label: 'Nom' },
             { key: 'email', label: 'Email' },
-            { key: 'role_code', label: 'Profil' },
+            { key: 'role_code', label: 'Profil', format: (value) => sanitize(roleLabel(value)) },
             { key: 'is_active', label: 'Actif', format: (v) => (Number(v) === 1 ? 'Oui' : 'Non') },
             { key: 'created_at', label: 'Creation' },
         ],
@@ -783,19 +786,117 @@ function setupGlobalSearch() {
     });
 }
 
+/**
+ * Droits d'ECRITURE par profil, et description affichee a l'utilisateur.
+ *
+ * Une seule et meme source pour les deux : le tableau "qui peut quoi" montre
+ * a l'administrateur est CALCULE a partir de cette matrice, il ne peut donc
+ * pas raconter autre chose que ce que l'application applique reellement.
+ * Cote serveur, les memes regles sont posees par RoleMiddleware
+ * (backend/public/index.php) - toute modification doit etre faite des deux
+ * cotes.
+ *
+ * `all: true` = tous les ecrans, administration comprise.
+ */
+const ROLE_MATRIX = {
+    SUPER_ADMIN: {
+        label: 'Super administrateur',
+        summary: "Tous les droits, y compris la gestion des utilisateurs et des parametres.",
+        all: true,
+    },
+    ADMIN: {
+        label: 'Administrateur',
+        summary: "Tous les droits, y compris la gestion des utilisateurs et des parametres.",
+        all: true,
+    },
+    MANAGER: {
+        label: 'Responsable',
+        summary: "Le stock au quotidien, plus les achats et les fournisseurs. Ne gere ni les utilisateurs, ni les parametres, ni le catalogue produit.",
+        modules: ['movements', 'product-serials', 'product-variants', 'deliveries', 'inventories', 'alerts', 'purchase-requests', 'purchase-orders', 'suppliers'],
+    },
+    STOREKEEPER: {
+        label: 'Magasinier',
+        summary: "Tout ce qui touche au stock physique : mouvements, numeros de serie, livraisons, inventaires. Pas d'achats, pas de catalogue, pas d'administration.",
+        modules: ['movements', 'product-serials', 'product-variants', 'deliveries', 'inventories', 'alerts'],
+    },
+    BUYER: {
+        label: 'Acheteur',
+        summary: "Les achats et les tiers : demandes, commandes, fournisseurs, clients. Ne touche pas au stock.",
+        modules: ['suppliers', 'customers', 'purchase-requests', 'purchase-orders'],
+    },
+    // EMPLOYEE est cree par l'installateur : il DOIT figurer ici, sinon un
+    // utilisateur "Employe" tombe dans le cas "profil inconnu" - lecture
+    // seule de fait, mais sans que personne l'ait decide ni annonce.
+    EMPLOYEE: {
+        label: 'Employe',
+        summary: "Consultation uniquement : il voit les ecrans, mais ne peut rien enregistrer. A donner a quelqu'un qui doit juste chercher une reference ou un stock.",
+        modules: [],
+    },
+    VIEWER: {
+        label: 'Lecture seule',
+        summary: "Consultation uniquement : aucun enregistrement n'est possible, sur aucun ecran.",
+        modules: [],
+    },
+};
+
 function canWrite(module) {
     const role = String(state.user?.role ?? '').toUpperCase();
-    if (role === 'SUPER_ADMIN' || role === 'ADMIN') {
-        return true;
+    const profile = ROLE_MATRIX[role];
+    if (!profile) {
+        // Profil inconnu de l'application (ajoute directement en base) :
+        // lecture seule, jamais d'ecriture par defaut.
+        return false;
     }
 
-    const matrix = {
-        BUYER: ['suppliers', 'customers', 'purchase-requests', 'purchase-orders'],
-        STOREKEEPER: ['movements', 'product-serials', 'product-variants', 'deliveries', 'inventories', 'alerts'],
-        MANAGER: ['movements', 'product-serials', 'product-variants', 'deliveries', 'inventories', 'alerts', 'purchase-requests', 'purchase-orders', 'suppliers'],
-    };
+    return profile.all === true || (profile.modules ?? []).includes(module);
+}
 
-    return Boolean(matrix[role]?.includes(module));
+/** Libelle francais d'un code de profil, code brut si inconnu. */
+function roleLabel(code) {
+    const key = String(code ?? '').toUpperCase();
+    return ROLE_MATRIX[key]?.label ?? code;
+}
+
+/**
+ * Tableau "qui peut quoi", affiche sur l'ecran Utilisateurs.
+ *
+ * Sans lui, l'administrateur choisissait un profil dans une liste de codes
+ * techniques (ADMIN, STOREKEEPER...) sans aucune indication de ce que
+ * chacun autorise - donc au jugé.
+ */
+function renderRoleMatrix() {
+    const rows = Object.entries(ROLE_MATRIX).map(([code, profile]) => {
+        const ecrans = profile.all === true
+            ? '<strong>tous les ecrans</strong>'
+            : ((profile.modules ?? []).length === 0
+                ? '<span class="muted">aucun (consultation seule)</span>'
+                : profile.modules.map((module) => sanitize(moduleTitles[module] ?? module)).join(', '));
+
+        return `
+            <tr>
+                <td><strong>${sanitize(profile.label)}</strong><br><code>${sanitize(code)}</code></td>
+                <td>${sanitize(profile.summary)}</td>
+                <td>${ecrans}</td>
+            </tr>`;
+    }).join('');
+
+    return `
+        <section class="panel">
+            <div class="panel-head"><h4>Profils et droits</h4></div>
+            <p class="muted">
+                Tout utilisateur connecte peut CONSULTER les ecrans auxquels il accede ;
+                le tableau ci-dessous liste ce qu'il peut en plus <strong>creer, modifier ou
+                supprimer</strong>. Les memes regles sont appliquees par le serveur : un profil
+                qui n'a pas le droit se voit refuser l'operation meme en contournant l'interface.
+            </p>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead><tr><th>Profil</th><th>En resume</th><th>Ecrans ou il peut enregistrer</th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
+        </section>
+    `;
 }
 
 function setActiveNav(module) {
@@ -1373,6 +1474,7 @@ async function renderCrud(module) {
             ${renderCrudTable(config, rows, writable, module)}
             ${renderPaginationBar(meta, rows.length)}
         </section>
+        ${module === 'users' ? renderRoleMatrix() : ''}
         ${module === 'products' ? '<section class="panel" id="productDetailPane"><h4>Fiche produit</h4><p class="muted">Selectionne un produit pour afficher sa fiche detaillee.</p></section>' : ''}
         ${module === 'product-variants' && writable ? renderVariantGenerator() : ''}
     `;
@@ -1431,6 +1533,7 @@ async function renderCrud(module) {
             setupCategoryDefaultTax(module, form);
             setupScannerFriendlyForm(form);
             setupColorFields(form);
+            setupRoleHint(form);
         });
 
         // IMPORTANT: #appContent (root) n'est jamais recree entre deux rendus du
@@ -1470,6 +1573,7 @@ async function renderCrud(module) {
                 setupCategoryDefaultTax(module, form);
                 setupScannerFriendlyForm(form);
                 setupColorFields(form);
+                setupRoleHint(form);
                 return;
             }
 
@@ -5220,6 +5324,31 @@ function colorField(key, label, value) {
  * porte le name et part dans le formulaire) ; les pastilles ne font que lui
  * donner une valeur, et le code hexadecimal affiche a cote suit.
  */
+/**
+ * Rappelle, sous le champ Profil, ce que le profil choisi autorise.
+ *
+ * Choisir un profil dans une liste de codes sans savoir ce qu'il ouvre ou
+ * ferme, c'est donner des droits au jugé - le detail complet reste dans le
+ * tableau "Profils et droits" de l'ecran.
+ */
+function setupRoleHint(form) {
+    const select = form.elements.namedItem('role');
+    const hint = form.querySelector('#roleHint');
+    if (!select || !hint) {
+        return;
+    }
+
+    const sync = () => {
+        const profile = ROLE_MATRIX[String(select.value ?? '').toUpperCase()];
+        hint.textContent = profile
+            ? profile.summary
+            : (select.value === '' ? '' : "Profil inconnu de l'application : consultation seule, aucun enregistrement.");
+    };
+
+    select.addEventListener('change', sync);
+    sync();
+}
+
 function setupColorFields(form) {
     form.querySelectorAll('[data-color-input]').forEach((input) => {
         const key = input.getAttribute('data-color-input');
@@ -5269,7 +5398,20 @@ function buildFormFields(fields, item = null, editing = false) {
             // Les options statiques (field.options) sont au format {value,label} ;
             // les options issues des lookups (field.optionsFrom) sont au format {id,...}.
             const defaultOptionValue = field.options ? 'value' : 'id';
-            return selectField(field.key, field.label, resolveOptions(field), field.optionValue ?? defaultOptionValue, field.optionLabel ?? 'label', required, value);
+            return selectField(
+                field.key,
+                field.label,
+                resolveOptions(field),
+                field.optionValue ?? defaultOptionValue,
+                field.optionLabel ?? 'label',
+                required,
+                value,
+                field.localizeOptions ?? null,
+                // L'aide doit etre A L'INTERIEUR du <label> : placee apres, la
+                // grille du formulaire en faisait une cellule a part, affichee
+                // sous un tout autre champ.
+                field.key === 'role' ? '<small class="field-hint" id="roleHint"></small>' : ''
+            );
         }
 
         if (field.type === 'multiselect') {
@@ -5364,10 +5506,11 @@ function resolveOptions(field) {
     return (state.lookups?.[field.optionsFrom] ?? []);
 }
 
-function selectField(name, label, options, optionValue, optionLabel, required = false, selectedValue = '') {
+function selectField(name, label, options, optionValue, optionLabel, required = false, selectedValue = '', localize = null, hint = '') {
     const opts = options.map((option) => {
         const value = String(option[optionValue]);
-        const text = sanitize(option[optionLabel] ?? option.label ?? option.code ?? value);
+        const raw = option[optionLabel] ?? option.label ?? option.code ?? value;
+        const text = sanitize(localize === 'role' ? roleLabel(raw) : raw);
         const selected = selectedValue !== '' && value === String(selectedValue) ? 'selected' : '';
         return `<option value="${sanitize(value)}" ${selected}>${text}</option>`;
     }).join('');
@@ -5379,6 +5522,7 @@ function selectField(name, label, options, optionValue, optionLabel, required = 
                 <option value="">Choisir</option>
                 ${opts}
             </select>
+            ${hint}
         </label>
     `;
 }
@@ -5925,10 +6069,13 @@ const VALUE_LABELS = {
     // Types de piece jointe
     IMAGE: 'Image',
     DOCUMENT: 'Document',
-    // Profils utilisateur
+    // Profils utilisateur (memes libelles que ROLE_MATRIX, qui fait foi)
+    SUPER_ADMIN: 'Super administrateur',
     ADMIN: 'Administrateur',
     MANAGER: 'Responsable',
     STOREKEEPER: 'Magasinier',
+    BUYER: 'Acheteur',
+    EMPLOYEE: 'Employe',
     VIEWER: 'Lecture seule',
 };
 
