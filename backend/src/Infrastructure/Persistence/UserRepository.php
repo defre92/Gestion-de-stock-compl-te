@@ -100,7 +100,18 @@ final class UserRepository extends PdoCrudRepository implements UserRepositoryIn
         return $result ?: null;
     }
 
-    protected function buildWhere(array $filters): array
+    /**
+     * Meme signature que la methode parente, prefixe par defaut 'u.'.
+     *
+     * La requete de cette classe nomme sa table `u` : sans prefixe, une
+     * colonne comme `role_id` serait ambigue une fois la jointure sur les
+     * roles ajoutee. Le parametre $prefix DOIT figurer ici meme s'il est
+     * rarement utilise : une methode fille dont la signature differe de la
+     * methode parente provoque une erreur fatale PHP au CHARGEMENT de la
+     * classe - donc sur toutes les routes de l'API a la fois, pas seulement
+     * sur l'ecran Utilisateurs.
+     */
+    protected function buildWhere(array $filters, string $prefix = 'u.'): array
     {
         $clauses = [];
         $params = [];
@@ -111,7 +122,7 @@ final class UserRepository extends PdoCrudRepository implements UserRepositoryIn
             }
 
             $token = ':f_' . $key;
-            $clauses[] = 'u.' . $key . ' = ' . $token;
+            $clauses[] = $prefix . $key . ' = ' . $token;
             $params[$token] = $value;
         }
 

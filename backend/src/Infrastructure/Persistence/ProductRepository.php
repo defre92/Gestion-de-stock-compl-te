@@ -542,7 +542,16 @@ final class ProductRepository extends PdoCrudRepository
         }
     }
 
-    protected function buildWhere(array $filters): array
+    /**
+     * Meme signature que la methode parente, prefixe par defaut 'p.'.
+     *
+     * Le parametre $prefix DOIT figurer ici meme s'il n'est pas utilise :
+     * une methode fille dont la signature differe de la methode parente
+     * provoque une erreur fatale PHP au CHARGEMENT de la classe - donc sur
+     * TOUTES les routes de l'API a la fois, et sans aucun message
+     * exploitable cote navigateur.
+     */
+    protected function buildWhere(array $filters, string $prefix = 'p.'): array
     {
         $clauses = [];
         $params = [];

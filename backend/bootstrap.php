@@ -39,3 +39,63 @@ set_exception_handler(static function (Throwable $exception) use ($appConfig): v
 
     echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 });
+
+/**
+ * Filet de securite pour les erreurs que le gestionnaire d'exceptions ne voit
+ * PAS : erreur de syntaxe, fichier manquant, signature de methode
+ * incompatible avec la classe parente... Ces erreurs-la surviennent au
+ * CHARGEMENT du code, donc avant tout code applicatif, et PHP se contentait
+ * de renvoyer une reponse VIDE avec un code 500. Cote navigateur :
+ * "Erreur interne du serveur" sur toutes les routes a la fois, et rien pour
+ * comprendre - meme avec APP_DEBUG=1.
+ *
+ * Desormais : le detail part dans backend/storage/logs/php-error.log (a
+ * envoyer au support), et la reponse JSON dit ou regarder. Le detail complet
+ * n'est renvoye au navigateur que si APP_DEBUG=1.
+ */
+register_shutdown_function(static function () use ($appConfig): void {
+    $error = error_get_last();
+    if ($error === null || !in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+        return;
+    }
+
+    $line = sprintf(
+        "[%s] %s dans %s:%d%s",
+        date('Y-m-d H:i:s'),
+        $error['message'],
+        $error['file'],
+        $error['line'],
+        PHP_EOL
+    );
+
+    $logDir = __DIR__ . '/storage/logs';
+    if (is_dir($logDir) || @mkdir($logDir, 0775, true)) {
+        @file_put_contents($logDir . '/php-error.log', $line, FILE_APPEND);
+    }
+
+    if (PHP_SAPI === 'cli') {
+        fwrite(STDERR, '[FATAL] ' . $error['message'] . PHP_EOL);
+        return;
+    }
+
+    if (headers_sent()) {
+        return;
+    }
+
+    http_response_code(500);
+    header('Content-Type: application/json; charset=utf-8');
+
+    $payload = [
+        'message' => 'Erreur fatale du serveur. Detail enregistre dans backend/storage/logs/php-error.log.',
+    ];
+
+    if ($appConfig['debug']) {
+        $payload['fatal'] = [
+            'message' => $error['message'],
+            'file' => $error['file'],
+            'line' => $error['line'],
+        ];
+    }
+
+    echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+});

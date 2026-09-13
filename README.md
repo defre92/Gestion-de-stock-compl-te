@@ -613,6 +613,53 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+## Incident : toute l'API en erreur 500 (signatures de methodes)
+
+Symptome : **toutes** les routes de l'API repondent 500 en meme temps
+(`/auth/me`, `/lookups/options`, `/settings`, `/dashboard/stats`...), la page
+affiche "Le dashboard n'a pas pu etre charge", et la reponse du serveur est
+**vide** - aucun message, meme avec `APP_DEBUG=1`.
+
+**Cause** : `PdoCrudRepository::buildWhere()` a recu un parametre
+supplementaire (`string $prefix = ''`, pour les jointures de libelles), sans
+que les classes filles qui redefinissent cette methode soient mises a jour.
+En PHP, une methode fille dont la signature differe de la methode parente est
+une **erreur fatale au chargement de la classe** : elle survient avant tout
+code applicatif, donc sur toutes les routes a la fois. `ProductRepository` et
+`ProductVariantRepository` etaient concernes (`UserRepository` avait deja ete
+corrige).
+
+**Pourquoi `php -l` ne l'a pas vu** : `php -l` verifie la SYNTAXE d'un fichier
+isole. Une incompatibilite entre une classe et son parent ne se voit qu'au
+chargement des deux classes ensemble, donc a l'execution.
+
+### Ce qui a ete mis en place pour que ca ne se reproduise pas
+
+- **Filet de securite dans `backend/bootstrap.php`**
+  (`register_shutdown_function`) : les erreurs que le gestionnaire
+  d'exceptions ne voit pas - syntaxe, fichier manquant, signature
+  incompatible - renvoient desormais un JSON explicite
+  (`Erreur fatale du serveur. Detail enregistre dans
+  backend/storage/logs/php-error.log`) et sont **journalisees** avec fichier
+  et numero de ligne. Avec `APP_DEBUG=1`, le detail figure aussi dans la
+  reponse. Fini le 500 muet.
+- **Verification de paquet par appel reel de l'API** : avant livraison, le
+  paquet est demarre et une vingtaine de routes sont appelees (connexion,
+  lookups, reglages, tableau de bord, produits, variantes, mouvements,
+  numeros de serie, achats, livraisons, inventaires, tags, utilisateurs,
+  imports). Un `php -l` vert ne suffit pas : seule l'execution reelle revele
+  ce genre de panne.
+
+### Si l'ecran affiche de nouveau une erreur generale
+
+1. Ouvrir `backend/storage/logs/php-error.log` : la derniere ligne nomme le
+   fichier et la ligne fautifs.
+2. A defaut, passer `APP_DEBUG=1` dans `backend/.env`, recharger, lire le
+   detail dans la reponse - **puis remettre `APP_DEBUG=0`**.
+3. Verifier que le deploiement est complet : un seul fichier oublie
+   (ex: une classe ajoutee par une mise a jour) produit exactement le meme
+   symptome.
+
 ## Zones et emplacements : ce que chacun fait, et ou il apparait
 
 Rappel du modele, qui expliquait a lui seul plusieurs surprises : **une zone

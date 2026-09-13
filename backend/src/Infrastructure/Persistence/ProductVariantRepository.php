@@ -74,7 +74,16 @@ final class ProductVariantRepository extends PdoCrudRepository
         ];
     }
 
-    protected function buildWhere(array $filters): array
+    /**
+     * Meme signature que la methode parente, prefixe par defaut 'v.'.
+     *
+     * Le parametre $prefix DOIT figurer ici meme s'il n'est pas utilise :
+     * une methode fille dont la signature differe de la methode parente
+     * provoque une erreur fatale PHP au CHARGEMENT de la classe - donc sur
+     * TOUTES les routes de l'API a la fois, et sans aucun message
+     * exploitable cote navigateur.
+     */
+    protected function buildWhere(array $filters, string $prefix = 'v.'): array
     {
         $clauses = [];
         $params = [];
@@ -85,7 +94,7 @@ final class ProductVariantRepository extends PdoCrudRepository
             }
 
             $token = ':f_' . $key;
-            $clauses[] = 'v.' . $key . ' = ' . $token;
+            $clauses[] = $prefix . $key . ' = ' . $token;
             $params[$token] = $value;
         }
 
