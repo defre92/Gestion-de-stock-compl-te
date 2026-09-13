@@ -17,4 +17,9 @@ final class CategoryRepository extends PdoCrudRepository
     ];
     protected array $filterable = ['name', 'parent_id', 'default_tax_id'];
     protected string $lookupOrderColumn = 'name';
+
+    /** Affiche le nom de la categorie parente plutot que son identifiant. */
+    protected array $listLookups = [
+        'parent_id' => ['table' => 'categories', 'column' => 'name', 'as' => 'parent_name'],
+    ];
 }

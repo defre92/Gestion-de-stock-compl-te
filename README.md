@@ -613,6 +613,45 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+## Zones et emplacements : ce que chacun fait, et ou il apparait
+
+Rappel du modele, qui expliquait a lui seul plusieurs surprises : **une zone
+ne stocke rien**. C'est l'**emplacement** qui porte le stock, les numeros de
+serie et les mouvements ; la zone ne sert qu'a regrouper des emplacements.
+Une zone sans aucun emplacement n'est donc proposee nulle part a la saisie -
+et rien ne le disait, d'ou l'impression qu'elle "n'apparait pas".
+
+- **L'ecran Zones affiche desormais le nombre d'emplacements** de chaque
+  zone, et signale en rouge `0 - zone inutilisable a la saisie`. Le probleme
+  se voit d'un coup d'oeil au lieu d'etre decouvert au moment d'enregistrer
+  un numero de serie.
+- **Toutes les listes deroulantes d'emplacement sont regroupees par zone** :
+  le nom de la zone apparait en intitule de groupe, au-dessus de ses
+  emplacements ("Reception : A1 - Allee 1, A2 - Allee 2"). Elles n'affichaient
+  que des codes (C1, C2...), les zones semblaient absentes de l'application.
+  Applique partout : mouvements, fiche produit, numeros de serie, comptage
+  d'inventaire. Les emplacements sans zone sont regroupes sous "Hors zone",
+  en fin de liste.
+- **Le filtre des listes longues cherche aussi dans le nom de la zone** :
+  taper "reception" remonte les emplacements de cette zone, et le nom de la
+  zone reste rappele a cote de chaque ligne filtree.
+- **Message adapte quand l'entrepot n'a que des zones** : "Aucun emplacement
+  (2 zone(s) definie(s)) - une zone ne se choisit pas ici, cree un
+  emplacement par zone dans Logistique > Emplacements". Si tu ne raisonnes
+  qu'en zones, la marche a suivre est donc : un emplacement par zone, portant
+  le meme nom.
+
+L'ecran Emplacements, lui, affiche deja le **nom** de la zone (et non son
+identifiant) ainsi que la description : si ta liste montre encore `1`, `2`,
+`3` dans la colonne Zone et aucune description, c'est le **cache du
+navigateur** qui sert une ancienne version - voir la section sur les assets
+versionnes ci-dessous.
+
+**Verifie** : ecran Emplacements (zone nommee + description, "aucune zone"
+pour un emplacement orphelin) ; ecran Zones (comptage exact, alerte sur la
+zone vide) ; listes deroulantes groupees dans les mouvements et les numeros
+de serie ; message specifique sur un entrepot qui n'a que des zones.
+
 ## Catalogue produit : plus de defilement horizontal
 
 Le tableau des produits comptait **dix-sept colonnes** : il depassait la

@@ -84,7 +84,9 @@ const crudModules = {
         columns: [
             { key: 'id', label: 'ID' },
             { key: 'name', label: 'Nom' },
-            { key: 'parent_id', label: 'Parent' },
+            // Le nom de la categorie parente, pas son identifiant : "Parent : 3"
+            // obligeait a aller verifier a quoi correspond le 3.
+            { key: 'parent_name', label: 'Parent', format: (value) => (value ? sanitize(value) : '<span class="muted">-</span>') },
             { key: 'updated_at', label: 'Maj' },
         ],
     },
@@ -400,10 +402,19 @@ const crudModules = {
             { key: 'name', label: 'Nom', type: 'text', required: true },
         ],
         columns: [
-            { key: 'id', label: 'ID' },
-            { key: 'warehouse_id', label: 'Entrepot' },
+            { key: 'id', label: 'ID', secondary: true },
+            { key: 'warehouse_name', label: 'Entrepot' },
             { key: 'code', label: 'Code' },
             { key: 'name', label: 'Nom' },
+            // Une zone ne stocke rien par elle-meme : le stock, les numeros de
+            // serie et les mouvements sont portes par les EMPLACEMENTS. Une
+            // zone sans emplacement n'est donc proposee nulle part a la
+            // saisie, ce que rien n'indiquait.
+            { key: 'location_count', label: 'Emplacements', format: (value) => (
+                Number(value ?? 0) > 0
+                    ? String(Number(value))
+                    : '<span class="feedback is-error" style="padding:0">0 - zone inutilisable a la saisie</span>'
+            ) },
         ],
     },
     'warehouse-locations': {
@@ -421,11 +432,13 @@ const crudModules = {
             ] },
         ],
         columns: [
-            { key: 'id', label: 'ID' },
-            { key: 'warehouse_id', label: 'Entrepot' },
-            { key: 'zone_id', label: 'Zone' },
+            { key: 'id', label: 'ID', secondary: true },
+            { key: 'warehouse_name', label: 'Entrepot' },
+            { key: 'zone_name', label: 'Zone', format: (value) => (value ? sanitize(value) : '<span class="muted">aucune zone</span>') },
             { key: 'code', label: 'Code' },
+            { key: 'description', label: 'Description' },
             { key: 'capacity', label: 'Capacite' },
+            { key: 'is_active', label: 'Actif', format: (v) => (Number(v) === 1 ? 'Oui' : 'Non') },
         ],
     },
     users: {
@@ -5593,19 +5606,56 @@ function fillLocationOptions(select, warehouseId, selectedValue = '') {
     }
 
     select.disabled = false;
+
     // Message explicite plutot qu'une liste vide : un entrepot sans
     // emplacement n'est pas une anomalie, mais l'utilisateur doit savoir ou
-    // aller en creer plutot que de croire a un dysfonctionnement.
-    select.innerHTML = locations.length === 0
-        ? '<option value="">Aucun emplacement dans cet entrepot - a creer dans Logistique &gt; Emplacements</option>'
-        : '<option value="">Non precise</option>' + locations
-            .map((location) => {
-                const label = location.description
-                    ? `${location.code} - ${location.description}`
-                    : location.code;
-                return `<option value="${Number(location.id)}" ${String(location.id) === String(selectedValue) ? 'selected' : ''}>${sanitize(label)}</option>`;
-            })
-            .join('');
+    // aller en creer plutot que de croire a un dysfonctionnement. Le cas le
+    // plus trompeur est celui de l'utilisateur qui n'a cree que des ZONES :
+    // elles n'apparaissent nulle part a la saisie, puisque c'est
+    // l'emplacement qui porte le stock. Le message le dit.
+    if (locations.length === 0) {
+        const zoneCount = (state.lookups?.warehouse_zones ?? [])
+            .filter((zone) => String(zone.warehouse_id) === String(warehouseId)).length;
+        select.innerHTML = zoneCount > 0
+            ? `<option value="">Aucun emplacement (${zoneCount} zone(s) definie(s)) - une zone ne se choisit pas ici, cree un emplacement par zone dans Logistique &gt; Emplacements</option>`
+            : '<option value="">Aucun emplacement dans cet entrepot - a creer dans Logistique &gt; Emplacements</option>';
+        return;
+    }
+
+    const optionFor = (location) => {
+        const label = location.description
+            ? `${location.code} - ${location.description}`
+            : location.code;
+        return `<option value="${Number(location.id)}" ${String(location.id) === String(selectedValue) ? 'selected' : ''}>${sanitize(label)}</option>`;
+    };
+
+    // Regroupement par zone : le nom de la zone apparait comme intitule de
+    // groupe. Sans lui, la liste n'affichait que des codes d'emplacement
+    // (C1, C2...) et les zones semblaient absentes de l'application.
+    const zones = state.lookups?.warehouse_zones ?? [];
+    const zoneNameById = new Map(zones.map((zone) => [String(zone.id), zone.name ?? zone.code]));
+
+    const grouped = new Map();
+    for (const location of locations) {
+        const key = location.zone_id ? String(location.zone_id) : '';
+        if (!grouped.has(key)) {
+            grouped.set(key, []);
+        }
+        grouped.get(key).push(location);
+    }
+
+    const groups = [...grouped.entries()]
+        .map(([zoneId, rows]) => ({
+            label: zoneId === '' ? 'Hors zone' : (zoneNameById.get(zoneId) ?? 'Zone ' + zoneId),
+            rows,
+            orphan: zoneId === '',
+        }))
+        // Les emplacements sans zone en dernier, le reste par nom de zone.
+        .sort((a, b) => (a.orphan === b.orphan ? a.label.localeCompare(b.label, 'fr') : (a.orphan ? 1 : -1)));
+
+    select.innerHTML = '<option value="">Non precise</option>' + groups
+        .map((group) => `<optgroup label="${sanitize(group.label)}">${group.rows.map(optionFor).join('')}</optgroup>`)
+        .join('');
 }
 
 function makeSelectSearchable(select) {
@@ -5613,11 +5663,20 @@ function makeSelectSearchable(select) {
         return;
     }
 
-    const options = Array.from(select.options).map((option) => ({
-        value: option.value,
-        label: option.textContent ?? '',
-        normalized: searchNormalize(option.textContent),
-    }));
+    // L'intitule du groupe (ex: le nom de la zone d'un emplacement) fait
+    // partie de ce qu'on cherche : taper "reception" doit remonter les
+    // emplacements de la zone Reception. Comme le filtrage reconstruit une
+    // liste a plat, le nom du groupe est aussi rappele dans le libelle
+    // affiche - sinon on ne saurait plus de quelle zone vient chaque ligne.
+    const options = Array.from(select.options).map((option) => {
+        const group = option.parentElement instanceof HTMLOptGroupElement ? option.parentElement.label : '';
+        const text = option.textContent ?? '';
+        return {
+            value: option.value,
+            label: group !== '' && option.value !== '' ? `${text} - ${group}` : text,
+            normalized: searchNormalize(group !== '' ? `${text} ${group}` : text),
+        };
+    });
 
     if (options.length <= SEARCHABLE_SELECT_THRESHOLD) {
         return;

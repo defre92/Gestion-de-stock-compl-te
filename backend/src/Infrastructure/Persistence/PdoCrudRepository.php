@@ -25,6 +25,21 @@ abstract class PdoCrudRepository implements CrudRepositoryInterface
      */
     protected string $lookupOrderColumn = 'id';
 
+    /**
+     * Libelles a ramener a la place des identifiants bruts, dans les listes.
+     *
+     * Un tableau qui affiche "Zone : 2" ne dit rien a personne : il faut aller
+     * verifier a quoi correspond le 2. On declare donc ici les cles etrangeres
+     * a resoudre, et paginate() ajoute la jointure correspondante.
+     *
+     * Format : 'colonne_id' => ['table' => 'zones', 'column' => 'name',
+     * 'as' => 'zone_name']. Ces valeurs sont ecrites dans le code, jamais
+     * issues d'une requete HTTP.
+     *
+     * @var array<string, array{table: string, column: string, as: string}>
+     */
+    protected array $listLookups = [];
+
     public function __construct()
     {
         $this->pdo = Database::connection();
@@ -36,13 +51,28 @@ abstract class PdoCrudRepository implements CrudRepositoryInterface
         $perPage = max(1, min(100, $perPage));
         $offset = ($page - 1) * $perPage;
 
-        [$whereSql, $params] = $this->buildWhere($filters);
+        [$whereSql, $params] = $this->buildWhere($filters, 't.');
 
-        $countStmt = $this->pdo->prepare("SELECT COUNT(*) FROM {$this->table} {$whereSql}");
+        $countStmt = $this->pdo->prepare("SELECT COUNT(*) FROM {$this->table} t {$whereSql}");
         $countStmt->execute($params);
         $total = (int)$countStmt->fetchColumn();
 
-        $stmt = $this->pdo->prepare("SELECT * FROM {$this->table} {$whereSql} ORDER BY id DESC LIMIT :limit OFFSET :offset");
+        // Jointures declarees par la classe fille (voir $listLookups) : la
+        // liste renvoie le libelle a cote de l'identifiant, sans que chaque
+        // referentiel ait a reecrire sa propre requete.
+        $joins = '';
+        $selects = ['t.*'];
+        $index = 0;
+        foreach ($this->listLookups as $column => $lookup) {
+            $alias = 'j' . $index++;
+            $joins .= " LEFT JOIN {$lookup['table']} {$alias} ON {$alias}.id = t.{$column}";
+            $selects[] = "{$alias}.{$lookup['column']} AS {$lookup['as']}";
+        }
+        $selectSql = implode(', ', $selects);
+
+        $stmt = $this->pdo->prepare(
+            "SELECT {$selectSql} FROM {$this->table} t{$joins} {$whereSql} ORDER BY t.id DESC LIMIT :limit OFFSET :offset"
+        );
         foreach ($params as $key => $value) {
             $stmt->bindValue($key, $value);
         }
@@ -156,7 +186,13 @@ abstract class PdoCrudRepository implements CrudRepositoryInterface
     }
 
     /** @return array{0: string, 1: array<string, mixed>} */
-    protected function buildWhere(array $filters): array
+    /**
+     * @param string $prefix prefixe de table ('t.') quand la requete fait des
+     *        jointures : sans lui, un filtre sur warehouse_id serait ambigu
+     *        entre la table principale et une table jointe qui porte la meme
+     *        colonne, et MySQL refuserait la requete.
+     */
+    protected function buildWhere(array $filters, string $prefix = ''): array
     {
         $clauses = [];
         $params = [];
@@ -167,7 +203,7 @@ abstract class PdoCrudRepository implements CrudRepositoryInterface
             }
 
             $token = ':f_' . $key;
-            $clauses[] = "{$key} = {$token}";
+            $clauses[] = "{$prefix}{$key} = {$token}";
             $params[$token] = $value;
         }
 
