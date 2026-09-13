@@ -613,6 +613,66 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+## Catalogue produit : plus de defilement horizontal
+
+Le tableau des produits comptait **dix-sept colonnes** : il depassait la
+largeur de l'ecran et imposait une barre de defilement horizontale, donc on
+ne lisait jamais une ligne en entier. Mesure avant correction, sur un ecran
+de 1366 px : la page reclamait **1687 px**.
+
+- Les colonnes secondaires sont **masquees par defaut** (`secondary: true`) :
+  ID, code barre, marque, unite, TVA, valorisation, variantes. Restent celles
+  qu'on parcourt des yeux - SKU, nom, categorie, fournisseur, stock, prix,
+  actif, emplacements, tags. Un bouton **"Toutes les colonnes"** les ramene
+  toutes, et elles figurent de toute facon sur la fiche du produit.
+- `min-width: 700px` retiree du tableau : cette valeur figee forcait un
+  defilement des que l'ecran etait plus etroit.
+- `min-width: 0` sur `.table-wrap`, `.panel`, `.content-panel` et
+  `.workspace`. **C'est la correction de fond** : un enfant de flex/grid
+  refuse par defaut de devenir plus etroit que son contenu
+  (`min-width: auto`), donc un tableau large poussait TOUTE LA PAGE au lieu
+  de defiler dans son propre cadre.
+- Les textes longs reviennent a la ligne (`overflow-wrap: break-word`, et non
+  `anywhere`, qui coupait au milieu des mots et separait le montant de son
+  symbole).
+- Les filtres de la barre d'outils ne s'etirent plus sur toute la largeur
+  (ils heritaient du `width: 100%` des formulaires) et tiennent sur une
+  ligne.
+
+**Mesure apres correction**, dans un navigateur reel (Chromium), sur la liste
+produit et sur la fiche produit ouverte (5 tableaux), a 1280, 1366 et 1600 px
+de large : **aucun debordement de page, aucune barre horizontale**. En vue
+"Toutes les colonnes", le seul tableau trop large defile dans son propre
+cadre sans entrainer la page - comportement attendu pour un choix explicite.
+
+## Couleur d'un tag : palette, pas hexadecimal
+
+Le champ couleur d'un tag propose **douze pastilles nommees** (Rouge, Orange,
+Ambre, Jaune, Vert, Emeraude, Cyan, Bleu, Indigo, Violet, Rose, Gris), la
+pipette du navigateur pour une teinte libre, et le code hexadecimal affiche
+a cote **en lecture** - utile pour reproduire une couleur de charte, mais
+plus personne n'a a le taper. La couleur par defaut d'un nouveau tag est
+`#6366f1` et non le noir du champ natif.
+
+Le libelle du badge passe automatiquement en noir ou en blanc selon la
+luminance du fond (formule WCAG) : sur un jaune ou un cyan clair, un texte
+blanc devenait illisible.
+
+### Si l'ecran n'affiche pas la derniere version
+
+Les fichiers `app-clean.js` et `clean.css` etaient references **sans numero
+de version** : apres une mise a jour, le navigateur continuait de servir sa
+copie en cache. L'application deployee etait la nouvelle, l'ecran affichait
+l'ancien comportement, sans le moindre message - et il fallait penser a vider
+le cache. Leur URL porte desormais la date de modification du fichier
+(`assetUrl()`), le navigateur recharge donc de lui-meme des que le fichier
+change.
+
+Reserve : un module importe depuis un fichier JS (`http-client.js`, importe
+par `app-clean.js`) garde une URL ecrite dans le code JavaScript et ne passe
+pas par ce mecanisme. Ces fichiers changent rarement ; en cas de doute apres
+une mise a jour, un rechargement force (Ctrl+F5) suffit.
+
 ## Transfert interne : deplacer un article d'un emplacement a un autre
 
 Depuis que le stock est suivi par emplacement, ranger une palette de l'allee

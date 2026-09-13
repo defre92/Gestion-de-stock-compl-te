@@ -19,6 +19,8 @@ const state = {
     // sans aucun moyen de voir les suivants.
     crudPages: {},
     crudPerPage: 25,
+    // Vue "toutes les colonnes" par module (voir visibleColumns).
+    allColumns: {},
     // Vue courante des deux ecrans d'achat : 'open' = ce qu'il reste a
     // traiter (defaut), 'archived' = ce qui est termine (demandes converties
     // ou refusees, commandes recues ou annulees). Sans ca, une demande
@@ -146,12 +148,17 @@ const crudModules = {
         label: 'tag',
         fields: [
             { key: 'name', label: 'Nom', type: 'text', required: true },
-            { key: 'color', label: 'Couleur', type: 'text' },
+            // Palette de pastilles + pipette : saisir "#6366f1" a la main
+            // n'a aucun sens pour un utilisateur qui veut juste "du rouge".
+            { key: 'color', label: 'Couleur', type: 'color', defaultValue: '#6366f1' },
         ],
         columns: [
             { key: 'id', label: 'ID' },
             { key: 'name', label: 'Nom' },
-            { key: 'color', label: 'Couleur' },
+            // Apercu du tag tel qu'il apparaitra sur une fiche produit,
+            // plutot que le code hexadecimal brut : "#6366f1" ne dit rien a
+            // personne, une pastille coloree se lit d'un coup d'oeil.
+            { key: 'color', label: 'Couleur', format: (value, row) => renderTagBadges([{ name: row.name, color: value }]) },
         ],
     },
     suppliers: {
@@ -254,23 +261,30 @@ const crudModules = {
 
             return fields;
         },
+        // `secondary: true` = colonne masquee par defaut. Avec dix-sept
+        // colonnes, le tableau depassait la largeur de l'ecran et imposait une
+        // barre de defilement horizontale : on ne lisait jamais une ligne en
+        // entier. Les colonnes gardees sont celles qu'on parcourt des yeux
+        // (quoi, combien, ou, a quel prix) ; les autres restent accessibles
+        // d'un clic sur "Toutes les colonnes", et figurent de toute facon sur
+        // la fiche du produit.
         columns: [
-            { key: 'id', label: 'ID' },
+            { key: 'id', label: 'ID', secondary: true },
             { key: 'sku', label: 'SKU' },
-            { key: 'barcode', label: 'Code barre' },
+            { key: 'barcode', label: 'Code barre', secondary: true },
             { key: 'name', label: 'Nom' },
             { key: 'category_name', label: 'Categorie' },
-            { key: 'brand_name', label: 'Marque' },
-            { key: 'unit_code', label: 'Unite' },
+            { key: 'brand_name', label: 'Marque', secondary: true },
+            { key: 'unit_code', label: 'Unite', secondary: true },
             { key: 'supplier_name', label: 'Fournisseur' },
             { key: 'stock_total', label: 'Stock' },
             { key: 'unit_price', label: 'Prix', format: (value) => formatMoney(value) },
-            { key: 'tax_rate', label: 'TVA', format: (value) => (value !== null && value !== undefined ? `${Number(value)}%` : '-') },
-            { key: 'valuation_method', label: 'Valorisation' },
+            { key: 'tax_rate', label: 'TVA', secondary: true, format: (value) => (value !== null && value !== undefined ? `${Number(value)}%` : '-') },
+            { key: 'valuation_method', label: 'Valorisation', secondary: true },
             { key: 'is_active', label: 'Actif', format: (v) => (Number(v) === 1 ? 'Oui' : 'Non') },
             // Ou aller chercher l'article, sans ouvrir sa fiche.
             { key: 'location_summary', label: 'Emplacements', format: (value) => (value ? sanitize(value) : '<span class="muted">non range</span>') },
-            { key: 'has_variants', label: 'Variantes', format: (v) => (Number(v) === 1 ? 'Oui' : 'Non') },
+            { key: 'has_variants', label: 'Variantes', secondary: true, format: (v) => (Number(v) === 1 ? 'Oui' : 'Non') },
             { key: 'tags', label: 'Tags', format: (value) => renderTagBadges(value) },
         ],
     },
@@ -1333,6 +1347,9 @@ async function renderCrud(module) {
                     ${module === 'products' ? `<select id="productWarehouseFilter"><option value="">Tous les entrepots</option>${warehouseFilterOptions}</select>` : ''}
                     ${module === 'products' ? `<select id="productTagFilter"><option value="">Tous les tags</option>${tagFilterOptions}</select>` : ''}
                     ${module === 'products' ? '<button class="btn btn-soft" id="clearProductSearch">Effacer filtres</button>' : ''}
+                    ${config.columns.some((column) => column.secondary)
+                        ? `<button class="btn btn-soft" id="toggleColumnsBtn">${state.allColumns[module] ? 'Colonnes essentielles' : 'Toutes les colonnes'}</button>`
+                        : ''}
                     ${writable ? '<button class="btn btn-primary" id="createBtn">Nouveau</button>' : ''}
                 </div>
             </div>
@@ -1385,6 +1402,11 @@ async function renderCrud(module) {
     }
 
     if (writable) {
+        document.getElementById('toggleColumnsBtn')?.addEventListener('click', async () => {
+            state.allColumns[module] = !state.allColumns[module];
+            await renderCrud(module);
+        });
+
         const createBtn = document.getElementById('createBtn');
 
         createBtn?.addEventListener('click', () => {
@@ -1395,6 +1417,7 @@ async function renderCrud(module) {
             form.innerHTML = buildFormFields(config.fields, null, false) + formActions();
             setupCategoryDefaultTax(module, form);
             setupScannerFriendlyForm(form);
+            setupColorFields(form);
         });
 
         // IMPORTANT: #appContent (root) n'est jamais recree entre deux rendus du
@@ -1433,6 +1456,7 @@ async function renderCrud(module) {
                 form.innerHTML = buildFormFields(config.fields, item, true) + formActions();
                 setupCategoryDefaultTax(module, form);
                 setupScannerFriendlyForm(form);
+                setupColorFields(form);
                 return;
             }
 
@@ -4965,12 +4989,29 @@ function setupPurchaseScopeToggle(module, rerender) {
     });
 }
 
+/**
+ * Colonnes reellement affichees pour un module.
+ *
+ * Une colonne `secondary` n'apparait que si l'utilisateur a demande la vue
+ * complete. Par defaut le tableau tient dans la largeur de l'ecran, ce qui
+ * compte davantage que de tout montrer : une barre de defilement horizontale
+ * cache la moitie des colonnes sans le dire.
+ */
+function visibleColumns(config, module) {
+    if (state.allColumns[module]) {
+        return config.columns;
+    }
+
+    return config.columns.filter((column) => !column.secondary);
+}
+
 function renderCrudTable(config, rows, canWrite, module = '') {
     // Tableau principal avec actions selon les droits.
-    const headerCells = config.columns.map((column) => `<th>${column.label}</th>`).join('');
+    const columns = visibleColumns(config, module);
+    const headerCells = columns.map((column) => `<th>${column.label}</th>`).join('');
 
     const rowCells = rows.map((row) => {
-        const cells = config.columns.map((column) => {
+        const cells = columns.map((column) => {
             const value = row[column.key];
             const display = column.format ? column.format(value, row) : sanitize(localizeValue(value, column.key));
             return `<td>${display}</td>`;
@@ -5087,6 +5128,113 @@ function setupScannerFriendlyForm(form) {
     });
 }
 
+// Palette proposee par defaut pour les tags. Douze teintes franches et
+// distinctes les unes des autres : un utilisateur choisit une couleur en un
+// clic, sans avoir a connaitre la notation hexadecimale. Le selecteur de
+// couleur du navigateur reste disponible a cote pour une teinte precise.
+const COLOR_PRESETS = [
+    { value: '#ef4444', label: 'Rouge' },
+    { value: '#f97316', label: 'Orange' },
+    { value: '#f59e0b', label: 'Ambre' },
+    { value: '#eab308', label: 'Jaune' },
+    { value: '#22c55e', label: 'Vert' },
+    { value: '#10b981', label: 'Emeraude' },
+    { value: '#06b6d4', label: 'Cyan' },
+    { value: '#3b82f6', label: 'Bleu' },
+    { value: '#6366f1', label: 'Indigo' },
+    { value: '#a855f7', label: 'Violet' },
+    { value: '#ec4899', label: 'Rose' },
+    { value: '#64748b', label: 'Gris' },
+];
+
+const DEFAULT_TAG_COLOR = '#6366f1';
+
+/** '#abc' / 'ABCDEF' / valeur libre -> '#aabbcc', ou null si inexploitable. */
+function normalizeHexColor(value) {
+    const raw = String(value ?? '').trim();
+    const match = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(raw);
+    if (!match) {
+        return null;
+    }
+
+    const hex = match[1].length === 3
+        ? match[1].split('').map((char) => char + char).join('')
+        : match[1];
+
+    return '#' + hex.toLowerCase();
+}
+
+/**
+ * Noir ou blanc, selon ce qui reste lisible sur la couleur donnee.
+ *
+ * Le badge etait toujours en texte blanc : sur un jaune ou un cyan clair, le
+ * libelle devenait illisible. Formule de luminance relative (WCAG).
+ */
+function readableTextColor(hexColor) {
+    const hex = normalizeHexColor(hexColor) ?? DEFAULT_TAG_COLOR;
+    const channel = (start) => {
+        const value = parseInt(hex.slice(start, start + 2), 16) / 255;
+        return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+    };
+    const luminance = 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
+
+    return luminance > 0.45 ? '#111827' : '#ffffff';
+}
+
+function colorField(key, label, value) {
+    const current = normalizeHexColor(value) ?? DEFAULT_TAG_COLOR;
+    const swatches = COLOR_PRESETS.map((preset) => `
+        <button type="button" class="color-swatch${preset.value === current ? ' is-selected' : ''}"
+                data-color-swatch="${key}" data-color="${preset.value}"
+                style="background:${preset.value}" title="${preset.label}" aria-label="${preset.label}"></button>
+    `).join('');
+
+    return `
+        <label class="full"><span>${label}</span>
+            <span class="color-field">
+                <input type="color" name="${key}" value="${current}" data-color-input="${key}">
+                <span class="color-swatches">${swatches}</span>
+                <code data-color-value="${key}">${current}</code>
+            </span>
+        </label>
+    `;
+}
+
+/**
+ * Rend cliquable la palette d'un champ couleur.
+ *
+ * Le champ <input type="color"> reste la source de verite (c'est lui qui
+ * porte le name et part dans le formulaire) ; les pastilles ne font que lui
+ * donner une valeur, et le code hexadecimal affiche a cote suit.
+ */
+function setupColorFields(form) {
+    form.querySelectorAll('[data-color-input]').forEach((input) => {
+        const key = input.getAttribute('data-color-input');
+        const output = form.querySelector(`[data-color-value="${key}"]`);
+        const swatches = [...form.querySelectorAll(`[data-color-swatch="${key}"]`)];
+
+        const sync = () => {
+            const current = normalizeHexColor(input.value) ?? DEFAULT_TAG_COLOR;
+            if (output) {
+                output.textContent = current;
+            }
+            swatches.forEach((swatch) => {
+                swatch.classList.toggle('is-selected', swatch.getAttribute('data-color') === current);
+            });
+        };
+
+        swatches.forEach((swatch) => {
+            swatch.addEventListener('click', () => {
+                input.value = swatch.getAttribute('data-color');
+                sync();
+            });
+        });
+
+        input.addEventListener('input', sync);
+        sync();
+    });
+}
+
 function buildFormFields(fields, item = null, editing = false) {
     // Les champs createOnly n'ont de sens qu'a la creation (ex: stock initial).
     return fields.filter((field) => !(field.createOnly && editing)).map((field) => {
@@ -5098,6 +5246,10 @@ function buildFormFields(fields, item = null, editing = false) {
 
         if (field.type === 'textarea') {
             return `<label class="full"><span>${field.label}</span><textarea name="${field.key}" ${required ? 'required' : ''}>${sanitize(value)}</textarea></label>`;
+        }
+
+        if (field.type === 'color') {
+            return colorField(field.key, field.label, value);
         }
 
         if (field.type === 'select') {
@@ -5121,6 +5273,7 @@ function buildFormFields(fields, item = null, editing = false) {
         }
 
         const hint = field.hint ? `<small class="field-hint">${field.hint}</small>` : '';
+
         return `<label><span>${field.label}</span><input type="${field.type}" name="${field.key}" value="${sanitize(value)}" ${field.step ? `step="${field.step}"` : ''} ${required ? 'required' : ''}>${hint}</label>`;
     }).join('');
 }
@@ -5285,8 +5438,11 @@ function renderTagBadges(tags) {
     }
 
     return tags.map((tag) => {
-        const color = tag.color && String(tag.color).trim() !== '' ? tag.color : '#64748b';
-        return `<span class="tag-badge" style="background:${sanitize(color)}">${sanitize(tag.name)}</span>`;
+        // Une couleur inexploitable (ancienne saisie libre du type "rouge",
+        // champ vide) retombe sur une teinte neutre plutot que de casser le
+        // rendu du badge.
+        const color = normalizeHexColor(tag.color) ?? '#64748b';
+        return `<span class="tag-badge" style="background:${color};color:${readableTextColor(color)}">${sanitize(tag.name)}</span>`;
     }).join(' ');
 }
 

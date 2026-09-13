@@ -12,7 +12,7 @@ require_once __DIR__ . '/route-frontend.php';
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link rel="stylesheet" href="<?= FRONTEND_BASE_URL ?>/assets/css/clean.css">
+    <link rel="stylesheet" href="<?= assetUrl('assets/css/clean.css') ?>">
     <link rel="icon" type="image/svg+xml" href="<?= FRONTEND_BASE_URL ?>/assets/img/brand/lm-code-monogram.svg">
     <style>:root { --brand-primary: <?= htmlspecialchars($tenant['primary_color'], ENT_QUOTES, 'UTF-8') ?>; }</style>
 </head>
@@ -99,6 +99,6 @@ require_once __DIR__ . '/route-frontend.php';
         };
     </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
-    <script type="module" src="<?= FRONTEND_BASE_URL ?>/assets/js/app-clean.js"></script>
+    <script type="module" src="<?= assetUrl('assets/js/app-clean.js') ?>"></script>
 </body>
 </html>

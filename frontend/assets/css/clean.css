@@ -571,6 +571,18 @@ textarea {
     display: flex;
     gap: 0.55rem;
     flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+/* Les champs heritent de width: 100% (regle globale des formulaires) : dans
+   une barre d'outils, un filtre occupait toute la largeur disponible et
+   repoussait les boutons sur trois lignes. */
+.panel-actions select,
+.panel-actions input {
+    width: auto;
+    min-width: 150px;
+    max-width: 220px;
 }
 
 .hidden {
@@ -584,12 +596,48 @@ textarea {
 
 .table-wrap {
     overflow: auto;
+    /* min-width: 0 est indispensable : un enfant de flex/grid refuse par
+       defaut de devenir plus etroit que son contenu (min-width: auto). Sans
+       cette ligne, un tableau large poussait TOUTE LA PAGE au lieu de
+       defiler dans son propre cadre - c'est ce qui produisait la barre de
+       defilement horizontale en bas de l'ecran. */
+    min-width: 0;
+    max-width: 100%;
+}
+
+/* Meme raison, un cran au-dessus : sans min-width: 0, ces conteneurs
+   transmettent la largeur du contenu jusqu'au body. */
+.panel,
+.content-panel,
+.workspace {
+    min-width: 0;
 }
 
 .data-table {
     width: 100%;
     border-collapse: collapse;
-    min-width: 700px;
+    /* Pas de min-width figee : elle forcait une barre de defilement
+       horizontale des que l'ecran etait plus etroit que la valeur choisie.
+       Le tableau s'adapte a la largeur disponible, et .table-wrap reste la
+       comme filet de securite sur un tres petit ecran. */
+    min-width: 0;
+    table-layout: auto;
+}
+
+/* Un nom de produit ou un resume d'emplacements peut etre long : il revient
+   a la ligne au lieu d'elargir le tableau jusqu'au debordement. break-word et
+   non anywhere : anywhere coupait au milieu des mots ("Informatiqu / e") et
+   separait meme le montant de son symbole. */
+.data-table td {
+    overflow-wrap: break-word;
+}
+
+/* Les colonnes courtes et chiffrees n'ont aucune raison d'occuper de la
+   place : on les serre pour laisser le reste au texte utile. */
+.data-table td.actions,
+.data-table th:first-child,
+.data-table td:first-child {
+    white-space: nowrap;
 }
 
 .data-table th,
@@ -818,4 +866,48 @@ td.is-positive {
     border: 1px solid var(--line);
     border-radius: 6px;
     background: #ffffff;
+}
+
+/* Champ de choix de couleur (tags) : pastilles cliquables + selecteur natif. */
+.color-field {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+.color-field input[type="color"] {
+    width: 46px;
+    height: 34px;
+    padding: 2px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+}
+
+.color-swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.color-swatch {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    box-shadow: 0 0 0 1px var(--line);
+    cursor: pointer;
+    padding: 0;
+}
+
+.color-swatch.is-selected {
+    border-color: var(--ink);
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink);
+}
+
+.color-field code {
+    font-size: 0.8rem;
+    color: var(--muted);
 }

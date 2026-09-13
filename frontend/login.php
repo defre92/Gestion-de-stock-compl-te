@@ -11,7 +11,7 @@ require_once __DIR__ . '/route-frontend.php';
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="<?= FRONTEND_BASE_URL ?>/assets/css/clean.css">
+    <link rel="stylesheet" href="<?= assetUrl('assets/css/clean.css') ?>">
     <link rel="icon" type="image/svg+xml" href="<?= FRONTEND_BASE_URL ?>/assets/img/brand/lm-code-monogram.svg">
     <style>:root { --brand-primary: <?= htmlspecialchars($tenant['primary_color'], ENT_QUOTES, 'UTF-8') ?>; }</style>
 </head>
@@ -52,6 +52,6 @@ require_once __DIR__ . '/route-frontend.php';
             frontendBaseUrl: <?= json_encode(FRONTEND_BASE_URL, JSON_UNESCAPED_SLASHES) ?>
         };
     </script>
-    <script type="module" src="<?= FRONTEND_BASE_URL ?>/assets/js/login.js"></script>
+    <script type="module" src="<?= assetUrl('assets/js/login.js') ?>"></script>
 </body>
 </html>

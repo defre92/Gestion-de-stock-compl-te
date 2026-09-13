@@ -31,6 +31,28 @@ if (!defined('API_BASE_URL')) {
     define('API_BASE_URL', $apiBasePath);
 }
 
+/**
+ * URL d'un fichier statique, suffixee par sa date de modification.
+ *
+ * Sans ce suffixe, le navigateur garde en cache l'ancien app-clean.js apres
+ * une mise a jour : l'application deployee est la nouvelle, mais l'ecran
+ * continue d'afficher l'ancien comportement, sans aucun message - et il faut
+ * penser a vider le cache pour s'en sortir. Le suffixe change des que le
+ * fichier change, le navigateur recharge alors de lui-meme.
+ *
+ * A noter : les modules importes DEPUIS un fichier JS (ex: http-client.js,
+ * importe par app-clean.js) ne passent pas par ici, leur URL etant ecrite
+ * dans le code JavaScript. Ces fichiers changent rarement ; en cas de doute
+ * apres une mise a jour, un rechargement force (Ctrl+F5) les met a jour.
+ */
+function assetUrl(string $relativePath): string
+{
+    $absolute = __DIR__ . '/' . ltrim($relativePath, '/');
+    $version = is_file($absolute) ? (string)filemtime($absolute) : '0';
+
+    return FRONTEND_BASE_URL . '/' . ltrim($relativePath, '/') . '?v=' . $version;
+}
+
 // Content-Security-Policy stricte: un nonce different a chaque requete autorise
 // uniquement les <script> qui le portent explicitement (voir index.php/login.php/
 // logout.php). Pas de 'unsafe-inline' sur les scripts.
