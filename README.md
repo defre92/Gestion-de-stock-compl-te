@@ -613,6 +613,39 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+## Correctif : stock initial ignore a la creation d'un produit
+
+Creer un produit en renseignant "Stock initial - quantite" affichait
+**"Cannot access 'initialWarehouseId' before initialization"**. Le produit
+etait bien cree, mais **avec un stock a 0** : le mouvement d'entree n'etait
+jamais enregistre.
+
+**Cause** : les deux valeurs du stock initial etaient lues dans le code
+APRES le bloc qui s'en sert (et apres l'envoi du produit a l'API). En
+JavaScript, utiliser une constante `const` avant sa declaration leve une
+erreur - celle qui s'affichait. Le produit venant d'etre cree, l'ecran
+donnait donc un resultat a moitie faux : article present, stock absent, et un
+message technique a la place de la confirmation.
+
+Les deux valeurs sont desormais extraites **avant** l'appel a l'API. Effet de
+bord corrige au passage : les champs `initial_warehouse_id` et
+`initial_quantity`, qui ne sont pas des colonnes de `products`, partaient
+malgre tout dans le payload de creation.
+
+### Ce que la verification ne couvrait pas
+
+Les verifications portaient sur l'API (lectures **et** ecritures) et sur
+l'affichage des ecrans - mais **aucune ne SOUMETTAIT un formulaire**. Or
+c'est precisement le chemin en cause : le formulaire produit, rempli comme un
+utilisateur le remplit, avec un stock initial.
+
+Un test le fait desormais dans un DOM simule : il remplit le formulaire,
+declenche l'envoi, et verifie que **deux** appels partent - la creation du
+produit puis le mouvement d'entree, avec la bonne quantite et le bon entrepot
+- qu'aucune erreur JavaScript n'est levee, et que le message affiche est bien
+la confirmation. Rejoue sur le paquet precedent, il reproduit exactement le
+defaut : un seul appel, aucun mouvement, message d'erreur.
+
 ## Correctif : creation de produit impossible ("le champ statut est obligatoire")
 
 Enregistrer un nouveau produit depuis l'ecran echouait avec

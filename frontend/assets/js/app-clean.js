@@ -1666,6 +1666,26 @@ async function renderCrud(module) {
                 delete payload.password;
             }
 
+            // Stock initial : ces deux champs ne sont pas des colonnes de
+            // `products`. On les sort du payload AVANT l'envoi, et on les
+            // traite ensuite par un vrai mouvement d'entree - trace, audite,
+            // et coherent avec le reste de l'application.
+            //
+            // Ces deux constantes doivent etre declarees ICI, avant l'appel a
+            // l'API : declarees plus bas, elles etaient utilisees avant leur
+            // initialisation ("Cannot access 'initialWarehouseId' before
+            // initialization"). Le produit etait alors bien cree, mais le
+            // mouvement d'entree n'etait jamais enregistre - produit a 0 en
+            // stock, avec un message d'erreur incomprehensible.
+            const initialWarehouseId = module === 'products' && editId === null
+                ? Number(payload.initial_warehouse_id ?? 0) || null
+                : null;
+            const initialQuantity = module === 'products' && editId === null
+                ? Number(payload.initial_quantity ?? 0) || 0
+                : 0;
+            delete payload.initial_warehouse_id;
+            delete payload.initial_quantity;
+
             const path = editId === null ? config.endpoint : `${config.endpoint}/${editId}`;
             const method = editId === null ? 'POST' : 'PUT';
 
@@ -1721,19 +1741,6 @@ async function renderCrud(module) {
                         }
                     }
                 }
-
-                // Stock initial : ces deux champs ne sont pas des colonnes de
-                // `products`, on les sort du payload produit et on les traite
-                // par un vrai mouvement d'entree - trace, audite, et coherent
-                // avec le reste de l'application.
-                const initialWarehouseId = module === 'products' && editId === null
-                    ? Number(payload.initial_warehouse_id ?? 0) || null
-                    : null;
-                const initialQuantity = module === 'products' && editId === null
-                    ? Number(payload.initial_quantity ?? 0) || 0
-                    : 0;
-                delete payload.initial_warehouse_id;
-                delete payload.initial_quantity;
 
                 const wasCreate = editId === null;
                 if (wasCreate) {
