@@ -613,6 +613,50 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+## Correctif majeur : une sortie avec numero de serie retirait 2 articles au lieu d'1
+
+Scenario signale : stock a 2 (une entree de 2), un numero de serie enregistre
+en regularisation (l'article etait deja compte), puis une sortie de quantite
+1 avec ce numero de serie coche sur l'ecran Mouvements. Resultat observe :
+le stock tombait a 0 au lieu de 1.
+
+Cause : l'ecran Mouvements enregistre deux choses l'une apres l'autre pour
+une sortie avec numeros de serie coches - le mouvement de sortie
+(quantite totale, avec le motif/la note/le client saisis) ET un appel
+"marquer sorti" par numero de serie coche (pour que chaque exemplaire change
+de statut). Le premier retirait deja la quantite du stock ; le second, en
+plus de changer le statut du SN, retirait *lui aussi* 1 du stock - la meme
+sortie etait donc decomptee deux fois. Le meme souci existait deja et avait
+ete corrige cote entree (un mouvement d'entree + un enregistrement de SN
+"qui ne recompte pas" via `creates_stock_entry: false`) ; le cote sortie
+avait ete oublie.
+
+Le "marquer sorti" appele depuis l'ecran Mouvements passe desormais un
+drapeau (`skip_stock_move`) qui lui dit de changer uniquement le statut du
+numero de serie, sans toucher au stock - puisque le mouvement de sortie
+s'en est deja charge. Le bouton "Marquer sorti" independant, sur l'ecran
+Numeros de serie (quand on sort un exemplaire hors du flux Mouvements), lui,
+continue de deplacer le stock lui-meme exactement comme avant : rien ne
+change pour cet usage-la.
+
+**Verifie** : sur une base reelle, stock 2 -> SN en regularisation -> sortie
+de 1 avec ce SN coche -> stock a 1 (au lieu de 0 avant le correctif) et le SN
+passe bien au statut "sorti". Le mark-out "autonome" (sans passer par
+Mouvements) continue lui aussi de retirer exactement 1, comme avant. Verifie
+egalement par un test qui simule le remplissage et la soumission reelle du
+formulaire Mouvements (coche le SN, valide) : un seul mouvement de sortie
+envoye, un seul appel "marquer sorti" avec le drapeau, quantite finale
+correcte.
+
+## Confirmation a l'enregistrement d'un mouvement de stock
+
+Valider un mouvement (entree, sortie, transfert, ajustement) ne montrait
+aucune confirmation : le formulaire se vidait juste et la ligne apparaissait
+dans l'historique en bas de l'ecran, sans autre indication qu'il fallait
+aller verifier soi-meme un peu plus bas. Un message de confirmation
+s'affiche desormais au-dessus du formulaire apres l'enregistrement, par
+exemple *"Mouvement enregistre (Sortie, quantite 1)."*.
+
 ## Listes deroulantes avec filtre : la selection automatique ne se propageait pas
 
 Au-dela de 12 entrees, une liste deroulante (produit, emplacement...) affiche

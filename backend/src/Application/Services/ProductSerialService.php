@@ -203,7 +203,19 @@ final class ProductSerialService
         }
     }
 
-    public function markOut(int $id, int $actorId, ?string $ip, ?string $notes): void
+    /**
+     * @param bool $skipStockMove L'ecran Mouvements enregistre deja lui-meme
+     * le mouvement de sortie pour la quantite totale (avec le bon motif, les
+     * bonnes notes, le client eventuel...) avant d'appeler mark-out sur
+     * chaque numero de serie coche, pour marquer CES exemplaires precis comme
+     * sortis. Si mark-out decrementait aussi le stock, un mouvement "sortie
+     * de 1 article, 1 numero de serie coche" retirait 2 du stock au lieu
+     * d'1 : le mouvement general d'un cote, le mark-out de l'autre. Ce
+     * drapeau desactive le second mouvement dans ce cas precis; un mark-out
+     * declenche seul (bouton "Marquer sorti" de l'ecran Numeros de serie)
+     * continue de deplacer le stock lui-meme, comme avant.
+     */
+    public function markOut(int $id, int $actorId, ?string $ip, ?string $notes, bool $skipStockMove = false): void
     {
         $serial = $this->repository->findById($id);
         if (!$serial) {
@@ -226,18 +238,20 @@ final class ProductSerialService
             $locationId = $serial['location_id'] !== null ? (int)$serial['location_id'] : null;
 
             $this->repository->updateStatus($id, 'OUT', null, $notes, null);
-            $this->moveStock(
-                (int)$serial['product_id'],
-                $serial['variant_id'] !== null ? (int)$serial['variant_id'] : null,
-                $warehouseId,
-                'OUT',
-                1,
-                'SERIAL_OUT',
-                'Sortie du numero de serie ' . $serial['serial_number'],
-                $actorId,
-                $ip,
-                $locationId
-            );
+            if (!$skipStockMove) {
+                $this->moveStock(
+                    (int)$serial['product_id'],
+                    $serial['variant_id'] !== null ? (int)$serial['variant_id'] : null,
+                    $warehouseId,
+                    'OUT',
+                    1,
+                    'SERIAL_OUT',
+                    'Sortie du numero de serie ' . $serial['serial_number'],
+                    $actorId,
+                    $ip,
+                    $locationId
+                );
+            }
 
             $this->auditRepository->log($actorId, 'MARK_OUT', 'product_serial', $id, [], $ip);
 

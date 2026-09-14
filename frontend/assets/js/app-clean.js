@@ -2144,19 +2144,34 @@ async function renderMovements() {
                 const failures = [];
                 for (const serialId of serialIdsOut) {
                     try {
-                        await apiRequest(`/product-serials/${serialId}/mark-out`, { method: 'POST', body: {} });
+                        // Le mouvement de sortie ci-dessus a deja retire la
+                        // quantite totale du stock : sans ce drapeau, chaque
+                        // mark-out la retirait une seconde fois (1 coche +
+                        // quantite 1 = 2 articles retires au lieu d'1).
+                        await apiRequest(`/product-serials/${serialId}/mark-out`, { method: 'POST', body: { skip_stock_move: true } });
                     } catch (serialError) {
                         failures.push(`#${serialId}: ${serialError.message}`);
                     }
                 }
                 await renderMovements();
+                const freshFeedback = document.getElementById('movementFeedback');
                 if (failures.length > 0) {
                     window.alert(`Mouvement enregistre, mais erreur sur certains numeros de serie:\n${failures.join('\n')}`);
+                } else if (freshFeedback) {
+                    freshFeedback.textContent = `Mouvement enregistre (${VALUE_LABELS[type] ?? type}, quantite ${quantity}).`;
+                    freshFeedback.classList.remove('is-error');
+                    freshFeedback.classList.add('is-success');
                 }
                 return;
             }
 
             await renderMovements();
+            const freshFeedback = document.getElementById('movementFeedback');
+            if (freshFeedback) {
+                freshFeedback.textContent = `Mouvement enregistre (${VALUE_LABELS[type] ?? type}, quantite ${quantity}).`;
+                freshFeedback.classList.remove('is-error');
+                freshFeedback.classList.add('is-success');
+            }
         } catch (error) {
             feedback.textContent = error.message;
             feedback.classList.add('is-error');

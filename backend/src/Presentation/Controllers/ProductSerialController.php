@@ -51,7 +51,12 @@ final class ProductSerialController
     {
         $user = $request->attribute('auth_user');
         $notes = $request->input('notes');
-        $this->service->markOut($id, (int)$user['id'], $_SERVER['REMOTE_ADDR'] ?? null, $notes !== null ? (string)$notes : null);
+        // Voir le commentaire sur ProductSerialService::markOut : l'ecran
+        // Mouvements enregistre deja lui-meme le mouvement de sortie avant
+        // d'appeler mark-out sur chaque numero de serie coche, et passe ce
+        // drapeau pour eviter de decompter deux fois la meme sortie.
+        $skipStockMove = filter_var($request->input('skip_stock_move', false), FILTER_VALIDATE_BOOL);
+        $this->service->markOut($id, (int)$user['id'], $_SERVER['REMOTE_ADDR'] ?? null, $notes !== null ? (string)$notes : null, $skipStockMove);
 
         JsonResponse::send(['message' => 'Numero de serie marque comme sorti']);
     }
