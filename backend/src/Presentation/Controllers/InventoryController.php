@@ -48,6 +48,14 @@ final class InventoryController
         JsonResponse::send(['id' => $itemId], 201);
     }
 
+    public function deleteCount(Request $request, int $id, int $itemId): void
+    {
+        $user = $request->attribute('auth_user');
+        $this->service->deleteCount($id, $itemId, (int)$user['id'], $_SERVER['REMOTE_ADDR'] ?? null);
+
+        JsonResponse::send(['message' => 'Comptage supprime']);
+    }
+
     public function finalize(Request $request, int $id): void
     {
         $user = $request->attribute('auth_user');

@@ -88,6 +88,13 @@ h1 {
     color: var(--muted);
 }
 
+/* Comptage d'inventaire remplace par un recomptage plus recent : reste
+   visible (tracabilite), mais visuellement en retrait pour qu'on ne le
+   confonde pas avec ce qui sera reellement applique a la finalisation. */
+.is-muted-row {
+    opacity: 0.55;
+}
+
 .tag-badge {
     display: inline-block;
     padding: 0.15rem 0.55rem;

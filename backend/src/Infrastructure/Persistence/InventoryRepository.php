@@ -212,6 +212,28 @@ final class InventoryRepository
         return (int)$this->pdo->lastInsertId();
     }
 
+    /**
+     * Retrouve une ligne de comptage en s'assurant qu'elle appartient bien a
+     * la session indiquee - sans cette verification, l'id de la ligne suffirait
+     * a supprimer un comptage d'une AUTRE session (IDOR).
+     */
+    public function findItem(int $sessionId, int $itemId): ?array
+    {
+        $stmt = $this->pdo->prepare('
+            SELECT * FROM inventory_session_items WHERE id = :id AND session_id = :session_id LIMIT 1
+        ');
+        $stmt->execute([':id' => $itemId, ':session_id' => $sessionId]);
+        $row = $stmt->fetch();
+
+        return $row ?: null;
+    }
+
+    public function deleteItem(int $itemId): void
+    {
+        $stmt = $this->pdo->prepare('DELETE FROM inventory_session_items WHERE id = :id');
+        $stmt->execute([':id' => $itemId]);
+    }
+
     public function markSessionCompleted(int $id): void
     {
         $stmt = $this->pdo->prepare('UPDATE inventory_sessions SET status = :status, ended_at = NOW(), updated_at = NOW() WHERE id = :id');

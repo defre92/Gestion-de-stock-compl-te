@@ -132,6 +132,40 @@ final class InventoryService
         return $id;
     }
 
+    /**
+     * Supprime un comptage saisi par erreur (mauvais produit choisi, ligne en
+     * double...). Volontairement impossible une fois la session finalisee -
+     * pas seulement parce que le formulaire de saisie disparait alors, mais
+     * parce qu'un comptage laisse dans l'historique d'une session terminee
+     * est ce qui explique un ajustement de stock deja applique : le
+     * supprimer casserait la tracabilite de cet ajustement.
+     *
+     * Une correction de quantite (produit correct, chiffre errone) n'a pas
+     * besoin de cette suppression : ressaisir un comptage pour le meme
+     * produit/variante/emplacement suffit, seul le plus recent des deux
+     * comptera a la finalisation (voir finalize()) - et les deux restent
+     * visibles, ce qui trace la correction plutot que de l'effacer.
+     */
+    public function deleteCount(int $sessionId, int $itemId, int $actorId, ?string $ip): void
+    {
+        $session = $this->findSession($sessionId);
+        if (!in_array($session['status'], ['IN_PROGRESS', 'DRAFT'], true)) {
+            throw new HttpException('Cette session n\'est plus modifiable', 422);
+        }
+
+        $item = $this->repository->findItem($sessionId, $itemId);
+        if (!$item) {
+            throw new HttpException('Comptage introuvable', 404);
+        }
+
+        $this->repository->deleteItem($itemId);
+        $this->auditRepository->log($actorId, 'DELETE', 'inventory_session_item', $itemId, [
+            'session_id' => $sessionId,
+            'product_id' => $item['product_id'],
+            'counted_qty' => $item['counted_qty'],
+        ], $ip);
+    }
+
     public function finalize(int $sessionId, int $actorId, ?string $ip): void
     {
         $session = $this->findSession($sessionId);

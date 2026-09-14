@@ -322,6 +322,7 @@ $router->add('GET', '/api/v1/inventories/{id}/remaining', static fn (Request $re
 $router->add('GET', '/api/v1/inventories/{id}/export.xlsx', static fn (Request $req, array $p) => $inventoryController->exportXlsx((int)$p['id']), [$authMiddleware]);
 $router->add('POST', '/api/v1/inventories', static fn (Request $req) => $inventoryController->store($req), [$authMiddleware, $stockRolesMiddleware]);
 $router->add('POST', '/api/v1/inventories/{id}/counts', static fn (Request $req, array $p) => $inventoryController->count($req, (int)$p['id']), [$authMiddleware, $stockRolesMiddleware]);
+$router->add('DELETE', '/api/v1/inventories/{id}/counts/{itemId}', static fn (Request $req, array $p) => $inventoryController->deleteCount($req, (int)$p['id'], (int)$p['itemId']), [$authMiddleware, $stockRolesMiddleware]);
 $router->add('POST', '/api/v1/inventories/{id}/finalize', static fn (Request $req, array $p) => $inventoryController->finalize($req, (int)$p['id']), [$authMiddleware, $stockRolesMiddleware]);
 
 $router->add('GET', '/api/v1/reports/stock.csv', static fn () => $reportController->stockCsv(), [$authMiddleware]);

@@ -2969,12 +2969,26 @@ async function renderInventorySessionDetail(sessionId) {
     const writable = canWrite('inventories');
     const isEditable = ['IN_PROGRESS', 'DRAFT'].includes(session.status);
 
+    // Un meme produit (+ variante + emplacement) peut avoir ete compte
+    // plusieurs fois dans la session (recomptage apres une erreur de saisie):
+    // c'est ainsi qu'on "corrige" un comptage aujourd'hui, voir plus bas. Sans
+    // indication, deux lignes pour le meme produit dans ce tableau ne disent
+    // pas laquelle des deux la finalisation va reellement appliquer - c'est
+    // toujours la plus recente (voir InventoryService::finalize, meme regle
+    // reproduite ici). `items` arrive deja trie du plus recent au plus ancien
+    // (ORDER BY id DESC cote backend) : la premiere occurrence d'une cle est
+    // donc forcement la plus recente.
+    const seenCountKeys = new Set();
+    const isEditableAndWritable = writable && isEditable;
     const itemsHtml = items.map((item) => {
         const diff = Number(item.difference_qty);
         const diffClass = diff === 0 ? '' : (diff > 0 ? 'is-positive' : 'is-error');
         const diffLabel = diff > 0 ? `+${diff}` : String(diff);
+        const key = `${item.product_id}-${item.variant_id ?? '0'}-${item.location_id ?? '0'}`;
+        const isActive = !seenCountKeys.has(key);
+        seenCountKeys.add(key);
         return `
-            <tr>
+            <tr class="${isActive ? '' : 'is-muted-row'}">
                 <td>${sanitize(item.sku)}</td>
                 <td>${sanitize(item.product_name)}</td>
                 <td>${item.variant_id ? sanitize(variantDescriptor({ ...item, sku: item.variant_sku })) : '-'}</td>
@@ -2984,6 +2998,13 @@ async function renderInventorySessionDetail(sessionId) {
                 <td>${sanitize(item.location_code ?? '-')}</td>
                 <td>${sanitize(item.counted_by_name ?? '-')}</td>
                 <td>${sanitize(item.counted_at)}</td>
+                <td>${isActive
+                    ? '<span class="status-badge">Applique a la finalisation</span>'
+                    : '<span class="muted">Remplace par un comptage plus recent</span>'}</td>
+                ${isEditableAndWritable ? `<td>
+                    <button type="button" class="btn btn-soft btn-sm" data-correct-count="${item.id}" data-product-id="${item.product_id}" data-variant-id="${item.variant_id ?? ''}" data-location-id="${item.location_id ?? ''}" data-counted-qty="${item.counted_qty}">Corriger</button>
+                    <button type="button" class="btn btn-soft btn-sm" data-delete-count="${item.id}" data-sku="${sanitize(item.sku)}">Supprimer</button>
+                </td>` : ''}
             </tr>
         `;
     }).join('');
@@ -3006,11 +3027,19 @@ async function renderInventorySessionDetail(sessionId) {
                 <h4>Comptages saisis (${items.length})</h4>
                 <button type="button" id="exportInventoryBtn" class="btn btn-soft">Exporter en Excel</button>
             </div>
-            <p class="muted">Si un produit est compte plusieurs fois, seul le dernier comptage saisi pour ce produit sera applique a la finalisation.</p>
+            <p class="muted">
+                Si un produit est compte plusieurs fois, seul le dernier comptage saisi pour ce
+                produit sera applique a la finalisation - la colonne "Statut" ci-dessous dit
+                lequel. Pour corriger une quantite mal saisie, utilise "Corriger" (pre-remplit un
+                nouveau comptage avec le meme produit) plutot que de tout ressaisir a la main ; le
+                comptage d'origine reste visible, remplace, pour garder une trace de la
+                correction. "Supprimer" retire completement une ligne saisie par erreur (mauvais
+                produit choisi) - possible uniquement avant la finalisation.
+            </p>
             <div class="table-wrap">
                 <table class="data-table">
-                    <thead><tr><th>SKU</th><th>Produit</th><th>Variante</th><th>Attendu</th><th>Compte</th><th>Ecart</th><th>Emplacement</th><th>Compte par</th><th>Date</th></tr></thead>
-                    <tbody>${itemsHtml || '<tr><td colspan="9">Aucun comptage saisi pour le moment.</td></tr>'}</tbody>
+                    <thead><tr><th>SKU</th><th>Produit</th><th>Variante</th><th>Attendu</th><th>Compte</th><th>Ecart</th><th>Emplacement</th><th>Compte par</th><th>Date</th><th>Statut</th>${isEditableAndWritable ? '<th>Actions</th>' : ''}</tr></thead>
+                    <tbody>${itemsHtml || `<tr><td colspan="${isEditableAndWritable ? 11 : 10}">Aucun comptage saisi pour le moment.</td></tr>`}</tbody>
                 </table>
             </div>
         </section>
@@ -3168,6 +3197,61 @@ async function renderInventorySessionDetail(sessionId) {
             feedback.textContent = error.message;
             feedback.classList.add('is-error');
         }
+    });
+
+    // "Corriger" : pre-remplit le formulaire "Ajouter un comptage" avec le
+    // meme produit/variante/emplacement, quantite comprise (il ne reste plus
+    // qu'a la modifier). On ne modifie jamais la ligne existante en place -
+    // voir la note au-dessus du tableau : un nouveau comptage est cree, plus
+    // recent, et c'est lui qui comptera a la finalisation.
+    root.querySelectorAll('[data-correct-count]').forEach((button) => {
+        button.addEventListener('click', async () => {
+            if (!countForm) {
+                return;
+            }
+            const productId = button.getAttribute('data-product-id');
+            const variantId = button.getAttribute('data-variant-id');
+            const locationId = button.getAttribute('data-location-id');
+            const countedQty = button.getAttribute('data-counted-qty');
+
+            const productSelect = countForm.elements.namedItem('product_id');
+            productSelect.value = productId;
+            productSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            // Le choix de la variante depend du chargement (asynchrone) des
+            // options declenche par le 'change' ci-dessus.
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            if (variantId && countVariantSelect) {
+                countVariantSelect.value = variantId;
+            }
+            const locationSelect = document.getElementById('inventoryCountLocation');
+            if (locationSelect) {
+                locationSelect.value = locationId;
+            }
+            countForm.elements.namedItem('counted_qty').value = countedQty;
+
+            countForm.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+            countForm.elements.namedItem('counted_qty').focus();
+        });
+    });
+
+    // "Supprimer" : retire completement une ligne saisie par erreur (mauvais
+    // produit choisi). Contrairement a "Corriger", ne cree rien de nouveau -
+    // uniquement possible avant la finalisation (le backend le refuse aussi,
+    // ceci n'est qu'un confort cote ecran).
+    root.querySelectorAll('[data-delete-count]').forEach((button) => {
+        button.addEventListener('click', async () => {
+            const itemId = button.getAttribute('data-delete-count');
+            const sku = button.getAttribute('data-sku');
+            if (!window.confirm(`Supprimer le comptage de ${sku} ? Cette ligne ne sera plus prise en compte a la finalisation.`)) {
+                return;
+            }
+            try {
+                await apiRequest(`/inventories/${sessionId}/counts/${itemId}`, { method: 'DELETE' });
+                await renderInventorySessionDetail(sessionId);
+            } catch (error) {
+                window.alert(error.message);
+            }
+        });
     });
 
     document.getElementById('inventoryFinalizeBtn')?.addEventListener('click', async () => {

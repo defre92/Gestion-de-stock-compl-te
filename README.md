@@ -613,6 +613,77 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+## Inventaires : corriger ou supprimer un comptage saisi par erreur
+
+Jusqu'ici, un comptage saisi ne pouvait ni etre modifie ni supprime : la
+seule facon de corriger une quantite mal saisie etait de resaisir tout le
+formulaire (produit, variante, emplacement) en esperant se souvenir des bons
+choix, et une ligne saisie sur le mauvais produit restait definitivement
+dans la liste sans moyen de l'annuler.
+
+Deux ajouts dans le tableau "Comptages saisis" d'une session encore ouverte :
+- **Corriger** : pre-remplit le formulaire "Ajouter un comptage" avec le
+  meme produit, la meme variante et le meme emplacement que la ligne
+  cliquee - il ne reste plus qu'a corriger la quantite et valider.
+- **Supprimer** : retire completement une ligne saisie par erreur (mauvais
+  produit choisi). Uniquement possible tant que la session n'est pas
+  finalisee.
+
+Pourquoi ce n'est PAS une edition en place de la ligne existante ("Corriger"
+cree un nouveau comptage plutot que de modifier l'ancien) : voir la question
+de legalite/normalite ci-dessous, elle repond aussi a ce choix technique.
+
+Consequence directe : un meme produit peut desormais avoir plusieurs lignes
+dans le tableau (le comptage d'origine, puis sa correction). Comme c'est
+deja le cas depuis le debut (la finalisation ne retient que le dernier
+comptage saisi par produit/variante/emplacement), une colonne **"Statut"**
+indique desormais explicitement, pour chaque ligne, si elle sera "Appliquee
+a la finalisation" ou "Remplacee par un comptage plus recent" (affichee en
+grise) - avant cet ajout, rien ne le disait, on pouvait facilement confondre
+les deux lignes.
+
+**Verifie** : un comptage errone (7) suivi d'une correction (8) - la
+premiere ligne passe bien "Remplacee", la seconde "Appliquee" ; le bouton
+Corriger pre-remplit bien le formulaire (produit et quantite) ; le bouton
+Supprimer retire bien la ligne (verifie sur une base reelle, avec en plus
+la verification que la suppression est refusee une fois la session
+finalisee, et qu'un identifiant de comptage d'une autre session est
+rejete).
+
+## Inventaires : la finalisation ajuste le stock selon le comptage - est-ce normal ?
+
+Question posee directement : un inventaire qui, a la finalisation,
+augmente ou diminue le stock selon l'ecart constate, est-ce un comportement
+normal pour un logiciel de gestion de stock, et est-ce legal de proceder
+ainsi ?
+
+**C'est le comportement attendu, et c'est la raison d'etre d'un inventaire
+physique.** Un inventaire sert precisement a faire correspondre le stock
+theorique (ce que le logiciel croit avoir) au stock reel (ce qui est
+physiquement present) : casse non enregistree, erreur de saisie anterieure,
+vol, produit mal range... le stock theorique finit toujours par diverger un
+peu du reel avec le temps, et l'inventaire est le mecanisme qui resynchronise
+les deux. Toute application de gestion de stock serieuse (Dolibarr, SAP,
+Odoo, etc.) fonctionne sur ce meme principe : compter, comparer a l'attendu,
+ajuster.
+
+Pour la partie legale : Claude n'est pas comptable ni juriste, et ce point
+merite d'etre confirme aupres d'un expert-comptable si un doute subsiste.
+Ce qui peut etre dit factuellement sur ce que fait l'application : en
+France, l'inventaire physique des stocks est une obligation comptable
+(article L123-12 du code de commerce - "vérifier l'existence et la valeur
+des éléments actifs et passifs du patrimoine"), donc ajuster le stock
+informatique pour qu'il reflete le comptage physique n'est pas seulement
+normal, c'est ce que la loi attend. Ce qui compte pour la conformite n'est
+pas de savoir SI l'ajustement doit avoir lieu, mais qu'il soit **trace** :
+c'est deja le cas ici - chaque ajustement genere un mouvement de stock de
+type "Ajustement" avec le motif "INVENTORY" et l'identifiant de la session
+qui l'a produit (visible dans l'historique des mouvements), et chaque
+comptage individuel reste visible avec qui l'a saisi et quand (renforce par
+l'ajout ci-dessus : meme un comptage remplace par une correction reste
+visible, il n'est jamais silencieusement efface - seule une suppression
+manuelle et explicite, avant finalisation, le retire).
+
 ## Numeros de serie : date d'entree et date de sortie (utile pour la garantie)
 
 La fiche d'un numero de serie (que ce soit dans le tableau ou dans le
