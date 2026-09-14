@@ -613,6 +613,29 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+## Correctif : "Remettre en stock" un numero de serie echouait ("Reference invalide")
+
+Depuis l'ecran Numeros de serie, cliquer sur "Remettre en stock" (pour un
+exemplaire marque "sorti") ouvrait une fenetre pour choisir l'entrepot de
+retour, puis echouait systematiquement avec *"Reference invalide : l'element
+lie n'existe pas ou plus"*.
+
+Cause : cette fenetre ne renvoyait qu'un simple identifiant d'entrepot, alors
+que le code qui l'appelle attendait un objet avec l'entrepot ET
+l'emplacement. L'entrepot envoye au serveur valait donc toujours "absent",
+remplace silencieusement par 0 cote serveur - un entrepot qui n'existe pas,
+d'ou le rejet par la base de donnees (contrainte de cle etrangere).
+
+La fenetre "Ou cet article revient-il ?" propose desormais aussi le choix de
+l'emplacement (comme partout ailleurs dans l'application) et transmet
+reellement l'entrepot choisi.
+
+**Verifie** : reproduction exacte de l'erreur d'origine avec l'ancien envoi
+(entrepot absent -> "Reference invalide"), puis avec le nouvel envoi
+(entrepot et emplacement transmis) -> remise en stock reussie, sur une base
+reelle. Verifie egalement par un test qui simule l'ouverture de la fenetre,
+le choix de l'entrepot puis de l'emplacement, et la validation.
+
 ## Correctif majeur : une sortie avec numero de serie retirait 2 articles au lieu d'1
 
 Scenario signale : stock a 2 (une entree de 2), un numero de serie enregistre

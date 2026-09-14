@@ -6048,6 +6048,19 @@ function askChoice(title, question, choices) {
     });
 }
 
+/**
+ * Retourne { warehouseId, locationId } (locationId peut etre null), ou null
+ * si l'utilisateur annule.
+ *
+ * L'unique appelant (remettre en stock un numero de serie) attendait deja
+ * cette forme d'objet - mais cette fonction ne resolvait jusque-la qu'un
+ * simple nombre (l'id d'entrepot). `destination.warehouseId` valait donc
+ * toujours `undefined`, silencieusement absent du JSON envoye ; le serveur
+ * le traitait comme 0, un entrepot qui n'existe pas - d'ou le message
+ * "Reference invalide" (violation de cle etrangere) au moment d'enregistrer.
+ * On ajoute ici le choix de l'emplacement (comme partout ailleurs dans
+ * l'appli) et on renvoie enfin la forme que l'appelant a toujours attendue.
+ */
 function askWarehouse(question) {
     return new Promise((resolve) => {
         const warehouses = state.lookups?.warehouses ?? [];
@@ -6069,6 +6082,12 @@ function askWarehouse(question) {
                             ${warehouses.map((w) => `<option value="${Number(w.id)}">${sanitize(w.name ?? w.code ?? w.id)}</option>`).join('')}
                         </select>
                     </label>
+                    <label>
+                        <span>Emplacement (optionnel)</span>
+                        <select id="askWarehouseLocationSelect" disabled>
+                            <option value="">Chargement...</option>
+                        </select>
+                    </label>
                     <div class="form-actions">
                         <button type="button" class="btn btn-primary" id="askWarehouseOk">Valider</button>
                         <button type="button" class="btn btn-soft" id="askWarehouseCancel">Annuler</button>
@@ -6077,6 +6096,12 @@ function askWarehouse(question) {
             </div>
         `;
         document.body.appendChild(overlay);
+
+        const warehouseSelect = overlay.querySelector('#askWarehouseSelect');
+        const locationSelect = overlay.querySelector('#askWarehouseLocationSelect');
+        const syncLocations = () => fillLocationOptions(locationSelect, warehouseSelect.value ?? '');
+        warehouseSelect.addEventListener('change', syncLocations);
+        syncLocations();
 
         const done = (value) => {
             overlay.remove();
@@ -6097,8 +6122,13 @@ function askWarehouse(question) {
         });
         overlay.querySelector('#askWarehouseCancel').addEventListener('click', () => done(null));
         overlay.querySelector('#askWarehouseOk').addEventListener('click', () => {
-            const value = Number(overlay.querySelector('#askWarehouseSelect').value);
-            done(Number.isFinite(value) && value > 0 ? value : null);
+            const warehouseId = Number(warehouseSelect.value);
+            if (!Number.isFinite(warehouseId) || warehouseId <= 0) {
+                done(null);
+                return;
+            }
+            const locationId = locationSelect.value ? Number(locationSelect.value) : null;
+            done({ warehouseId, locationId });
         });
     });
 }
