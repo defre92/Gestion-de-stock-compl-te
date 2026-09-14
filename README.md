@@ -627,6 +627,22 @@ sortie ou remise en stock, que ce soit via une livraison ou le bouton
 "Marquer sorti"). Si l'exemplaire est revenu en stock, la date de sortie
 n'a plus de sens et n'est donc plus affichee.
 
+Le resultat de la recherche par numero de serie indique aussi desormais, si
+l'exemplaire est sorti, **a qui il a ete vendu et sur quel BL** ("Vendu a :
+Client X (BL-0042 du 12/03/2026)") - directement dans la fiche, sans avoir a
+lire le tableau "Historique des ventes" juste en dessous. C'est la derniere
+livraison NON annulee qui est retenue : une livraison annulee remet
+l'exemplaire en stock, donc si le statut est toujours "sorti", ce n'est pas
+elle qui l'explique - une livraison plus ancienne ou plus recente, non
+annulee, est la bonne reponse. Un exemplaire sorti par le bouton "Marquer
+sorti" (sans passer par une livraison) l'indique clairement : "Sorti sans
+livraison associee (sortie manuelle ou regularisation)".
+
+**Verifie** : trois scenarios testes - vendu (avec une livraison annulee plus
+recente dans l'historique, pour s'assurer qu'elle est bien ignoree), sorti
+sans aucune livraison, et en stock (aucune mention de vente, meme avec un
+historique de livraisons annulees).
+
 ## Livraisons : voir les produits d'un bon de livraison depuis l'historique
 
 Dans l'historique des bons de livraison, impossible jusqu'ici de savoir quels

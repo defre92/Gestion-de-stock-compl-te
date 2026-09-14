@@ -2299,6 +2299,14 @@ async function renderProductSerials() {
             const response = await apiRequest(`/product-serials/search?serial_number=${encodeURIComponent(serialNumber)}`);
             const found = response.data;
             const history = found.delivery_history ?? [];
+            // Le client/BL "actuel" pour un exemplaire sorti : la livraison la
+            // plus recente qui n'a pas ete annulee (une livraison annulee
+            // remet l'exemplaire en stock - s'il est toujours "sorti", ce
+            // n'est donc pas elle qui l'explique). L'historique complet reste
+            // affiche plus bas pour un exemplaire revendu plusieurs fois.
+            const currentDelivery = found.status === 'OUT'
+                ? history.find((entry) => entry.delivery_status !== 'CANCELLED') ?? null
+                : null;
             const historyRows = history.map((entry) => `
                 <tr>
                     <td>${sanitize(entry.delivered_at)}</td>
@@ -2317,6 +2325,10 @@ async function renderProductSerials() {
                     <p>Emplacement: ${sanitize(found.location_code ?? 'Non precise')}${found.location_description ? ` (${sanitize(found.location_description)})` : ''}</p>
                     <p>Entree le: ${sanitize(found.created_at)}</p>
                     ${found.status === 'OUT' ? `<p>Sorti le: ${sanitize(found.updated_at)}</p>` : ''}
+                    ${found.status === 'OUT' ? (currentDelivery
+                        ? `<p>Vendu a : <strong>${sanitize(currentDelivery.customer_name)}</strong> (BL ${sanitize(currentDelivery.delivery_number)} du ${sanitize(currentDelivery.delivered_at)})</p>`
+                        : `<p>Sorti sans livraison associee (sortie manuelle ou regularisation).</p>`
+                    ) : ''}
                 </div>
                 <div class="table-wrap" style="margin-top:12px">
                     <h5>Historique des ventes</h5>
