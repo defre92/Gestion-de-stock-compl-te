@@ -613,6 +613,38 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+## Correctif : creation de produit impossible ("le champ statut est obligatoire")
+
+Enregistrer un nouveau produit depuis l'ecran echouait avec
+**"Le champ 'status' est obligatoire"** - un champ qui ne figure PAS dans le
+formulaire. Aucune creation de produit n'etait possible depuis
+l'application.
+
+**Cause** : le champ `status` (ACTIVE/INACTIVE) a ete retire du formulaire
+produit, remplace par l'interrupteur unique `is_active` (il faisait doublon).
+La liste des champs obligatoires cote serveur, elle, n'a pas suivi : elle
+exigeait toujours `status`. L'interface ne l'envoyait plus, le serveur le
+reclamait - et le message parlait d'un champ introuvable a l'ecran.
+
+- `status` retire des champs obligatoires du produit. La colonne reste en
+  base (import CSV, installations existantes) avec sa valeur par defaut.
+- `ProductRepository` **aligne `status` sur `is_active`** a la creation comme
+  a la modification : un produit cree inactif ne peut plus etre marque ACTIVE
+  dans cette colonne. Une valeur explicitement fournie (import CSV) reste
+  prioritaire.
+
+### Pourquoi les verifications ne l'avaient pas vu
+
+La verification de paquet ne faisait que **lire** : elle chargeait tous les
+ecrans (GET) et concluait que tout allait bien. Or ici, tout s'affichait
+parfaitement - c'est l'**enregistrement** qui etait casse.
+
+Elle effectue desormais aussi des **ecritures**, avec exactement les champs
+que les formulaires envoient : creation d'une categorie, d'un tag, d'un
+**produit**, d'un entrepot, d'un fournisseur et d'un client. Un champ exige
+par le serveur mais absent d'un formulaire est detecte immediatement, avant
+livraison.
+
 ## Profils utilisateur : libelles francais et droits affiches
 
 Le formulaire d'un utilisateur proposait une liste de **codes techniques**

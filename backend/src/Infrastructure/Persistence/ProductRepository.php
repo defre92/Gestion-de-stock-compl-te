@@ -494,9 +494,33 @@ final class ProductRepository extends PdoCrudRepository
         $stmt->execute([':quantity' => $quantity, ':id' => $stockLevelId]);
     }
 
+    /**
+     * Aligne la colonne historique `status` sur `is_active`.
+     *
+     * L'ecran ne propose plus qu'un seul interrupteur (`is_active`) ; `status`
+     * (ACTIVE/INACTIVE) reste en base pour l'import CSV et les installations
+     * existantes. Sans cette recopie, un produit cree inactif serait marque
+     * ACTIVE dans cette colonne - deux verites pour la meme information.
+     *
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    private function syncLegacyStatus(array $payload): array
+    {
+        if (array_key_exists('status', $payload) && trim((string)$payload['status']) !== '') {
+            return $payload;
+        }
+
+        if (array_key_exists('is_active', $payload)) {
+            $payload['status'] = (int)$payload['is_active'] === 1 ? 'ACTIVE' : 'INACTIVE';
+        }
+
+        return $payload;
+    }
+
     public function create(array $payload): int
     {
-        $id = parent::create($this->applyCategoryDefaultTax($payload));
+        $id = parent::create($this->syncLegacyStatus($this->applyCategoryDefaultTax($payload)));
         if ($id > 0) {
             $this->syncTags($id, $payload);
         }
@@ -506,7 +530,7 @@ final class ProductRepository extends PdoCrudRepository
 
     public function update(int $id, array $payload): bool
     {
-        $result = parent::update($id, $payload);
+        $result = parent::update($id, $this->syncLegacyStatus($payload));
         $this->syncTags($id, $payload);
 
         return $result;

@@ -120,7 +120,13 @@ $supplierController = new CrudController(new CrudService(new SupplierRepository(
 // Le code barre doit rester unique : deux articles portant le meme code
 // rendraient le scan a la douchette ambigu (deux resultats, aucune fiche
 // ouverte). Controle applicatif, voir CrudService::assertUniqueFields.
-$productController = new CrudController(new CrudService(new ProductRepository(), $auditRepository, 'product', ['sku', 'name', 'category_id', 'status'], ['barcode' => 'code barre']));
+// Champs obligatoires : PAS de 'status'. Le formulaire produit ne le demande
+// plus (il a ete remplace par is_active, voir README), la colonne restant en
+// base pour l'import CSV et l'historique. L'exiger ici rendait toute creation
+// de produit IMPOSSIBLE depuis l'application : le message parlait d'un champ
+// "statut" absent de l'ecran. La colonne a une valeur par defaut en base et
+// ProductRepository::create la deduit de is_active.
+$productController = new CrudController(new CrudService(new ProductRepository(), $auditRepository, 'product', ['sku', 'name', 'category_id'], ['barcode' => 'code barre']));
 $productVariantController = new CrudController(new CrudService(new ProductVariantRepository(), $auditRepository, 'product_variant', ['product_id', 'sku'], ['barcode' => 'code barre']));
 $userController = new UserController(new UserService($userRepository, $roleRepository, $passwordService, $auditRepository, $authTokenRepository));
 $auditController = new AuditController($auditRepository);
