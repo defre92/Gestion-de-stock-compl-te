@@ -5966,6 +5966,16 @@ function makeSelectSearchable(select) {
         } else if (matches.some((option) => option.value === previous)) {
             select.value = previous;
         }
+
+        // select.value = ... ne declenche PAS l'evenement 'change' (contrairement
+        // a une selection au clavier/souris) : tous les champs qui reagissent au
+        // choix du produit (ex: liste des variantes sur l'ecran Numeros de serie,
+        // Mouvements, Demandes d'achat...) restaient donc muets quand on passait
+        // par le filtre au lieu de choisir directement dans la liste. On simule
+        // l'evenement nous-memes, seulement quand la valeur a reellement change.
+        if (select.value !== previous) {
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+        }
     });
 }
 

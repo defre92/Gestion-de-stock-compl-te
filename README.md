@@ -613,6 +613,28 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+## Listes deroulantes avec filtre : la selection automatique ne se propageait pas
+
+Au-dela de 12 entrees, une liste deroulante (produit, emplacement...) affiche
+un champ de filtre : on tape, et si un seul resultat correspond, il est
+selectionne automatiquement. Ce cas-la ne declenchait pas l'evenement
+`change` du navigateur - contrairement a une selection faite directement
+dans la liste (au clic ou au clavier). Tout ce qui reagit a ce choix pour
+mettre a jour un autre champ restait donc **muet quand on passait par le
+filtre** : sur l'ecran Numeros de serie par exemple, choisir un produit a
+variantes directement dans la liste faisait apparaitre le choix de la
+variante, mais le meme choix fait via le filtre ne l'affichait pas.
+
+Le filtre declenche desormais lui-meme l'evenement `change` quand il
+selectionne automatiquement un resultat unique - exactement comme une
+selection manuelle. Cela corrige le meme souci partout ou ce mecanisme est
+utilise (numeros de serie, mouvements, demandes d'achat, commandes...), pas
+seulement sur l'ecran ou il a ete signale.
+
+**Verifie** : sur l'ecran Numeros de serie, filtrer jusqu'a un produit unique
+a variantes fait bien apparaitre et se peupler le champ variante, exactement
+comme un choix direct dans la liste.
+
 ## Numeros de serie : possible pour une variante, pas seulement pour le produit
 
 L'ecran "Numeros de serie" permettait d'enregistrer un SN pour un produit,
