@@ -613,6 +613,34 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+## Stock initial : rangement direct a l'emplacement
+
+Le stock initial saisi a la creation d'un produit arrivait dans l'entrepot
+mais **"non range"** : aucune zone, aucun emplacement. Il fallait enchainer
+un transfert interne juste apres pour le placer, alors qu'on sait
+parfaitement ou on le met au moment de la saisie.
+
+Le formulaire produit propose desormais, a la creation, un troisieme champ :
+**"Stock initial - emplacement (optionnel)"**. La liste se remplit avec les
+emplacements de l'entrepot choisi juste au-dessus (regroupes par zone, comme
+partout ailleurs) et se met a jour si l'on change d'entrepot - impossible de
+ranger un article dans une allee qui n'existe pas la ou il arrive.
+
+Laisse vide, le comportement reste celui d'avant : la quantite entre dans
+l'entrepot sans emplacement precis. Le message de confirmation dit
+desormais lequel des deux s'est produit : *"Produit cree avec un stock
+initial de 5, range en A2"* ou *"... non range dans l'entrepot"*.
+
+Techniquement, c'est le meme mouvement d'entree qu'avant, avec son
+emplacement de destination renseigne : rien de nouveau cote serveur, et
+l'operation reste tracee et auditee comme n'importe quel mouvement.
+
+**Verifie** : la liste des emplacements suit l'entrepot choisi ; le mouvement
+part avec le bon emplacement ; et sur une base reelle, la ligne de stock
+creee porte bien l'emplacement (`A2`, 5 unites) au lieu d'un stock non range.
+La verification de paquet enchaine desormais creation de produit ->
+mouvement d'entree, le chemin complet du stock initial.
+
 ## Correctif : stock initial ignore a la creation d'un produit
 
 Creer un produit en renseignant "Stock initial - quantite" affichait

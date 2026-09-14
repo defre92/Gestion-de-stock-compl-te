@@ -258,6 +258,13 @@ const crudModules = {
             // fait par un mouvement trace, jamais en editant une fiche.
             fields.push(
                 { key: 'initial_warehouse_id', label: 'Stock initial - entrepot (optionnel)', type: 'select', optionsFrom: 'warehouses', optionLabel: 'name', createOnly: true },
+                // Emplacement du stock initial : sans lui, les quantites
+                // saisies a la creation arrivaient "non rangees" dans
+                // l'entrepot, et il fallait faire un transfert interne juste
+                // apres pour les placer. La liste se remplit avec les
+                // emplacements de l'entrepot choisi (voir
+                // setupInitialStockLocation).
+                { key: 'initial_location_id', label: 'Stock initial - emplacement (optionnel)', type: 'select', optionsFrom: 'warehouse_locations', optionLabel: 'code', createOnly: true },
                 { key: 'initial_quantity', label: 'Stock initial - quantite', type: 'number', createOnly: true },
             );
 
@@ -1534,6 +1541,7 @@ async function renderCrud(module) {
             setupScannerFriendlyForm(form);
             setupColorFields(form);
             setupRoleHint(form);
+            setupInitialStockLocation(module, form);
         });
 
         // IMPORTANT: #appContent (root) n'est jamais recree entre deux rendus du
@@ -1574,6 +1582,7 @@ async function renderCrud(module) {
                 setupScannerFriendlyForm(form);
                 setupColorFields(form);
                 setupRoleHint(form);
+                setupInitialStockLocation(module, form);
                 return;
             }
 
@@ -1683,8 +1692,12 @@ async function renderCrud(module) {
             const initialQuantity = module === 'products' && editId === null
                 ? Number(payload.initial_quantity ?? 0) || 0
                 : 0;
+            const initialLocationId = module === 'products' && editId === null
+                ? Number(payload.initial_location_id ?? 0) || null
+                : null;
             delete payload.initial_warehouse_id;
             delete payload.initial_quantity;
+            delete payload.initial_location_id;
 
             const path = editId === null ? config.endpoint : `${config.endpoint}/${editId}`;
             const method = editId === null ? 'POST' : 'PUT';
@@ -1730,6 +1743,12 @@ async function renderCrud(module) {
                                 body: {
                                     product_id: newProductId,
                                     warehouse_id: initialWarehouseId,
+                                    // Une entree range a l'emplacement de
+                                    // destination (voir StockService) : le
+                                    // stock initial arrive donc directement
+                                    // dans l'allee choisie, ou "non range" si
+                                    // aucun emplacement n'a ete precise.
+                                    destination_location_id: initialLocationId,
                                     type: 'IN',
                                     quantity: initialQuantity,
                                     reason_code: 'INITIAL_STOCK',
@@ -1764,7 +1783,11 @@ async function renderCrud(module) {
                         freshFeedback.classList.remove('is-success');
                         freshFeedback.classList.add('is-error');
                     } else if (initialWarehouseId && initialQuantity > 0) {
-                        freshFeedback.textContent = `Produit cree avec un stock initial de ${initialQuantity} (mouvement d'entree enregistre).`;
+                        const placed = (state.lookups?.warehouse_locations ?? [])
+                            .find((row) => String(row.id) === String(initialLocationId));
+                        freshFeedback.textContent = placed
+                            ? `Produit cree avec un stock initial de ${initialQuantity}, range en ${placed.code} (mouvement d'entree enregistre).`
+                            : `Produit cree avec un stock initial de ${initialQuantity}, non range dans l'entrepot (mouvement d'entree enregistre).`;
                     }
 
                     if (createdProductId) {
@@ -5353,6 +5376,30 @@ function setupRoleHint(form) {
     };
 
     select.addEventListener('change', sync);
+    sync();
+}
+
+/**
+ * Remplit la liste "Stock initial - emplacement" avec les emplacements de
+ * l'entrepot choisi juste au-dessus.
+ *
+ * Sans ce lien, la liste aurait propose les emplacements de TOUS les
+ * entrepots - et laisse ranger un article dans une allee qui n'existe pas la
+ * ou il arrive (le serveur refuse, mais autant ne pas le proposer).
+ */
+function setupInitialStockLocation(module, form) {
+    if (module !== 'products') {
+        return;
+    }
+
+    const warehouseSelect = form.elements.namedItem('initial_warehouse_id');
+    const locationSelect = form.elements.namedItem('initial_location_id');
+    if (!warehouseSelect || !locationSelect) {
+        return;
+    }
+
+    const sync = () => fillLocationOptions(locationSelect, warehouseSelect.value ?? '');
+    warehouseSelect.addEventListener('change', sync);
     sync();
 }
 
