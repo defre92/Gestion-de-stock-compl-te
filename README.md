@@ -613,6 +613,41 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+## Numeros de serie : date d'entree et date de sortie (utile pour la garantie)
+
+La fiche d'un numero de serie (que ce soit dans le tableau ou dans le
+resultat de "Rechercher un article par numero de serie") affiche desormais
+la date d'enregistrement ("Entree le") et, si l'exemplaire est actuellement
+sorti, la date a laquelle il est sorti ("Sorti le") - utile pour verifier une
+garantie sans avoir a chercher dans l'historique des mouvements.
+
+La date de sortie s'appuie sur la derniere mise a jour du numero de serie,
+fiable tant que le statut actuel est bien "sorti" (mise a jour a chaque
+sortie ou remise en stock, que ce soit via une livraison ou le bouton
+"Marquer sorti"). Si l'exemplaire est revenu en stock, la date de sortie
+n'a plus de sens et n'est donc plus affichee.
+
+## Livraisons : voir les produits d'un bon de livraison depuis l'historique
+
+Dans l'historique des bons de livraison, impossible jusqu'ici de savoir quels
+produits un BL contenait sans rouvrir son impression. Un bouton "Produits
+livres" apparait desormais a cote du numero de chaque BL et ouvre une petite
+fenetre listant les lignes (produit, variante eventuelle, numero de serie
+eventuel, quantite, prix unitaire).
+
+Techniquement, ce n'est pas une liste deroulante (`<select>`) classique : un
+`<select>` charge au clic se serait ouvert vide le temps du chargement (rien
+n'affiche "Chargement..." dans une liste deroulante native pendant qu'on
+l'observe). La popup utilisee ici est le meme mecanisme deja utilise pour le
+detail d'une demande ou d'une commande d'achat - elle se remplit a la
+demande (un seul BL a la fois, pas un chargement de toutes les lignes de
+tous les BL affiches) et affiche un etat de chargement clair.
+
+**Verifie** : test simule le clic sur "Produits livres", verifie que la
+popup s'ouvre avec le bon numero de BL, le produit simple et son numero de
+serie, le produit a variante avec sa variante, et les quantites - sans appel
+reseau pour les BL qu'on ne consulte pas.
+
 ## Correctif : "Remettre en stock" un numero de serie echouait ("Reference invalide")
 
 Depuis l'ecran Numeros de serie, cliquer sur "Remettre en stock" (pour un

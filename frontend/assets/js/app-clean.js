@@ -2266,7 +2266,13 @@ async function renderProductSerials() {
                 ['warehouse_name', 'Entrepot'],
                 ['location_code', 'Emplacement', (value) => sanitize(value || '-')],
                 ['status', 'Statut'],
-                ['created_at', 'Enregistre le'],
+                ['created_at', 'Entree le'],
+                // Utile pour la garantie : quand un exemplaire est sorti (vendu ou
+                // retire), on veut savoir quand sans avoir a rouvrir la recherche
+                // par SN. `updated_at` reflete la derniere fois que le statut a
+                // change (mark-out ou livraison) - fiable tant que le statut
+                // actuel est bien "sorti".
+                ['updated_at', 'Sorti le', (value, row) => (row.status === 'OUT' ? sanitize(value) : '-')],
                 ...(writable ? [['id', 'Actions', (value, row) => `
                     ${row.status === 'IN_STOCK'
                         ? `<button class="btn btn-soft" data-mark-out="${value}">Marquer sorti</button>`
@@ -2306,9 +2312,11 @@ async function renderProductSerials() {
                 <div class="panel-soft">
                     <p><strong>${sanitize(found.product_name)}</strong> (${sanitize(found.sku)})${found.variant_id ? ` - variante : ${sanitize(variantDescriptor(found))}` : ''}</p>
                     <p>Numero de serie: ${sanitize(found.serial_number)}</p>
-                    <p>Statut: ${sanitize(found.status)}</p>
+                    <p>Statut: ${sanitize(localizeValue(found.status, 'status'))}</p>
                     <p>Entrepot: ${sanitize(found.warehouse_name ?? '-')}</p>
                     <p>Emplacement: ${sanitize(found.location_code ?? 'Non precise')}${found.location_description ? ` (${sanitize(found.location_description)})` : ''}</p>
+                    <p>Entree le: ${sanitize(found.created_at)}</p>
+                    ${found.status === 'OUT' ? `<p>Sorti le: ${sanitize(found.updated_at)}</p>` : ''}
                 </div>
                 <div class="table-wrap" style="margin-top:12px">
                     <h5>Historique des ventes</h5>
@@ -2522,7 +2530,10 @@ async function renderDeliveries() {
         <section class="panel">
             <h4>Bons de livraison</h4>
             ${renderSimpleTable(rows, [
-                ['delivery_number', 'Numero'],
+                ['delivery_number', 'Numero', (value, row) => `
+                    ${sanitize(value)}
+                    <button type="button" class="btn btn-soft btn-sm" data-view-delivery-lines="${row.id}">Produits livres</button>
+                `],
                 ['customer_name', 'Client'],
                 ['warehouse_name', 'Entrepot'],
                 ['status', 'Statut'],
@@ -2705,6 +2716,39 @@ async function renderDeliveries() {
             try {
                 await apiRequest(`/deliveries/${deliveryId}/cancel`, { method: 'POST', body: {} });
                 await renderDeliveries();
+            } catch (error) {
+                window.alert(error.message);
+            }
+        });
+    });
+
+    // "Produits livres" : le detail (lignes) n'est pas dans la liste paginee
+    // (couteux a charger pour chaque BL quand on ne le consulte pas), donc
+    // recupere a la demande. Une vraie liste deroulante (<select>) aurait pu
+    // s'ouvrir vide le temps du chargement - une popup, comme pour les
+    // demandes/commandes d'achat, affiche "Chargement..." puis le contenu
+    // sans ce defaut.
+    root.querySelectorAll('[data-view-delivery-lines]').forEach((button) => {
+        button.addEventListener('click', async () => {
+            const deliveryId = button.getAttribute('data-view-delivery-lines');
+            try {
+                const detail = await apiRequest(`/deliveries/${deliveryId}`);
+                const delivery = detail.data;
+                const linesHtml = (delivery.lines ?? []).map((line) => `
+                    <tr>
+                        <td>${sanitize(line.sku)}</td>
+                        <td>${sanitize(line.product_name)}${line.variant_id ? ` - ${sanitize(variantDescriptor({ ...line, sku: line.variant_sku }))}` : ''}</td>
+                        <td>${line.serial_number ? sanitize(line.serial_number) : '-'}</td>
+                        <td>${Number(line.quantity)}</td>
+                        <td>${formatMoney(line.unit_price)}</td>
+                    </tr>
+                `).join('');
+                showModal(`Produits livres - BL ${delivery.delivery_number}`, `
+                    <table class="simple-table">
+                        <thead><tr><th>SKU</th><th>Produit</th><th>N° Serie</th><th>Qte</th><th>PU</th></tr></thead>
+                        <tbody>${linesHtml || '<tr><td colspan="5">Aucune ligne</td></tr>'}</tbody>
+                    </table>
+                `);
             } catch (error) {
                 window.alert(error.message);
             }
@@ -6211,6 +6255,8 @@ const VALUE_LABELS = {
     OUT: 'Sortie',
     ADJUSTMENT: 'Ajustement',
     TRANSFER: 'Transfert',
+    // Statut d'un numero de serie (OUT partage deja le libelle "Sortie" ci-dessus)
+    IN_STOCK: 'En stock',
     // Types d'inventaire
     GLOBAL: 'Global',
     CYCLE: 'Tournant',
