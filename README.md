@@ -613,6 +613,36 @@ auditees. Chaque correctif ci-dessous a ete verifie contre une base MariaDB
   rejetee s'affichait `FAILED`. Seul un import ou aucune ligne n'est passee
   est desormais un echec.
 
+## Numeros de serie : possible pour une variante, pas seulement pour le produit
+
+L'ecran "Numeros de serie" permettait d'enregistrer un SN pour un produit,
+mais pas pour une variante precise (taille, couleur, millesime...). Cote
+serveur, `product_serials.variant_id` existait deja et etait deja utilise -
+recherche par SN, historique de livraison, mouvements de stock - mais le
+formulaire de creation ne demandait jamais quelle variante, et n'importait
+donc rien depuis un produit a variantes : impossible de savoir *quel
+exemplaire de quelle taille/couleur* portait un SN donne.
+
+Le formulaire propose desormais un champ **"Variante"** juste apres le choix
+du produit. Il reste cache pour un produit simple (rien ne change dans ce
+cas), et apparait automatiquement - rempli avec les variantes actives du
+produit choisi - des que celui-ci utilise des variantes ; il devient alors
+obligatoire, comme partout ailleurs dans l'application (Mouvements, Demandes
+d'achat, Commandes, Inventaires). La quantite en stock deplacee par
+l'enregistrement d'un SN va bien sur la ligne de stock de la variante
+choisie, et plus seulement sur celle du produit.
+
+Le tableau des numeros de serie enregistres et la fiche "Rechercher un
+article par numero de serie" affichent maintenant la variante quand il y en
+a une (ex : *SN-00012345 - variante : M / Rouge*).
+
+**Verifie** : sur un produit sans variantes, le champ reste cache et rien ne
+change ; sur un produit a variantes, le champ apparait, se peuple avec les
+bonnes variantes, et bloque l'enregistrement tant qu'aucune n'est choisie ;
+une fois choisie, l'API enregistre bien le SN avec son `variant_id`, et sur
+une base reelle la ligne de stock de la variante concernee (et non celle du
+produit) est bien celle qui augmente.
+
 ## Stock initial : rangement direct a l'emplacement
 
 Le stock initial saisi a la creation d'un produit arrivait dans l'entrepot

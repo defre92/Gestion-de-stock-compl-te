@@ -2202,6 +2202,9 @@ async function renderProductSerials() {
             ${writable ? `
             <form id="serialCreateForm" class="form-grid">
                 ${selectField('product_id', 'Produit', state.lookups.products, 'id', 'name', true, presetProductId ?? '')}
+                <div class="full hidden" id="serialCreateVariantWrap">
+                    <label><span>Variante</span><select name="variant_id" id="serialCreateVariantSelect"></select></label>
+                </div>
                 ${selectField('warehouse_id', 'Entrepot de stockage', state.lookups.warehouses, 'id', 'name', true)}
                 <label><span>Emplacement (optionnel)</span>
                     <select name="location_id" id="serialCreateLocation" disabled>
@@ -2244,6 +2247,7 @@ async function renderProductSerials() {
             ${renderSimpleTable(rows, [
                 ['serial_number', 'Numero de serie'],
                 ['product_name', 'Produit'],
+                ['variant_sku', 'Variante', (v, row) => (row.variant_id ? sanitize(variantDescriptor(row)) : '-')],
                 ['warehouse_name', 'Entrepot'],
                 ['location_code', 'Emplacement', (value) => sanitize(value || '-')],
                 ['status', 'Statut'],
@@ -2285,7 +2289,7 @@ async function renderProductSerials() {
 
             searchResult.innerHTML = `
                 <div class="panel-soft">
-                    <p><strong>${sanitize(found.product_name)}</strong> (${sanitize(found.sku)})</p>
+                    <p><strong>${sanitize(found.product_name)}</strong> (${sanitize(found.sku)})${found.variant_id ? ` - variante : ${sanitize(variantDescriptor(found))}` : ''}</p>
                     <p>Numero de serie: ${sanitize(found.serial_number)}</p>
                     <p>Statut: ${sanitize(found.status)}</p>
                     <p>Entrepot: ${sanitize(found.warehouse_name ?? '-')}</p>
@@ -2314,6 +2318,41 @@ async function renderProductSerials() {
     const syncSerialLocations = () => fillLocationOptions(serialLocationSelect, serialWarehouseSelect?.value ?? '');
     serialWarehouseSelect?.addEventListener('change', syncSerialLocations);
     syncSerialLocations();
+
+    // Un produit a variantes (taille/couleur/etc.) n'a pas de stock au niveau
+    // du produit lui-meme : chaque numero de serie designe un exemplaire
+    // physique d'UNE variante precise. Le backend acceptait deja variant_id
+    // a la creation (product_serials.variant_id existe et est deja utilise
+    // pour les mouvements de stock et l'historique), mais cet ecran ne le
+    // demandait jamais : impossible d'enregistrer un SN pour une variante.
+    const serialProductSelect = createForm?.elements.namedItem('product_id');
+    const serialVariantWrap = document.getElementById('serialCreateVariantWrap');
+    const serialVariantSelect = document.getElementById('serialCreateVariantSelect');
+    const loadSerialVariantOptions = async () => {
+        if (!serialVariantWrap || !serialVariantSelect) {
+            return;
+        }
+        const productId = serialProductSelect?.value;
+        const product = state.lookups.products.find((p) => String(p.id) === String(productId));
+        const hasVariants = Number(product?.has_variants) === 1;
+        serialVariantWrap.classList.toggle('hidden', !hasVariants);
+        serialVariantSelect.required = hasVariants;
+
+        if (!hasVariants || !productId) {
+            serialVariantSelect.innerHTML = '';
+            return;
+        }
+
+        serialVariantSelect.innerHTML = '<option value="">Chargement...</option>';
+        const response = await apiRequest(`/product-variants?product_id=${productId}&is_active=1&per_page=200`);
+        const variants = normalizeRows(response);
+        serialVariantSelect.innerHTML = variants.length === 0
+            ? '<option value="">Aucune variante active pour ce produit</option>'
+            : '<option value="">Choisir...</option>' + variants.map((v) => `<option value="${v.id}">${sanitize(variantDescriptor(v))}</option>`).join('');
+    };
+    serialProductSelect?.addEventListener('change', loadSerialVariantOptions);
+    loadSerialVariantOptions();
+
     const createFeedback = document.getElementById('serialCreateFeedback');
     createForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -2326,8 +2365,17 @@ async function renderProductSerials() {
             .map((line) => line.trim())
             .filter(Boolean);
 
+        const productId = Number(data.get('product_id'));
+        const selectedProduct = state.lookups.products.find((p) => String(p.id) === String(productId));
+        if (Number(selectedProduct?.has_variants) === 1 && !serialVariantSelect?.value) {
+            createFeedback.textContent = 'Ce produit utilise des variantes : precise laquelle avant d\'enregistrer.';
+            createFeedback.classList.add('is-error');
+            return;
+        }
+
         const payload = {
-            product_id: Number(data.get('product_id')),
+            product_id: productId,
+            variant_id: serialVariantSelect?.value ? Number(serialVariantSelect.value) : null,
             warehouse_id: warehouseId,
             serial_numbers: serialNumbers,
             location_id: data.get('location_id') ? Number(data.get('location_id')) : null,
