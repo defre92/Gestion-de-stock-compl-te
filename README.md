@@ -650,6 +650,39 @@ la verification que la suppression est refusee une fois la session
 finalisee, et qu'un identifiant de comptage d'une autre session est
 rejete).
 
+## Correctif : le champ "Variante" des demandes et commandes d'achat n'avait pas de titre
+
+Sur les ecrans **Demandes achat** et **Commandes achat**, des qu'un produit
+a variantes etait choisi dans le formulaire "Ajouter la ligne", la liste
+deroulante des variantes apparaissait bien a cote du champ Produit - mais
+sans aucun libelle "Variante" au-dessus, contrairement a tous les autres
+champs du formulaire (Quantite, Cout prefere, etc.). Le champ etait donc
+present et fonctionnel, mais on ne pouvait pas deviner a quoi il servait
+juste en le regardant.
+
+Cause : la liste deroulante des variantes portait directement la classe qui
+la cache tant qu'aucun produit a variantes n'est choisi
+(`<select class="hidden">`), sans etre entouree d'une etiquette
+`<label><span>Variante</span>...</label>` comme le sont tous les autres
+champs du formulaire. Une fois la liste affichee (produit a variantes
+choisi), elle se retrouvait donc seule dans sa case du formulaire, sans
+titre - exactement ce qui apparait sur les captures d'ecran transmises. Ce
+n'etait pas lie a la liste "Produit" avec filtre de recherche (qui, elle,
+s'affiche correctement) : les deux champs sont simplement independants l'un
+de l'autre.
+
+Corrige en entourant la liste des variantes d'une etiquette avec son titre,
+comme partout ailleurs dans l'application - le titre "Variante" s'affiche
+desormais correctement des qu'un produit a variantes est selectionne, sur
+les deux ecrans.
+
+**Verifie** : reproduit puis corrige dans un vrai navigateur (Chromium,
+capture d'ecran a l'appui) sur les deux ecrans, avec un catalogue de plus
+de 12 produits (pour retrouver le champ "Produit" avec filtre, comme sur
+les captures transmises) dont un produit a variantes - le titre "Variante"
+apparait desormais bien au-dessus de la liste, que le produit soit choisi
+directement dans la liste ou via le filtre de recherche.
+
 ## Inventaires : la finalisation ajuste le stock selon le comptage - est-ce normal ?
 
 Question posee directement : un inventaire qui, a la finalisation,

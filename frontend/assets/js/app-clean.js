@@ -3329,7 +3329,7 @@ async function renderPurchaseRequests() {
             <hr>
             <form id="requestLineForm" class="form-grid">
                 ${selectField('product_id', 'Produit', state.lookups.products, 'id', 'name', true)}
-                <select name="variant_id" id="requestLineVariant" class="hidden"><option value="">-</option></select>
+                <label class="hidden" id="requestLineVariantWrap"><span>Variante</span><select name="variant_id" id="requestLineVariant"><option value="">-</option></select></label>
                 <label><span>Quantite demandee</span><input type="number" name="quantity_requested" min="1" required></label>
                 <label><span>Cout prefere</span><input type="number" name="preferred_unit_cost" min="0" step="0.01"></label>
                 <button type="submit" class="btn btn-soft">Ajouter la ligne</button>
@@ -3362,12 +3362,13 @@ async function renderPurchaseRequests() {
     const lineForm = document.getElementById('requestLineForm');
     const lineProductSelect = lineForm?.elements.namedItem('product_id');
     const lineVariantSelect = document.getElementById('requestLineVariant');
+    const lineVariantWrap = document.getElementById('requestLineVariantWrap');
 
     const refreshLineVariants = async () => {
         const productId = lineProductSelect?.value;
         const product = (state.lookups.products ?? []).find((p) => String(p.id) === String(productId));
         const hasVariants = Number(product?.has_variants) === 1;
-        lineVariantSelect.classList.toggle('hidden', !hasVariants);
+        lineVariantWrap?.classList.toggle('hidden', !hasVariants);
         lineVariantSelect.required = hasVariants;
         lineVariantSelect.innerHTML = '<option value="">-</option>';
         if (!hasVariants || !productId) {
@@ -3556,7 +3557,7 @@ async function renderPurchaseOrders() {
             <hr>
             <form id="orderLineForm" class="form-grid">
                 ${selectField('product_id', 'Produit', state.lookups.products, 'id', 'name', true)}
-                <select name="variant_id" id="orderLineVariant" class="hidden"><option value="">-</option></select>
+                <label class="hidden" id="orderLineVariantWrap"><span>Variante</span><select name="variant_id" id="orderLineVariant"><option value="">-</option></select></label>
                 <label><span>Quantite</span><input type="number" name="quantity_ordered" min="1" required></label>
                 <label><span>Prix unitaire</span><input type="number" name="unit_cost" min="0" step="0.01" required></label>
                 <button type="submit" class="btn btn-soft">Ajouter la ligne</button>
@@ -3612,12 +3613,13 @@ async function renderPurchaseOrders() {
     const itemsPreview = document.getElementById('orderItemsPreview');
     const orderLineProductSelect = lineForm?.elements.namedItem('product_id');
     const orderLineVariantSelect = document.getElementById('orderLineVariant');
+    const orderLineVariantWrap = document.getElementById('orderLineVariantWrap');
 
     const refreshOrderLineVariants = async () => {
         const productId = orderLineProductSelect?.value;
         const product = (state.lookups.products ?? []).find((p) => String(p.id) === String(productId));
         const hasVariants = Number(product?.has_variants) === 1;
-        orderLineVariantSelect.classList.toggle('hidden', !hasVariants);
+        orderLineVariantWrap?.classList.toggle('hidden', !hasVariants);
         orderLineVariantSelect.required = hasVariants;
         orderLineVariantSelect.innerHTML = '<option value="">-</option>';
         if (!hasVariants || !productId) {
