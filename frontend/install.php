@@ -324,6 +324,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $pdo->exec("
                 INSERT INTO roles (code, label) VALUES
+                -- SUPER_ADMIN : reserve au tout premier compte, cree ici par
+                -- l'installateur. Il a les memes droits qu'ADMIN partout
+                -- ailleurs (voir RoleMiddleware cote API, qui liste toujours
+                -- les deux ensemble), a une exception pres : lui seul peut
+                -- acceder a demo-data.php et migrate.php (voir leurs
+                -- requireAdmin() respectives). N'est jamais propose dans le
+                -- selecteur de profil de l'ecran Utilisateurs (voir
+                -- RoleRepository::allAssignable()) : un Administrateur ne peut
+                -- donc pas s'auto-promouvoir ni en creer un second.
+                ('SUPER_ADMIN', 'Super administrateur'),
                 ('ADMIN', 'Administrateur'),
                 ('MANAGER', 'Responsable stock'),
                 ('STOREKEEPER', 'Magasinier'),
@@ -346,7 +356,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("
                 INSERT INTO users (full_name, email, password_hash, role_id, is_active)
                 SELECT :full_name, :email, :password_hash, r.id, 1
-                FROM roles r WHERE r.code = 'ADMIN'
+                FROM roles r WHERE r.code = 'SUPER_ADMIN'
                 ON DUPLICATE KEY UPDATE full_name = VALUES(full_name), password_hash = VALUES(password_hash), is_active = 1
             ");
             $stmt->execute([

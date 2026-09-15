@@ -673,17 +673,25 @@ function applyVariantsVisibility() {
 
 function applyNavAccess() {
     const isAdmin = canWrite('users');
-    if (isAdmin) {
-        return;
+    if (!isAdmin) {
+        const hiddenModules = ['users', 'settings', 'imports', 'audits'];
+        hiddenModules.forEach((module) => {
+            const btn = document.querySelector(`[data-module="${module}"]`);
+            btn?.remove();
+        });
     }
 
-    const hiddenModules = ['users', 'settings', 'imports', 'audits'];
-    hiddenModules.forEach((module) => {
-        const btn = document.querySelector(`[data-module="${module}"]`);
-        btn?.remove();
-    });
-    document.getElementById('demoDataNavLink')?.remove();
-    document.getElementById('migrateNavLink')?.remove();
+    // Donnees de demo et Migrations restent reserves au Super administrateur
+    // meme pour un Administrateur (qui a pourtant tous les autres droits
+    // ci-dessus) : c'est le seul cas ou ADMIN et SUPER_ADMIN divergent. Le
+    // serveur applique la meme regle de son cote (voir demo-data.php et
+    // migrate.php) : masquer le lien ici n'est qu'un confort d'affichage,
+    // pas la seule protection.
+    const isSuperAdmin = String(state.user?.role ?? '').toUpperCase() === 'SUPER_ADMIN';
+    if (!isSuperAdmin) {
+        document.getElementById('demoDataNavLink')?.remove();
+        document.getElementById('migrateNavLink')?.remove();
+    }
 }
 
 function setupNavigation() {
@@ -832,14 +840,22 @@ function setupGlobalSearch() {
  * `all: true` = tous les ecrans, administration comprise.
  */
 const ROLE_MATRIX = {
+    // Reserve au tout premier compte de l'installation (voir install.php) :
+    // jamais propose dans le selecteur de profil de l'ecran Utilisateurs
+    // (voir RoleRepository::allAssignable() cote serveur, qui l'exclut de la
+    // liste deroulante - la meme regle est donc appliquee des deux cotes).
     SUPER_ADMIN: {
         label: 'Super administrateur',
-        summary: "Tous les droits, y compris la gestion des utilisateurs et des parametres.",
+        summary: "Tous les droits de l'Administrateur, plus deux ecrans qui lui sont reserves : Donnees de demo et Migrations.",
         all: true,
     },
     ADMIN: {
         label: 'Administrateur',
-        summary: "Tous les droits, y compris la gestion des utilisateurs et des parametres.",
+        // Seule difference avec SUPER_ADMIN : ni Donnees de demo, ni
+        // Migrations (masques du menu et refuses cote serveur si contournes
+        // - voir applyNavAccess() et demo-data.php/migrate.php). Tout le
+        // reste (utilisateurs, parametres, catalogue...) reste identique.
+        summary: "Tous les droits, y compris la gestion des utilisateurs et des parametres - a l'exception de Donnees de demo et Migrations, reserves au Super administrateur.",
         all: true,
     },
     MANAGER: {

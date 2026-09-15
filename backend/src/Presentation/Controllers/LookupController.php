@@ -43,7 +43,10 @@ final class LookupController
             // plafond de 100 lignes de paginate(), qui protege le parametre
             // HTTP ?per_page et tronquait ces listes sans le dire.
             'data' => [
-                'roles' => $this->roleRepository->all(),
+                // allAssignable() exclut SUPER_ADMIN : ce profil n'est jamais
+                // propose dans le selecteur "Profil" de l'ecran Utilisateurs
+                // (voir RoleRepository::allAssignable()).
+                'roles' => $this->roleRepository->allAssignable(),
                 'warehouses' => $this->warehouseRepository->allForLookup(),
                 'warehouse_zones' => $this->warehouseZoneRepository->allForLookup(),
                 'warehouse_locations' => $this->warehouseLocationRepository->allForLookup(),

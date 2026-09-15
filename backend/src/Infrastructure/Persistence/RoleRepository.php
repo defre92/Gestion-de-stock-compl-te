@@ -28,4 +28,17 @@ final class RoleRepository
     {
         return $this->pdo->query('SELECT id, code, label FROM roles ORDER BY id ASC')->fetchAll();
     }
+
+    /**
+     * Roles proposables depuis l'ecran Utilisateurs (SUPER_ADMIN excepte).
+     *
+     * SUPER_ADMIN est reserve au tout premier compte de l'installation (voir
+     * install.php) : le proposer ici permettrait a n'importe quel
+     * Administrateur de s'auto-promouvoir, ou d'en creer un second, en
+     * choisissant simplement ce profil dans la liste deroulante.
+     */
+    public function allAssignable(): array
+    {
+        return $this->pdo->query("SELECT id, code, label FROM roles WHERE code <> 'SUPER_ADMIN' ORDER BY id ASC")->fetchAll();
+    }
 }

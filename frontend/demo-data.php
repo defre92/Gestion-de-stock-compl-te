@@ -5,10 +5,19 @@ declare(strict_types=1);
  * Outils de demonstration - accessible depuis le navigateur, aucun acces SSH
  * necessaire (meme logique que frontend/install.php).
  *
- * Reserve aux comptes ADMIN deja connectes (verifie via le cookie de session
- * gs_token, comme le fait App\Presentation\Middleware\AuthMiddleware/RoleMiddleware
- * cote API). Cette page n'utilise pas l'autoloader de l'app pour rester
- * autonome, mais reproduit exactement la meme verification.
+ * Reserve au compte SUPER_ADMIN deja connecte (verifie via le cookie de
+ * session gs_token, meme principe que
+ * App\Presentation\Middleware\AuthMiddleware cote API). Cette page n'utilise
+ * pas l'autoloader de l'app pour rester autonome, mais reproduit la meme
+ * verification de session.
+ *
+ * Volontairement plus restreint que le reste de l'administration : un
+ * Administrateur (ADMIN) a tous les autres droits de l'application, mais PAS
+ * celui de reinitialiser les donnees du client - reserve au compte
+ * Super administrateur (SUPER_ADMIN), normalement le tout premier compte
+ * cree a l'installation (voir install.php). Voir aussi ensureSuperAdminExists()
+ * ci-dessous pour les installations existantes qui n'avaient pas encore ce
+ * role.
  *
  * Deux actions :
  *  1) Charger les donnees de demo catalogue (database/demo/catalog-demo.sql)
@@ -44,8 +53,54 @@ function connectDb(): PDO
 }
 
 /**
+ * Garantit qu'un compte Super administrateur existe, en promouvant
+ * automatiquement le compte ADMIN le plus ancien (le premier cree) si aucun
+ * compte n'est encore SUPER_ADMIN.
+ *
+ * Sans ce filet, une installation existante (d'avant l'ajout de ce role)
+ * mise a jour vers cette version se retrouverait avec AUCUN compte capable
+ * d'acceder a cet ecran : ses comptes sont tous ADMIN, et ADMIN n'y a plus
+ * acces. Idempotent (sans effet des qu'un Super administrateur existe deja),
+ * et sans dependance a une migration prealable : le role SUPER_ADMIN est
+ * cree ici directement si besoin (un simple INSERT, pas un changement de
+ * schema).
+ */
+function ensureSuperAdminExists(PDO $pdo): void
+{
+    $pdo->exec("INSERT INTO roles (code, label) VALUES ('SUPER_ADMIN', 'Super administrateur') ON DUPLICATE KEY UPDATE label = VALUES(label)");
+
+    $stmt = $pdo->prepare('SELECT id FROM roles WHERE code = :code LIMIT 1');
+    $stmt->execute([':code' => 'SUPER_ADMIN']);
+    $superAdminRoleId = (int)$stmt->fetchColumn();
+
+    $stmt = $pdo->prepare('SELECT 1 FROM users WHERE role_id = :role_id LIMIT 1');
+    $stmt->execute([':role_id' => $superAdminRoleId]);
+    if ($stmt->fetchColumn() !== false) {
+        return;
+    }
+
+    // UPDATE ... JOIN ne supporte pas ORDER BY/LIMIT en MySQL/MariaDB (limite
+    // aux UPDATE mono-table) : on cherche donc d'abord l'id du plus ancien
+    // compte ADMIN, puis on le met a jour separement.
+    $stmt = $pdo->query("
+        SELECT u.id FROM users u
+        INNER JOIN roles r ON r.id = u.role_id
+        WHERE r.code = 'ADMIN'
+        ORDER BY u.id ASC
+        LIMIT 1
+    ");
+    $firstAdminId = $stmt->fetchColumn();
+    if ($firstAdminId === false) {
+        return;
+    }
+
+    $stmt = $pdo->prepare('UPDATE users SET role_id = :role_id WHERE id = :id');
+    $stmt->execute([':role_id' => $superAdminRoleId, ':id' => (int)$firstAdminId]);
+}
+
+/**
  * Reproduit App\Application\Services\AuthService::resolveUserByToken() +
- * RoleMiddleware(['ADMIN']), sans dependre de l'autoloader de l'app.
+ * RoleMiddleware(['SUPER_ADMIN']), sans dependre de l'autoloader de l'app.
  */
 function requireAdmin(PDO $pdo): array
 {
@@ -54,6 +109,8 @@ function requireAdmin(PDO $pdo): array
         header('Location: ' . FRONTEND_BASE_URL . '/login.php');
         exit;
     }
+
+    ensureSuperAdminExists($pdo);
 
     $tokenHash = hash('sha256', (string)$token);
     $stmt = $pdo->prepare("
@@ -73,9 +130,9 @@ function requireAdmin(PDO $pdo): array
         exit;
     }
 
-    if (strtoupper((string)$user['role_code']) !== 'ADMIN') {
+    if (strtoupper((string)$user['role_code']) !== 'SUPER_ADMIN') {
         http_response_code(403);
-        echo 'Reserve aux administrateurs.';
+        echo 'Reserve au Super administrateur.';
         exit;
     }
 

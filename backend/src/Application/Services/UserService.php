@@ -51,6 +51,8 @@ final class UserService
             throw new HttpException('Le mot de passe doit faire au moins ' . self::MIN_PASSWORD_LENGTH . ' caracteres', 422);
         }
 
+        $this->rejectSuperAdminAssignment((string)$payload['role']);
+
         $roleId = $this->roleRepository->idByCode((string)$payload['role']);
         if (!$roleId) {
             throw new HttpException('Profil inconnu', 422);
@@ -91,6 +93,8 @@ final class UserService
         }
 
         if (!empty($payload['role'])) {
+            $this->rejectSuperAdminAssignment((string)$payload['role']);
+
             $roleId = $this->roleRepository->idByCode((string)$payload['role']);
             if (!$roleId) {
                 throw new HttpException('Profil inconnu', 422);
@@ -111,6 +115,21 @@ final class UserService
 
         $this->repository->update($id, $update);
         $this->auditRepository->log($actorId, 'UPDATE', 'user', $id, array_keys($update), $ip);
+    }
+
+    /**
+     * SUPER_ADMIN ne s'attribue jamais depuis cet ecran (ni sa liste
+     * deroulante, voir RoleRepository::allAssignable(), ni un appel API
+     * direct) : c'est le role du tout premier compte de l'installation
+     * (voir install.php), et il ne doit exister qu'une fois. Le contourner
+     * ici empecherait un Administrateur de s'auto-promouvoir en modifiant
+     * la requete a la main.
+     */
+    private function rejectSuperAdminAssignment(string $role): void
+    {
+        if (strtoupper($role) === 'SUPER_ADMIN') {
+            throw new HttpException('Le profil Super administrateur ne peut pas etre attribue depuis cet ecran', 422);
+        }
     }
 
     public function resetPassword(int $id, string $newPassword, int $actorId, ?string $ip): void

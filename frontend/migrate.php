@@ -4,8 +4,17 @@ declare(strict_types=1);
 /**
  * Lance les migrations de base de donnees depuis le navigateur - meme
  * logique que backend/bin/migrate.php (CLI), mais accessible sans SSH.
- * Reserve aux comptes ADMIN deja connectes (meme verification que
- * frontend/demo-data.php : cookie de session gs_token + role ADMIN).
+ * Reserve au compte SUPER_ADMIN deja connecte (meme verification que
+ * frontend/demo-data.php : cookie de session gs_token + role SUPER_ADMIN).
+ *
+ * Volontairement plus restreint que le reste de l'administration : un
+ * Administrateur (ADMIN) a tous les autres droits de l'application, mais PAS
+ * celui de rejouer les migrations - reserve au compte Super administrateur
+ * (SUPER_ADMIN), normalement le tout premier compte cree a l'installation
+ * (voir install.php). Voir ensureSuperAdminExists() ci-dessous pour les
+ * installations existantes qui n'avaient pas encore ce role - sans elle,
+ * cette meme mise a jour qui restreint l'acces laisserait ces installations
+ * sans personne pour l'atteindre.
  *
  * A garder en ligne en permanence (contrairement a install.php) : protege
  * par l'authentification admin de l'application, utile a chaque nouvelle
@@ -33,7 +42,54 @@ function connectDb(): PDO
     ]);
 }
 
-/** Reproduit App\Application\Services\AuthService + RoleMiddleware(['ADMIN']). */
+/**
+ * Garantit qu'un compte Super administrateur existe, en promouvant
+ * automatiquement le compte ADMIN le plus ancien (le premier cree) si aucun
+ * compte n'est encore SUPER_ADMIN.
+ *
+ * Sans ce filet, une installation existante (d'avant l'ajout de ce role)
+ * mise a jour vers cette version se retrouverait avec AUCUN compte capable
+ * d'acceder a CET ecran precis - alors que c'est justement celui qui sert a
+ * appliquer les migrations, dont celle qui introduit le role SUPER_ADMIN
+ * (voir database/migrations/up/202602270016_super_admin_role.sql). Idempotent
+ * (sans effet des qu'un Super administrateur existe deja), et sans
+ * dependance a une migration prealable : le role SUPER_ADMIN est cree ici
+ * directement si besoin (un simple INSERT, pas un changement de schema).
+ */
+function ensureSuperAdminExists(PDO $pdo): void
+{
+    $pdo->exec("INSERT INTO roles (code, label) VALUES ('SUPER_ADMIN', 'Super administrateur') ON DUPLICATE KEY UPDATE label = VALUES(label)");
+
+    $stmt = $pdo->prepare('SELECT id FROM roles WHERE code = :code LIMIT 1');
+    $stmt->execute([':code' => 'SUPER_ADMIN']);
+    $superAdminRoleId = (int)$stmt->fetchColumn();
+
+    $stmt = $pdo->prepare('SELECT 1 FROM users WHERE role_id = :role_id LIMIT 1');
+    $stmt->execute([':role_id' => $superAdminRoleId]);
+    if ($stmt->fetchColumn() !== false) {
+        return;
+    }
+
+    // UPDATE ... JOIN ne supporte pas ORDER BY/LIMIT en MySQL/MariaDB (limite
+    // aux UPDATE mono-table) : on cherche donc d'abord l'id du plus ancien
+    // compte ADMIN, puis on le met a jour separement.
+    $stmt = $pdo->query("
+        SELECT u.id FROM users u
+        INNER JOIN roles r ON r.id = u.role_id
+        WHERE r.code = 'ADMIN'
+        ORDER BY u.id ASC
+        LIMIT 1
+    ");
+    $firstAdminId = $stmt->fetchColumn();
+    if ($firstAdminId === false) {
+        return;
+    }
+
+    $stmt = $pdo->prepare('UPDATE users SET role_id = :role_id WHERE id = :id');
+    $stmt->execute([':role_id' => $superAdminRoleId, ':id' => (int)$firstAdminId]);
+}
+
+/** Reproduit App\Application\Services\AuthService + RoleMiddleware(['SUPER_ADMIN']). */
 function requireAdmin(PDO $pdo): array
 {
     $token = $_COOKIE['gs_token'] ?? null;
@@ -41,6 +97,8 @@ function requireAdmin(PDO $pdo): array
         header('Location: ' . FRONTEND_BASE_URL . '/login.php');
         exit;
     }
+
+    ensureSuperAdminExists($pdo);
 
     $tokenHash = hash('sha256', (string)$token);
     $stmt = $pdo->prepare("
@@ -58,9 +116,9 @@ function requireAdmin(PDO $pdo): array
         header('Location: ' . FRONTEND_BASE_URL . '/login.php');
         exit;
     }
-    if (strtoupper((string)$user['role_code']) !== 'ADMIN') {
+    if (strtoupper((string)$user['role_code']) !== 'SUPER_ADMIN') {
         http_response_code(403);
-        echo 'Reserve aux administrateurs.';
+        echo 'Reserve au Super administrateur.';
         exit;
     }
 

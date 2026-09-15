@@ -2315,6 +2315,99 @@ un cas normal d'inventaire d'entree.
   IP et les referents. `.htaccess` reecrit, et le dossier est a exclure des
   livraisons.
 
+## Super administrateur : le tout premier compte a des droits reserves
+
+**Demande** : le tout premier compte cree lors de l'installation
+(`frontend/install.php`) doit etre "super admin". Les comptes crees ensuite
+restent "administrateur". L'administrateur garde acces a tout, **sauf**
+Donnees de demo et Migrations, desormais reserves au super administrateur.
+
+**Ce qui a change** :
+- Nouveau role `SUPER_ADMIN` (table `roles`), cree par `install.php` en
+  meme temps que les autres roles.
+- `install.php` attribue ce role au tout premier compte cree pendant
+  l'installation (au lieu de `ADMIN` auparavant). Tous les comptes crees
+  ensuite depuis l'ecran Utilisateurs restent `ADMIN` (ou un autre profil
+  existant) comme avant - rien ne change pour eux.
+- Cote API (`RoleMiddleware`), `SUPER_ADMIN` et `ADMIN` restent traites de
+  facon identique partout : gestion des produits, du stock, des achats, des
+  utilisateurs, des parametres... **la seule difference** concerne deux
+  pages independantes de l'API, qui ne faisaient deja pas partie du meme
+  systeme d'acces :
+  - `frontend/demo-data.php` (Donnees de demo)
+  - `frontend/migrate.php` (Migrations)
+
+  Ces deux pages verifiaient auparavant `role_code = 'ADMIN'`. Elles
+  verifient maintenant `role_code = 'SUPER_ADMIN'` et renvoient une erreur
+  403 "Reserve au Super administrateur" a un compte Administrateur qui
+  tenterait d'y acceder directement par son URL. Leurs liens sont egalement
+  masques du menu pour un compte Administrateur (`applyNavAccess()` dans
+  `app-clean.js`).
+- L'ecran Utilisateurs (liste deroulante "Profil") ne propose plus jamais
+  "Super administrateur" - ni a la creation, ni a la modification d'un
+  compte (`RoleRepository::allAssignable()` cote lecture, verification
+  serveur dans `UserService` cote ecriture pour bloquer aussi un appel API
+  direct). Impossible donc pour un Administrateur de s'auto-promouvoir ou
+  de creer un second super administrateur depuis cet ecran.
+- **Installations existantes (mise a jour, pas installation neuve)** :
+  aucun compte n'y est encore `SUPER_ADMIN` puisque le role vient d'etre
+  cree. Pour eviter que ces deux pages ne deviennent inaccessibles a tout le
+  monde du jour au lendemain, une verification automatique (au premier
+  chargement de l'une des deux pages) cree le role s'il n'existe pas encore
+  et promeut alors le compte Administrateur le plus ancien (le tout premier
+  cree) en Super administrateur - sans aucune action requise. La migration
+  `202602270016_super_admin_role.sql` fait la meme promotion des la mise a
+  jour de la base (`migrate.php`), sans attendre qu'un admin ouvre l'une des
+  deux pages.
+
+**Verifie** :
+- Installation neuve (formulaire complet via navigateur reel) : le tout
+  premier compte cree obtient bien le role `SUPER_ADMIN` en base.
+- Creation d'un deuxieme compte (Administrateur) depuis l'ecran
+  Utilisateurs : la liste deroulante "Profil" ne propose pas "Super
+  administrateur".
+- Ce compte Administrateur : lien "Donnees de demo" et "Migrations" absents
+  du menu ; acces direct par l'URL a ces deux pages renvoie bien une erreur
+  403 "Reserve au Super administrateur".
+- Base existante (compte Administrateur, aucun `SUPER_ADMIN` en base) :
+  premiere visite de `migrate.php` par ce compte -> page accessible (pas de
+  403) et le compte est bien promu `SUPER_ADMIN` en base, verifie par
+  requete SQL directe.
+- Migration `202602270016` : application via `migrate.php` (sans erreur),
+  puis annulation ("Annuler le dernier lot") verifiee correcte : le role
+  `SUPER_ADMIN` n'est pas supprime tant qu'un compte l'utilise encore
+  (protection explicite dans le script down).
+- Suite complete de tests API/BDD (`smoke_api.sh`, une quarantaine de
+  verifications sur produits, stock, achats, inventaires, pieces jointes...)
+  rejouee apres ces changements : aucune regression.
+
+## Correctif de livraison : l'installateur etait verrouille dans les paquets livres
+
+En travaillant sur le point ci-dessus, un probleme distinct et plus grave a
+ete decouvert : deux fichiers, `config/.installed` et `config/install.key`,
+etaient presents dans l'arborescence de travail (residus d'un test
+anterieur) et donc **inclus dans chaque paquet livre depuis le debut de
+cette session** (verifie en inspectant un zip livre precedemment).
+
+- `config/.installed` fait considerer `install.php` comme "deja installe"
+  et repond 403 a toute tentative d'installation - **un client recevant un
+  de ces paquets n'aurait jamais pu lancer l'installateur**.
+- `config/install.key` etait un fichier vide (0 octet). Meme sans le point
+  precedent, cela aurait empeche toute soumission du formulaire
+  d'installation de reussir (la cle saisie ne peut jamais correspondre a
+  une cle vide).
+
+Ces deux fichiers ont ete supprimes de l'arborescence de travail. Ils sont
+generes automatiquement par l'installation elle-meme et ne doivent **jamais**
+faire partie d'un paquet livre. Verifie via `install.php` : la page affiche
+de nouveau correctement les instructions de creation de la cle
+d'installation lorsque celle-ci est absente.
+
+**Important pour la suite** : si `config/.installed` ou `config/install.key`
+reapparaissent un jour dans l'arborescence de travail (par exemple apres un
+test d'installation local), bien les supprimer avant de construire un
+nouveau paquet.
+
 ## Migrations et seed interne LM-Code (dev interne uniquement - PAS pour un client)
 **A ne pas confondre avec `frontend/demo-data.php` (section dediee plus haut),
 qui est le bon outil pour donner de la demo a un client.** Ce qui suit est
