@@ -9,8 +9,6 @@ use App\Shared\Http\HttpException;
 
 final class AttachmentService
 {
-    private const ALLOWED_EXTENSIONS = ['pdf', 'png', 'jpg', 'jpeg', 'csv', 'txt', 'doc', 'docx', 'xlsx'];
-
     public function __construct(
         private readonly DocumentAttachmentRepository $repository,
         private readonly FileStorageService $storage,
@@ -35,12 +33,14 @@ final class AttachmentService
             throw new HttpException('entity_type et entity_id sont requis', 422);
         }
 
-        $original = (string)($file['name'] ?? '');
-        $extension = strtolower(pathinfo($original, PATHINFO_EXTENSION));
-        if ($extension === '' || !in_array($extension, self::ALLOWED_EXTENSIONS, true)) {
-            throw new HttpException('Type de fichier non pris en charge', 422);
-        }
-
+        // Une seule liste de formats/tailles autorises fait foi pour tout
+        // l'applicatif : FileStorageService::ALLOWED_TYPES (deja verifiee au
+        // contenu reel du fichier, pas seulement a son extension). Ce service
+        // avait sa propre liste, differente (elle laissait passer .txt, que
+        // FileStorageService refuse de toute facon plus loin - et refusait a
+        // tort .gif/.webp/.xls, que FileStorageService accepte). Autant
+        // laisser FileStorageService etre l'unique verification, comme pour
+        // les medias produit.
         $stored = $this->storage->storeUploadedFile($file, 'attachments/' . $entityType);
 
         $id = $this->repository->create([

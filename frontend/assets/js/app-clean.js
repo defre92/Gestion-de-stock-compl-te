@@ -241,11 +241,23 @@ const crudModules = {
             // une des deux options est activee dans Parametres (sinon le module
             // Variantes est masque et le champ n'aurait nulle part ou etre
             // exploite). Le libelle s'adapte a l'option reellement active.
+            //
+            // Ce champ ne fait que BASCULER le produit en mode "a variantes" :
+            // il n'y a jamais eu de champ ici pour saisir les valeurs (taille,
+            // couleur, contenance en cl...) elles-memes - normal, un produit a
+            // variantes en a generalement plusieurs (ex: 3 tailles x 4
+            // couleurs), ce qui ne rentre pas dans un champ unique de sa fiche.
+            // Ces valeurs se saisissent dans le module dedie "Variantes" (ou
+            // le generateur en lot cree toutes les combinaisons d'un coup).
+            // Ce que ce champ n'indiquait pas assez clairement : le champ
+            // "Oui" se contentait de dire "gerer les variantes dans le module
+            // dedie" sans dire OU se trouve ce module ni ce qu'on y trouve -
+            // d'ou l'ajout de l'indice ci-dessous.
             if (anyVariantsEnabled()) {
                 fields.push({ key: 'has_variants', label: `Ce produit a des variantes (${variantsAttributesLabel()})`, type: 'select', options: [
                     { value: '0', label: 'Non' },
                     { value: '1', label: 'Oui - gerer les variantes dans le module dedie' },
-                ] });
+                ], hint: `Les valeurs precises (${variantsAttributesLabel()}) ne se saisissent pas ici : une fois "Oui" choisi et le produit enregistre, utilise le menu <strong>Variantes</strong> pour les ajouter une par une ou en lot (toutes les combinaisons possibles generees d'un coup).` });
             }
 
             fields.push({ key: 'tag_ids', label: 'Tags', type: 'multiselect', optionsFrom: 'tags', optionLabel: 'name', valueFrom: 'tags' });
@@ -1565,6 +1577,10 @@ async function renderCrud(module) {
                 const id = Number(viewBtn.dataset.id);
                 state.activeProductId = id;
                 await renderProductDetail(id);
+                // La fiche produit s'affiche en bas de la liste : sans ceci,
+                // il fallait defiler soi-meme a chaque clic sur "Fiche" pour
+                // la voir apparaitre.
+                document.getElementById('productDetailPane')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
                 return;
             }
 
@@ -4120,21 +4136,29 @@ function downloadImportTemplate(entity) {
 }
 
 async function renderProductDetail(productId) {
-    // Fiche produit multi-onglets (stock, media, pieces jointes, etiquette).
+    // Fiche produit multi-onglets (stock, documents, etiquette).
+    //
+    // "Media" et "Pieces jointes" etaient jusqu'ici deux onglets separes,
+    // avec chacun son propre formulaire d'envoi et sa propre liste - alors
+    // qu'ils font exactement la meme chose du point de vue de l'utilisateur
+    // (joindre un fichier a ce produit). Fusionnes en un seul onglet
+    // "Documents", sur la base du systeme "Media" (qui avait deja
+    // l'apercu miniature des images). Le systeme "Pieces jointes" reste
+    // disponible cote serveur (il est generique, pas limite aux produits)
+    // pour un usage futur ailleurs dans l'application, mais n'est plus
+    // propose ici pour eviter le doublon.
     const pane = document.getElementById('productDetailPane');
     if (!pane) {
         return;
     }
 
-    const [productResponse, movementResponse, attachmentResponse] = await Promise.all([
+    const [productResponse, movementResponse] = await Promise.all([
         apiRequest(`/products/${productId}`),
         apiRequest(`/stock/movements?product_id=${productId}&per_page=20`),
-        apiRequest(`/attachments?entity_type=product&entity_id=${productId}`),
     ]);
 
     const product = productResponse.data;
     const movements = normalizeRows(movementResponse);
-    const attachments = normalizeRows(attachmentResponse);
     const media = Array.isArray(product?.media) ? product.media : [];
     const stockRows = Array.isArray(product?.stock_by_warehouse) ? product.stock_by_warehouse : [];
     const canManageProduct = canWrite('products');
@@ -4148,8 +4172,7 @@ async function renderProductDetail(productId) {
             <button class="btn btn-soft is-tab-active" data-tab="info">Infos</button>
             <button class="btn btn-soft" data-tab="stock">Stock</button>
             <button class="btn btn-soft" data-tab="moves">Mouvements</button>
-            <button class="btn btn-soft" data-tab="media">Media</button>
-            <button class="btn btn-soft" data-tab="attachments">Pieces jointes</button>
+            <button class="btn btn-soft" data-tab="media">Documents</button>
             <button class="btn btn-soft" data-tab="label">Etiquette</button>
         </div>
         <div class="tab-panel" data-tab-panel="info">
@@ -4248,22 +4271,12 @@ async function renderProductDetail(productId) {
         <div class="tab-panel hidden" data-tab-panel="media">
             ${canManageProduct ? `
             <form id="productMediaUploadForm" class="form-grid">
-                <label><span>Type media</span><select name="media_type"><option value="IMAGE">Image</option><option value="DOCUMENT">Document</option></select></label>
                 <label><span>Fichier</span><input type="file" name="file" accept="${UPLOAD_ACCEPT_ATTR}" required></label>
                 <small class="field-hint full">${UPLOAD_HINT_TEXT}</small>
-                <button type="submit" class="btn btn-primary">Televerser un media</button>
+                <button type="submit" class="btn btn-primary">Televerser un document</button>
                 <p class="feedback" id="mediaUploadFeedback"></p>
-            </form>` : '<p class="muted">Pas de droit upload media.</p>'}
+            </form>` : '<p class="muted">Pas de droit upload document.</p>'}
             ${renderDownloadTable(media, 'media')}
-        </div>
-        <div class="tab-panel hidden" data-tab-panel="attachments">
-            <form id="attachmentUploadForm" class="form-grid">
-                <label><span>Fichier</span><input type="file" name="file" accept="${UPLOAD_ACCEPT_ATTR}" required></label>
-                <small class="field-hint full">${UPLOAD_HINT_TEXT}</small>
-                <button type="submit" class="btn btn-primary">Televerser une piece jointe</button>
-                <p class="feedback" id="attachmentUploadFeedback"></p>
-            </form>
-            ${renderDownloadTable(attachments, 'attachment')}
         </div>
         <div class="tab-panel hidden" data-tab-panel="label">
             <div id="barcodePreview" class="label-preview muted">Chargement etiquette...</div>
@@ -4502,32 +4515,17 @@ async function renderProductDetail(productId) {
         const feedback = document.getElementById('mediaUploadFeedback');
         feedback.textContent = '';
         const data = new FormData(mediaForm);
+        const file = data.get('file');
 
         try {
             const payload = new FormData();
-            payload.append('media_type', String(data.get('media_type') ?? 'IMAGE'));
-            payload.append('file', data.get('file'));
+            // Ex-onglet "Media" : demandait avant de choisir soi-meme le type
+            // (Image/Document). Deduit desormais automatiquement du fichier
+            // choisi - un detail que l'utilisateur n'a pas a gerer lui-meme.
+            const isImage = file instanceof Blob && String(file.type ?? '').startsWith('image/');
+            payload.append('media_type', isImage ? 'IMAGE' : 'DOCUMENT');
+            payload.append('file', file);
             await uploadRequest(`/products/${productId}/media/upload`, payload);
-            await renderProductDetail(productId);
-        } catch (error) {
-            feedback.textContent = error.message;
-            feedback.classList.add('is-error');
-        }
-    });
-
-    const attachmentForm = document.getElementById('attachmentUploadForm');
-    attachmentForm?.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const feedback = document.getElementById('attachmentUploadFeedback');
-        feedback.textContent = '';
-        const data = new FormData(attachmentForm);
-
-        try {
-            const payload = new FormData();
-            payload.append('entity_type', 'product');
-            payload.append('entity_id', String(productId));
-            payload.append('file', data.get('file'));
-            await uploadRequest('/attachments/upload', payload);
             await renderProductDetail(productId);
         } catch (error) {
             feedback.textContent = error.message;
@@ -4542,6 +4540,31 @@ async function renderProductDetail(productId) {
             const name = btn.getAttribute('data-download-name') ?? 'file.bin';
             const path = kind === 'media' ? `/product-media/${id}/download` : `/attachments/${id}/download`;
             await authenticatedDownload(path, name);
+        });
+    });
+
+    // "Voir en grand" : une image ou un PDF s'affiche directement (modale
+    // pour une image, nouvel onglet pour un PDF - le navigateur sait deja
+    // l'afficher nativement) au lieu d'obliger a telecharger le fichier
+    // rien que pour savoir ce qu'il contient.
+    pane.querySelectorAll('[data-view-type]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            const kind = btn.getAttribute('data-view-type');
+            const id = Number(btn.getAttribute('data-view-id'));
+            const mime = btn.getAttribute('data-view-mime') ?? '';
+            const name = btn.getAttribute('data-view-name') ?? 'fichier';
+            const path = kind === 'media' ? `/product-media/${id}/download` : `/attachments/${id}/download`;
+            try {
+                const blob = await fetchAuthenticatedBlob(path);
+                const url = URL.createObjectURL(blob);
+                if (mime === 'application/pdf') {
+                    window.open(url, '_blank');
+                } else {
+                    showModal(name, `<img src="${url}" alt="${sanitize(name)}" style="max-width:100%;max-height:75vh;display:block;margin:0 auto;">`);
+                }
+            } catch (error) {
+                window.alert(error.message);
+            }
         });
     });
 
@@ -4571,7 +4594,13 @@ function renderDownloadTable(rows, type) {
     // car le fichier n'est accessible qu'authentifie.
     const withPreview = type === 'media';
     const body = rows.map((row) => {
-        const isImage = String(row.mime_type ?? '').startsWith('image/');
+        const mimeType = String(row.mime_type ?? '');
+        const isImage = mimeType.startsWith('image/');
+        // Une image ou un PDF s'affichent nativement dans le navigateur : pas
+        // besoin de forcer un telechargement juste pour y jeter un oeil. Les
+        // autres formats (Word, Excel, CSV) n'ont pas d'affichage natif fiable
+        // dans un navigateur : le telechargement reste la seule option.
+        const canView = isImage || mimeType === 'application/pdf';
         const preview = withPreview
             ? `<td class="media-thumb">${isImage
                 ? `<span data-media-thumb="${row.id}" class="muted">...</span>`
@@ -4582,9 +4611,12 @@ function renderDownloadTable(rows, type) {
             <td>${sanitize(row.id)}</td>
             ${preview}
             <td>${sanitize(row.file_name)}</td>
-            <td>${sanitize(row.mime_type ?? '')}</td>
+            <td>${sanitize(mimeType)}</td>
             <td>${sanitize(row.created_at ?? '')}</td>
-            <td class="actions"><button class="btn btn-soft" data-download-type="${type}" data-download-id="${row.id}" data-download-name="${sanitize(row.file_name ?? 'file.bin')}">Telecharger le fichier</button></td>
+            <td class="actions">
+                ${canView ? `<button class="btn btn-soft" data-view-type="${type}" data-view-id="${row.id}" data-view-mime="${sanitize(mimeType)}" data-view-name="${sanitize(row.file_name ?? 'fichier')}">Voir en grand</button>` : ''}
+                <button class="btn btn-soft" data-download-type="${type}" data-download-id="${row.id}" data-download-name="${sanitize(row.file_name ?? 'file.bin')}">Telecharger le fichier</button>
+            </td>
         </tr>
     `;
     }).join('');
@@ -5689,7 +5721,16 @@ function buildFormFields(fields, item = null, editing = false) {
                 // L'aide doit etre A L'INTERIEUR du <label> : placee apres, la
                 // grille du formulaire en faisait une cellule a part, affichee
                 // sous un tout autre champ.
-                field.key === 'role' ? '<small class="field-hint" id="roleHint"></small>' : ''
+                //
+                // field.hint etait ignore ici : seul le cas special "role"
+                // affichait une aide sur un <select> (elle-meme remplie a part,
+                // voir roleHint). Un champ select "normal" avec un field.hint
+                // (ex: has_variants) n'affichait donc jamais son indice, alors
+                // que le meme mecanisme fonctionne pour les autres types de
+                // champs (voir plus bas, `const hint = field.hint ...`).
+                field.key === 'role'
+                    ? '<small class="field-hint" id="roleHint"></small>'
+                    : (field.hint ? `<small class="field-hint">${field.hint}</small>` : '')
             );
         }
 

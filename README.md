@@ -650,6 +650,81 @@ la verification que la suppression est refusee une fois la session
 finalisee, et qu'un identifiant de comptage d'une autre session est
 rejete).
 
+## Ajout produit : les champs de variante (cl, taille...) introuvables
+
+Quand une option de variantes est activee dans Parametres (vetement:
+taille/couleur, ou bouteille: millesime/contenance), le formulaire "Ajout
+produit" propose un champ "Ce produit a des variantes" - mais choisir "Oui"
+ne faisait apparaitre aucun champ pour saisir les valeurs elles-memes (la
+contenance en cl, la taille...), et rien n'indiquait ou aller les
+renseigner.
+
+C'est normal qu'elles ne soient pas dans ce formulaire : un produit a
+variantes en a generalement plusieurs a la fois (ex: 3 tailles x 4
+couleurs), ce qui ne peut pas tenir dans un champ unique de sa fiche. Ces
+valeurs se saisissent dans le module dedie **Variantes** (menu de gauche),
+qui existait deja et permet de les ajouter une par une ou en lot (toutes
+les combinaisons possibles generees d'un coup a partir des listes de
+tailles/couleurs ou de millesimes/contenances saisies). Mais rien sur
+l'ecran "Ajout produit" ne le disait : le champ se contentait d'un
+"Oui - gerer les variantes dans le module dedie", sans dire lequel ni ou
+le trouver.
+
+Un texte d'aide a ete ajoute sous ce champ, qui renvoie explicitement vers
+le menu "Variantes" et rappelle qu'on peut y ajouter les combinaisons en
+lot.
+
+**Verifie** (navigateur reel) : avec l'option "contenance en cl" activee
+dans Parametres, le formulaire "Ajout produit" affiche desormais sous le
+champ "Ce produit a des variantes (millesime/contenance)" le texte "Les
+valeurs precises (millesime/contenance) ne se saisissent pas ici : une
+fois \"Oui\" choisi et le produit enregistre, utilise le menu **Variantes**
+pour les ajouter une par une ou en lot..." ; meme verification avec les
+deux options (vetement + bouteille) activees en meme temps, le libelle
+s'adapte bien aux deux ("taille/couleur ou millesime/contenance").
+
+## Fiche produit : fusion des onglets Media/Pieces jointes, apercu en grand, acces direct a la fiche
+
+Trois ameliorations liees a la fiche produit, remontees ensemble :
+
+**1. Onglets "Media" et "Pieces jointes" fusionnes en un seul onglet "Documents"**
+
+Les deux onglets faisaient la meme chose (televerser un fichier lie au
+produit) avec deux formulaires separes, deux listes separees, et une
+distinction "Media / Piece jointe" que rien n'obligeait a faire cote
+utilisateur. Un seul onglet **Documents** les remplace desormais : un seul
+formulaire de televersement, une seule liste. Le type (image ou document)
+est detecte automatiquement a partir du fichier envoye, l'utilisateur n'a
+plus a le choisir.
+
+Comme l'application n'a pas encore de donnees de production (uniquement
+des donnees de demonstration a ce stade), aucune migration de donnees n'a
+ete necessaire pour cette fusion.
+
+**2. Apercu "Voir en grand" sans telechargement force**
+
+Les images et les PDF lies a un produit ne pouvaient etre consultes qu'en
+les telechargeant au prealable. Un bouton **Voir en grand** a ete ajoute a
+cote de "Telecharger le fichier" : il ouvre l'image dans une fenetre
+d'apercu directement dans l'ecran, et le PDF dans un nouvel onglet du
+navigateur (qui l'affiche nativement), sans forcer de telechargement.
+
+**Verifie** (navigateur reel) : sur les trois documents de test (image,
+PDF, .docx), le bouton "Voir en grand" apparait uniquement pour l'image et
+le PDF (absent pour le .docx, qui n'a pas d'apercu possible) ; le clic sur
+l'image ouvre bien une fenetre d'apercu avec l'image chargee.
+
+**3. Le bouton "Fiche" accede directement au detail du produit**
+
+Cliquer sur "Fiche" dans la liste des produits chargeait bien le detail du
+produit en bas de page, mais il fallait ensuite scroller manuellement pour
+le voir. Le clic sur "Fiche" fait maintenant defiler la page automatiquement
+jusqu'a la fiche.
+
+**Verifie** (navigateur reel) : clic sur "Fiche" depuis le haut de la liste
+des produits - la page defile automatiquement (scrollY passe de 0 a une
+position affichant la fiche) sans intervention manuelle.
+
 ## Fiche produit : formats de fichiers acceptes affiches (media et pieces jointes)
 
 Sur les onglets **Media** et **Pieces jointes** d'une fiche produit, rien
