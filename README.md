@@ -650,6 +650,38 @@ la verification que la suppression est refusee une fois la session
 finalisee, et qu'un identifiant de comptage d'une autre session est
 rejete).
 
+## Ajout produit : suppression de 5 champs qui ne servaient a rien
+
+Suite a la remarque precedente sur les variantes, la question a ete posee
+pour "Poids kg", "Largeur cm", "Hauteur cm", "Profondeur cm" et
+"Conditionnement" du formulaire produit : a quoi servent-ils ?
+
+Verification faite : ces 5 champs etaient bien enregistres en base, mais
+n'etaient affiches NULLE PART - ni sur la fiche produit (onglet Infos), ni
+dans la liste des produits, ni en export/import CSV, ni sur l'etiquette.
+Meme defaut que les anciens "stock mini/maxi/securite" deja corriges
+(migration 202602270015) : des champs qui donnent l'illusion de servir a
+quelque chose, sans aucun effet reel.
+
+Pour le poids et les 3 dimensions, l'equivalent utile existe deja et reste
+disponible : quand l'option "materiel" est activee dans Parametres, le
+module **Variantes** propose des champs libres largeur/hauteur/profondeur/
+poids (memes champs texte libres que "taille" ou "cl" pour les autres
+options de variantes) - exactement le meme principe que celui deja en
+place pour ces deux dernieres.
+
+Les 5 champs ont ete retires du formulaire "Ajout/Edition produit". Les
+colonnes restent en base (aucune donnee saisie n'est perdue) : modifier un
+produit qui a deja ces valeurs ne les efface pas, elles restent
+simplement invisibles depuis ce formulaire (comme avant, elles ne l'etaient
+de toute facon nulle part).
+
+**Verifie** : le formulaire "Ajout produit" ne propose plus ces 5 champs ;
+modifier un produit qui possede deja des valeurs de poids/dimensions/
+conditionnement en base envoie bien une requete de mise a jour SANS ces
+champs (verifie sur la requete reellement envoyee), donc sans les
+ecraser.
+
 ## Ajout produit : les champs de variante (cl, taille...) introuvables
 
 Quand une option de variantes est activee dans Parametres (vetement:

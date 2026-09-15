@@ -205,11 +205,18 @@ const crudModules = {
             { key: 'supplier_id', label: 'Fournisseur', type: 'select', optionsFrom: 'suppliers', optionLabel: 'name' },
             { key: 'unit_id', label: 'Unite', type: 'select', optionsFrom: 'units', optionLabel: 'code' },
             { key: 'brand_id', label: 'Marque', type: 'select', optionsFrom: 'brands', optionLabel: 'name' },
-            { key: 'pack_size', label: 'Conditionnement', type: 'text' },
-            { key: 'weight_kg', label: 'Poids kg', type: 'number', step: '0.001' },
-            { key: 'width_cm', label: 'Largeur cm', type: 'number', step: '0.01' },
-            { key: 'height_cm', label: 'Hauteur cm', type: 'number', step: '0.01' },
-            { key: 'depth_cm', label: 'Profondeur cm', type: 'number', step: '0.01' },
+            // Retires du formulaire (Conditionnement, Poids, Largeur, Hauteur,
+            // Profondeur) : ces 5 champs etaient enregistres en base mais
+            // n'etaient affiches NULLE PART (ni fiche produit, ni listes, ni
+            // export/import CSV, ni etiquette) - meme defaut que les anciens
+            // "stock mini/maxi/securite" (migration 202602270015). Pour le
+            // poids et les 3 dimensions, l'equivalent utile existe deja et
+            // reste disponible : les champs LIBRES du module Variantes
+            // (largeur/hauteur/profondeur/poids, quand l'option correspondante
+            // est activee dans Parametres) - memes champs que "taille" ou "cl"
+            // un peu plus haut, qui ne se saisissent pas non plus ici.
+            // Les colonnes products.pack_size/weight_kg/width_cm/height_cm/
+            // depth_cm RESTENT en base : aucune donnee saisie n'est perdue.
             { key: 'unit_price', label: 'Prix vente', type: 'number', step: '0.01' },
             { key: 'cost_price', label: 'Prix achat', type: 'number', step: '0.01' },
             { key: 'tax_id', label: 'Taxe (TVA)', type: 'select', optionsFrom: 'taxes', optionLabel: 'name' },
