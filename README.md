@@ -650,6 +650,57 @@ la verification que la suppression est refusee une fois la session
 finalisee, et qu'un identifiant de comptage d'une autre session est
 rejete).
 
+## Fiche produit : formats de fichiers acceptes affiches (media et pieces jointes)
+
+Sur les onglets **Media** et **Pieces jointes** d'une fiche produit, rien
+n'indiquait quels fichiers etaient acceptes : un fichier refuse (un .txt
+par exemple) l'etait sans que l'ecran ait prevenu de quoi que ce soit au
+prealable.
+
+Le serveur a toujours limite les televersements a une liste precise
+d'extensions (verifiees non seulement par leur nom mais aussi par leur
+contenu reel, pour la securite) : images (jpg, jpeg, png, gif, webp), PDF,
+Word (doc, docx), Excel (xls, xlsx) et CSV - le format .txt n'en a jamais
+fait partie.
+
+Ajoute sur les deux onglets :
+- un texte d'aide sous le champ, rappelant la liste des formats acceptes
+  et la taille maximale (15 Mo) ;
+- le selecteur de fichiers du navigateur filtre desormais directement sur
+  ces formats (les fichiers non-conformes apparaissent grises quand on
+  parcourt ses dossiers, au lieu d'etre proposes puis refuses).
+
+**Verifie** : sur un vrai serveur, un fichier .png est accepte et un
+fichier .txt est refuse avec un message explicite ("Type de fichier non
+autorise : .txt") - ce comportement serveur existait deja, seul l'ecran ne
+le disait pas a l'avance.
+
+## Mouvements de stock : le motif restait parfois affiche en anglais
+
+Sur l'ecran **Mouvements** (et l'onglet Mouvements d'une fiche produit),
+la colonne "Motif" affichait parfois des codes techniques non traduits
+(ex: `PO_RECEIPT`, `INITIAL_STOCK`, `SERIAL_OUT`...), alors que le reste
+de l'ecran est en francais. Le champ de saisie du motif lui-meme
+suggerait carrement de taper un code en anglais ("INVENTORY/PO_RECEIPT/
+etc").
+
+Deux choses distinctes ici :
+- Les motifs **generes automatiquement** par l'application (reception
+  d'une commande d'achat, sortie sur un bon de livraison, finalisation
+  d'un inventaire, stock initial d'un produit, mouvements lies a un
+  numero de serie...) sont desormais traduits dans la colonne "Motif",
+  comme le sont deja les colonnes "Type" ou "Statut" ailleurs dans
+  l'application.
+- Le champ "Code motif" du formulaire de saisie reste un champ libre (on
+  peut toujours taper ce qu'on veut) - mais son exemple suggere
+  desormais des motifs en francais ("Casse", "Perte", "Correction
+  inventaire"...) proposes automatiquement pendant la frappe, plutot que
+  des codes techniques en anglais.
+
+**Verifie** : un mouvement genere par une reception de commande affiche
+"Reception commande achat" (au lieu de `PO_RECEIPT`) dans l'historique ;
+un motif saisi librement ("Casse") reste affiche tel quel.
+
 ## Correctif : la ligne "Produit" du tableau de saisie d'un bon de livraison se chevauchait
 
 Sur l'ecran **Livraisons**, des que le catalogue depassait une douzaine de

@@ -1896,7 +1896,16 @@ async function renderMovements() {
                     <div id="movementSerialOutList" class="serial-checklist"></div>
                     <small class="field-hint">Coche les exemplaires precis qui sortent. Choisis d'abord produit + entrepot source. Si des cases sont cochees, leur nombre doit correspondre a la quantite. Ils seront marques "sorti" automatiquement.</small>
                 </div>
-                <label><span>Code motif</span><input type="text" name="reason_code"></label>
+                <label><span>Code motif (optionnel)</span><input type="text" name="reason_code" list="reasonCodeSuggestions" placeholder="Ex: Casse, Perte, Correction"></label>
+                <datalist id="reasonCodeSuggestions">
+                    <option value="Casse">
+                    <option value="Perte">
+                    <option value="Vol">
+                    <option value="Correction inventaire">
+                    <option value="Retour client">
+                    <option value="Echantillon">
+                    <option value="Demonstration">
+                </datalist>
                 <label class="full"><span>Note</span><textarea name="notes"></textarea></label>
                 <button type="submit" class="btn btn-primary">Enregistrer mouvement</button>
                 <p id="movementFeedback" class="feedback"></p>
@@ -4207,7 +4216,16 @@ async function renderProductDetail(productId) {
                     <div id="productMoveSerialOutList" class="serial-checklist"></div>
                     <small class="field-hint">Coche les exemplaires precis qui sortent. Si des cases sont cochees, leur nombre doit correspondre a la quantite. Ils seront marques "sorti" automatiquement.</small>
                 </div>
-                <label><span>Motif</span><input type="text" name="reason_code" placeholder="INVENTORY/PO_RECEIPT/etc"></label>
+                <label><span>Motif (optionnel)</span><input type="text" name="reason_code" list="reasonCodeSuggestions" placeholder="Ex: Casse, Perte, Correction"></label>
+                <datalist id="reasonCodeSuggestions">
+                    <option value="Casse">
+                    <option value="Perte">
+                    <option value="Vol">
+                    <option value="Correction inventaire">
+                    <option value="Retour client">
+                    <option value="Echantillon">
+                    <option value="Demonstration">
+                </datalist>
                 <button type="submit" class="btn btn-primary">Creer mouvement</button>
                 <p class="feedback" id="productMoveFeedback"></p>
             </form>` : '<p class="muted">Pas de droit ecriture mouvement.</p>'}
@@ -4231,7 +4249,8 @@ async function renderProductDetail(productId) {
             ${canManageProduct ? `
             <form id="productMediaUploadForm" class="form-grid">
                 <label><span>Type media</span><select name="media_type"><option value="IMAGE">Image</option><option value="DOCUMENT">Document</option></select></label>
-                <label><span>Fichier</span><input type="file" name="file" required></label>
+                <label><span>Fichier</span><input type="file" name="file" accept="${UPLOAD_ACCEPT_ATTR}" required></label>
+                <small class="field-hint full">${UPLOAD_HINT_TEXT}</small>
                 <button type="submit" class="btn btn-primary">Televerser un media</button>
                 <p class="feedback" id="mediaUploadFeedback"></p>
             </form>` : '<p class="muted">Pas de droit upload media.</p>'}
@@ -4239,7 +4258,8 @@ async function renderProductDetail(productId) {
         </div>
         <div class="tab-panel hidden" data-tab-panel="attachments">
             <form id="attachmentUploadForm" class="form-grid">
-                <label><span>Fichier</span><input type="file" name="file" required></label>
+                <label><span>Fichier</span><input type="file" name="file" accept="${UPLOAD_ACCEPT_ATTR}" required></label>
+                <small class="field-hint full">${UPLOAD_HINT_TEXT}</small>
                 <button type="submit" class="btn btn-primary">Televerser une piece jointe</button>
                 <p class="feedback" id="attachmentUploadFeedback"></p>
             </form>
@@ -5962,6 +5982,15 @@ function formatMoney(value) {
 // bruit.
 const SEARCHABLE_SELECT_THRESHOLD = 12;
 
+// Doit rester synchronise avec FileStorageService::ALLOWED_TYPES (backend) :
+// avant cet ajout, rien sur les ecrans "Media" et "Pieces jointes" de la
+// fiche produit n'indiquait quels fichiers etaient acceptes - un .txt (par
+// exemple) etait refuse sans qu'on sache pourquoi ni quoi essayer a la
+// place. Le selecteur de fichiers filtre desormais directement dessus, et
+// un texte d'aide rappelle la liste et la taille maximale.
+const UPLOAD_ACCEPT_ATTR = '.jpg,.jpeg,.png,.gif,.webp,.pdf,.csv,.doc,.docx,.xls,.xlsx';
+const UPLOAD_HINT_TEXT = 'Formats acceptes : images (jpg, png, gif, webp), PDF, Word (doc, docx), Excel (xls, xlsx), CSV. Taille maximale : 15 Mo. Les fichiers .txt ne sont pas acceptes.';
+
 /** Minuscules sans accents, pour un filtrage qui ignore la casse et les accents. */
 function searchNormalize(value) {
     return String(value ?? '')
@@ -6355,6 +6384,26 @@ const VALUE_LABELS = {
     TRANSFER: 'Transfert',
     // Statut d'un numero de serie (OUT partage deja le libelle "Sortie" ci-dessus)
     IN_STOCK: 'En stock',
+    // Motifs de mouvement generes automatiquement par l'application (colonne
+    // "Motif" de l'historique des mouvements) - avant cet ajout, ces codes
+    // techniques restaient affiches tels quels, en anglais, alors que tout
+    // le reste de l'ecran est traduit. Le champ "Code motif" restant du
+    // texte libre (l'utilisateur peut y saisir ce qu'il veut), seuls les
+    // codes que l'application genere elle-meme peuvent etre traduits avec
+    // certitude.
+    INITIAL_STOCK: 'Stock initial',
+    INVENTORY: 'Regularisation inventaire',
+    PO_RECEIPT: 'Reception commande achat',
+    DELIVERY: 'Livraison client',
+    DELIVERY_CANCEL: 'Annulation livraison',
+    SERIAL_IN: 'Entree numero de serie',
+    SERIAL_OUT: 'Sortie numero de serie',
+    SERIAL_RETURN: 'Retour en stock (numero de serie)',
+    SERIAL_DELETED: 'Suppression numero de serie',
+    // Motifs frequemment saisis a la main (anciennes habitudes/import) :
+    // traduits aussi, par coherence avec le reste de l'ecran.
+    PURCHASE: 'Achat',
+    SALE: 'Vente',
     // Types d'inventaire
     GLOBAL: 'Global',
     CYCLE: 'Tournant',
