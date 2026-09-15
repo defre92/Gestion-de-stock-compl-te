@@ -650,6 +650,38 @@ la verification que la suppression est refusee une fois la session
 finalisee, et qu'un identifiant de comptage d'une autre session est
 rejete).
 
+## Ecran Produits : filtres Categorie, Fournisseur et Emplacement
+
+L'ecran Produits proposait deja un filtre par entrepot et par tag, mais pas
+par categorie, fournisseur ou emplacement - alors que ce sont des criteres
+tout aussi naturels pour retrouver un article dans un catalogue qui en
+compte beaucoup.
+
+Trois filtres ajoutes a cote des deux existants :
+- **Categorie** et **Fournisseur** : listes deroulantes classiques.
+- **Emplacement** : desactive tant qu'aucun entrepot n'est choisi (un
+  emplacement appartient a un seul entrepot, comme partout ailleurs dans
+  l'application), puis propose les emplacements de l'entrepot selectionne
+  une fois celui-ci choisi.
+
+Les filtres se combinent entre eux (ex: categorie + fournisseur + entrepot
+en meme temps), comme le faisaient deja entrepot et tag. Le bouton
+"Effacer filtres" les reinitialise tous.
+
+Cote serveur, category_id et supplier_id etaient deja acceptes par l'API
+(simplement jamais exposes a l'ecran) ; le filtre par emplacement, lui,
+n'existait pas du tout et a ete ajoute au meme titre que celui par
+entrepot.
+
+**Verifie** (navigateur reel, avec un produit place a l'emplacement A1 de
+l'entrepot Principal) : le filtre categorie restreint bien la liste aux
+produits de la categorie choisie ; le filtre fournisseur idem ; le filtre
+emplacement reste desactive avec le message "Choisis d'abord un entrepot"
+tant qu'aucun entrepot n'est selectionne, s'active une fois un entrepot
+choisi, et ne montre bien que le produit range a cet emplacement une fois
+selectionne (avec la colonne Stock qui bascule sur "Stock (entrepot
+Principal)", comme le fait deja le filtre entrepot seul).
+
 ## Ajout produit : suppression de 5 champs qui ne servaient a rien
 
 Suite a la remarque precedente sur les variantes, la question a ete posee

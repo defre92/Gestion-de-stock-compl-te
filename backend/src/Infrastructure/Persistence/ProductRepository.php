@@ -91,10 +91,28 @@ final class ProductRepository extends PdoCrudRepository
             : null;
         unset($filters['warehouse_id']);
 
+        // location_id : meme principe que warehouse_id juste au-dessus - ce
+        // n'est pas non plus une colonne de `products`, et un emplacement
+        // appartient a un seul entrepot (voir fillLocationOptions cote
+        // frontend), donc le filtrer suffit a lui seul a restreindre a
+        // l'entrepot concerne. Ignore si la colonne stock_levels.location_id
+        // n'existe pas encore (base pas a jour de la migration 202602270012).
+        $locationId = isset($filters['location_id']) && $filters['location_id'] !== '' && $this->columnExists('stock_levels', 'location_id')
+            ? (int)$filters['location_id']
+            : null;
+        unset($filters['location_id']);
+
         [$whereSql, $params] = $this->buildWhere($filters);
 
         $stockJoin = 'LEFT JOIN stock_levels sl ON sl.product_id = p.id';
-        if ($warehouseId !== null) {
+        if ($locationId !== null) {
+            $stockJoin = 'INNER JOIN stock_levels sl ON sl.product_id = p.id AND sl.location_id = :f_location_id';
+            $params[':f_location_id'] = $locationId;
+            if ($warehouseId !== null) {
+                $stockJoin .= ' AND sl.warehouse_id = :f_warehouse_id';
+                $params[':f_warehouse_id'] = $warehouseId;
+            }
+        } elseif ($warehouseId !== null) {
             $stockJoin = 'INNER JOIN stock_levels sl ON sl.product_id = p.id AND sl.warehouse_id = :f_warehouse_id';
             $params[':f_warehouse_id'] = $warehouseId;
         }
@@ -117,7 +135,11 @@ final class ProductRepository extends PdoCrudRepository
             $locationSummary = "'' AS location_summary";
         }
 
-        $countSql = $warehouseId !== null
+        // Le COUNT DISTINCT n'est necessaire QUE si le JOIN peut multiplier les
+        // lignes (INNER JOIN stock_levels, quand un entrepot ET/OU un
+        // emplacement filtrent la liste) - sinon COUNT(*) simple suffit et
+        // reste plus rapide.
+        $countSql = ($warehouseId !== null || $locationId !== null)
             ? "SELECT COUNT(DISTINCT p.id) FROM products p {$stockJoin} {$whereSql}"
             : "SELECT COUNT(*) FROM products p {$whereSql}";
 

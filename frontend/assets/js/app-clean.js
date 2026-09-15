@@ -30,6 +30,13 @@ const state = {
     // Stock n'affiche que la quantite de cet entrepot - sinon on lirait un
     // total tous entrepots confondus a cote d'un filtre "entrepot X".
     warehouseFilter: '',
+    // Filtres Categorie/Fournisseur/Emplacement de l'ecran Produits, ajoutes
+    // a cote d'Entrepot et Tags qui existaient deja. L'emplacement depend
+    // d'un entrepot choisi (un emplacement appartient a un seul entrepot),
+    // comme partout ailleurs dans l'application (voir fillLocationOptions).
+    categoryFilter: '',
+    supplierFilter: '',
+    locationFilter: '',
 };
 
 const dashboardCharts = {
@@ -968,6 +975,9 @@ async function renderModule(module, updateUrl = true) {
         state.globalQuery = '';
         state.tagFilter = '';
         state.warehouseFilter = '';
+        state.categoryFilter = '';
+        state.supplierFilter = '';
+        state.locationFilter = '';
         state.crudPages.products = 1;
         const searchInput = document.getElementById('globalSearch');
         if (searchInput) {
@@ -1432,6 +1442,15 @@ async function renderCrud(module) {
     if (module === 'products' && state.warehouseFilter !== '') {
         query.warehouse_id = state.warehouseFilter;
     }
+    if (module === 'products' && state.categoryFilter !== '') {
+        query.category_id = state.categoryFilter;
+    }
+    if (module === 'products' && state.supplierFilter !== '') {
+        query.supplier_id = state.supplierFilter;
+    }
+    if (module === 'products' && state.locationFilter !== '') {
+        query.location_id = state.locationFilter;
+    }
     if (module === 'product-variants' && state.pendingVariantProductId) {
         query.product_id = state.pendingVariantProductId;
         state.pendingVariantProductId = null;
@@ -1469,6 +1488,24 @@ async function renderCrud(module) {
         ? (state.lookups?.warehouses ?? []).map((w) => `<option value="${w.id}" ${String(w.id) === String(state.warehouseFilter) ? 'selected' : ''}>${sanitize(w.name ?? w.code)}</option>`).join('')
         : '';
 
+    const categoryFilterOptions = module === 'products'
+        ? (state.lookups?.categories ?? []).map((c) => `<option value="${c.id}" ${String(c.id) === String(state.categoryFilter) ? 'selected' : ''}>${sanitize(c.name)}</option>`).join('')
+        : '';
+
+    const supplierFilterOptions = module === 'products'
+        ? (state.lookups?.suppliers ?? []).map((s) => `<option value="${s.id}" ${String(s.id) === String(state.supplierFilter) ? 'selected' : ''}>${sanitize(s.name)}</option>`).join('')
+        : '';
+
+    // L'emplacement appartient a un seul entrepot (voir fillLocationOptions) :
+    // le filtre reste desactive tant qu'un entrepot n'est pas choisi, comme
+    // partout ailleurs dans l'application ou un emplacement se saisit.
+    const locationFilterOptions = module === 'products' && state.warehouseFilter !== ''
+        ? (state.lookups?.warehouse_locations ?? [])
+            .filter((loc) => String(loc.warehouse_id) === String(state.warehouseFilter))
+            .map((loc) => `<option value="${loc.id}" ${String(loc.id) === String(state.locationFilter) ? 'selected' : ''}>${sanitize(loc.description ? `${loc.code} - ${loc.description}` : loc.code)}</option>`)
+            .join('')
+        : '';
+
     // Le libelle de la colonne dit d'ou vient le chiffre : sans ca, un total
     // filtre et un total global se ressemblent trop.
     const filteredWarehouse = (state.lookups?.warehouses ?? []).find((w) => String(w.id) === String(state.warehouseFilter));
@@ -1484,7 +1521,10 @@ async function renderCrud(module) {
             <div class="panel-head">
                 <h4>Gestion ${config.label}</h4>
                 <div class="panel-actions">
+                    ${module === 'products' ? `<select id="productCategoryFilter"><option value="">Toutes les categories</option>${categoryFilterOptions}</select>` : ''}
+                    ${module === 'products' ? `<select id="productSupplierFilter"><option value="">Tous les fournisseurs</option>${supplierFilterOptions}</select>` : ''}
                     ${module === 'products' ? `<select id="productWarehouseFilter"><option value="">Tous les entrepots</option>${warehouseFilterOptions}</select>` : ''}
+                    ${module === 'products' ? `<select id="productLocationFilter" ${state.warehouseFilter === '' ? 'disabled' : ''}><option value="">${state.warehouseFilter === '' ? "Choisis d'abord un entrepot" : 'Tous les emplacements'}</option>${locationFilterOptions}</select>` : ''}
                     ${module === 'products' ? `<select id="productTagFilter"><option value="">Tous les tags</option>${tagFilterOptions}</select>` : ''}
                     ${module === 'products' ? '<button class="btn btn-soft" id="clearProductSearch">Effacer filtres</button>' : ''}
                     ${config.columns.some((column) => column.secondary)
@@ -1519,6 +1559,28 @@ async function renderCrud(module) {
 
         document.getElementById('productWarehouseFilter')?.addEventListener('change', async (event) => {
             state.warehouseFilter = event.target.value;
+            // Un emplacement appartient a un seul entrepot : en changeant
+            // d'entrepot, l'emplacement precedemment choisi n'a plus de sens
+            // (et pourrait meme appartenir a un autre entrepot).
+            state.locationFilter = '';
+            state.crudPages.products = 1;
+            await renderCrud('products');
+        });
+
+        document.getElementById('productCategoryFilter')?.addEventListener('change', async (event) => {
+            state.categoryFilter = event.target.value;
+            state.crudPages.products = 1;
+            await renderCrud('products');
+        });
+
+        document.getElementById('productSupplierFilter')?.addEventListener('change', async (event) => {
+            state.supplierFilter = event.target.value;
+            state.crudPages.products = 1;
+            await renderCrud('products');
+        });
+
+        document.getElementById('productLocationFilter')?.addEventListener('change', async (event) => {
+            state.locationFilter = event.target.value;
             state.crudPages.products = 1;
             await renderCrud('products');
         });
@@ -1527,6 +1589,9 @@ async function renderCrud(module) {
             state.globalQuery = '';
             state.tagFilter = '';
             state.warehouseFilter = '';
+            state.categoryFilter = '';
+            state.supplierFilter = '';
+            state.locationFilter = '';
             state.crudPages.products = 1;
             const input = document.getElementById('globalSearch');
             if (input) {
