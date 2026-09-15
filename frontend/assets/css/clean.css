@@ -843,8 +843,22 @@ td.is-positive {
     opacity: 0.75;
 }
 
-/* Champ de filtrage ajoute au-dessus des listes deroulantes longues */
+/* Champ de filtrage ajoute au-dessus des listes deroulantes longues.
+   display: block est indispensable : ce champ est insere par JavaScript
+   juste avant la liste deroulante qu'il filtre, SANS aucun espace/texte
+   entre les deux balises. Dans un formulaire classique (.form-grid label),
+   ca ne se voyait pas car le label est en grid et empile deja tout
+   verticalement. Mais partout ailleurs (ex: colonne "Produit" du tableau
+   de saisie d'un bon de livraison), le champ et la liste deroulante sont
+   deux elements "en ligne" sans espace entre eux : le navigateur les
+   considere alors comme un seul bloc insecable et ne les met jamais l'un
+   sous l'autre, meme quand la place manque - la liste deroulante debordait
+   purement et simplement par-dessus la colonne suivante du tableau. En
+   forcant ce champ en bloc, une nouvelle ligne demarre obligatoirement
+   avant la liste deroulante, quel que soit l'endroit ou ce champ est
+   utilise. */
 .select-search {
+    display: block;
     margin-bottom: 6px;
     font-size: 0.9em;
     padding: 6px 10px;

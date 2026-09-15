@@ -650,6 +650,37 @@ la verification que la suppression est refusee une fois la session
 finalisee, et qu'un identifiant de comptage d'une autre session est
 rejete).
 
+## Correctif : la ligne "Produit" du tableau de saisie d'un bon de livraison se chevauchait
+
+Sur l'ecran **Livraisons**, des que le catalogue depassait une douzaine de
+produits, la colonne "Produit" du tableau de saisie affichait bien le champ
+de filtrage ("Filtrer (140 entrees)...") mais la liste deroulante juste en
+dessous debordait par-dessus les colonnes suivantes (Variante, N° Serie,
+Quantite...) au lieu de rester proprement dans sa colonne - un peu comme si
+les champs "flottaient" les uns sur les autres.
+
+Cause : le champ de filtrage est ajoute par JavaScript juste avant la liste
+deroulante qu'il filtre, sans aucun espace entre les deux. Dans les
+formulaires habituels (Demandes achat, Commandes achat...), ca ne se
+voyait pas car le champ et sa liste sont a l'interieur d'un bloc qui les
+empile deja verticalement. Mais dans le tableau de saisie d'une livraison,
+rien ne forcait cet empilement : le navigateur considerait le champ de
+filtrage et la liste deroulante comme un seul bloc insecable, sur la meme
+ligne - et laissait la liste deborder de sa colonne plutot que de passer a
+la ligne suivante.
+
+Corrige au niveau du champ de filtrage lui-meme (pas seulement pour
+l'ecran Livraisons, donc) : il commence desormais toujours sur sa propre
+ligne, quel que soit l'endroit de l'application ou une liste deroulante
+assez longue pour meriter un filtre est utilisee.
+
+**Verifie** : reproduit puis corrige dans un vrai navigateur (Chromium,
+capture d'ecran et mesure exacte de la position des champs a l'appui) sur
+l'ecran Livraisons avec un catalogue de plus de 20 produits - la liste
+deroulante des produits reste desormais bien dans sa colonne, sans deborder
+sur les colonnes voisines, que le produit soit choisi directement ou via
+le filtre de recherche.
+
 ## Correctif : le champ "Variante" des demandes et commandes d'achat n'avait pas de titre
 
 Sur les ecrans **Demandes achat** et **Commandes achat**, des qu'un produit
