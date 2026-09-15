@@ -71,12 +71,14 @@ final class UserService
         return $id;
     }
 
-    public function update(int $id, array $payload, int $actorId, ?string $ip): void
+    public function update(int $id, array $payload, int $actorId, string $actorRole, ?string $ip): void
     {
         $user = $this->repository->findById($id);
         if (!$user) {
             throw new HttpException('Utilisateur introuvable', 404);
         }
+
+        $this->rejectCrossSuperAdminAction($user, $actorRole);
 
         $update = [];
 
@@ -132,11 +134,35 @@ final class UserService
         }
     }
 
-    public function resetPassword(int $id, string $newPassword, int $actorId, ?string $ip): void
+    /**
+     * Un compte Super administrateur ne peut etre modifie, retrograde,
+     * desactive, reinitialise (mot de passe) ou supprime que par un autre
+     * Super administrateur. Sans ce controle, un simple Administrateur
+     * pourrait, via l'ecran Utilisateurs (qui lui est accessible au meme
+     * titre qu'a un Super administrateur, voir $adminRolesMiddleware dans
+     * index.php), retrograder le compte Super administrateur en
+     * Administrateur ou Employe, le desactiver, reinitialiser son mot de
+     * passe ou le supprimer purement et simplement - ce qui viderait de son
+     * sens la distinction entre les deux profils.
+     */
+    private function rejectCrossSuperAdminAction(array $targetUser, string $actorRole): void
     {
-        if (!$this->repository->findById($id)) {
+        $targetIsSuperAdmin = strtoupper((string)($targetUser['role_code'] ?? '')) === 'SUPER_ADMIN';
+        $actorIsSuperAdmin = strtoupper($actorRole) === 'SUPER_ADMIN';
+
+        if ($targetIsSuperAdmin && !$actorIsSuperAdmin) {
+            throw new HttpException('Seul un Super administrateur peut modifier ce compte', 403);
+        }
+    }
+
+    public function resetPassword(int $id, string $newPassword, int $actorId, string $actorRole, ?string $ip): void
+    {
+        $user = $this->repository->findById($id);
+        if (!$user) {
             throw new HttpException('Utilisateur introuvable', 404);
         }
+
+        $this->rejectCrossSuperAdminAction($user, $actorRole);
 
         if (strlen($newPassword) < self::MIN_PASSWORD_LENGTH) {
             throw new HttpException('Le mot de passe doit faire au moins ' . self::MIN_PASSWORD_LENGTH . ' caracteres', 422);
@@ -186,11 +212,14 @@ final class UserService
         $this->auditRepository->log($userId, 'CHANGE_PASSWORD', 'user', $userId, [], $ip);
     }
 
-    public function delete(int $id, int $actorId, ?string $ip): void
+    public function delete(int $id, int $actorId, string $actorRole, ?string $ip): void
     {
-        if (!$this->repository->findById($id)) {
+        $user = $this->repository->findById($id);
+        if (!$user) {
             throw new HttpException('Utilisateur introuvable', 404);
         }
+
+        $this->rejectCrossSuperAdminAction($user, $actorRole);
 
         $this->repository->delete($id);
         $this->auditRepository->log($actorId, 'DELETE', 'user', $id, [], $ip);

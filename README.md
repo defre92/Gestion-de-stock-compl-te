@@ -2381,6 +2381,42 @@ Donnees de demo et Migrations, desormais reserves au super administrateur.
   verifications sur produits, stock, achats, inventaires, pieces jointes...)
   rejouee apres ces changements : aucune regression.
 
+### Correctif : un Administrateur pouvait retrograder ou supprimer un Super administrateur
+
+**Trouve en verifiant le point ci-dessus** : donner a l'Administrateur les
+memes droits qu'au Super administrateur sur l'ecran Utilisateurs (pour que
+rien ne change pour lui) avait un effet de bord non voulu - un
+Administrateur pouvait, via cet ecran ou un appel API direct sur
+`PUT/DELETE /api/v1/users/{id}`, changer le role du compte Super
+administrateur (le retrograder en Administrateur), le desactiver,
+reinitialiser son mot de passe, ou le supprimer purement et simplement. Rien
+ne protegeait le compte Super administrateur une fois cree, ce qui aurait
+permis a n'importe quel Administrateur de neutraliser la seule distinction
+que cette fonctionnalite est censee garantir.
+
+**Correctif** : `UserService` refuse desormais toute action (changement de
+role, activation/desactivation, reinitialisation de mot de passe,
+suppression) menee par un simple Administrateur sur un compte dont le role
+actuel est `SUPER_ADMIN`, avec le message "Seul un Super administrateur peut
+modifier ce compte" (HTTP 403). Un compte Super administrateur reste
+librement modifiable par un autre Super administrateur (utile s'il y en a
+plusieurs, par exemple apres une auto-promotion sur une ancienne
+installation - voir plus haut). Un Administrateur garde par ailleurs tous
+ses droits habituels sur les comptes qui ne sont pas Super administrateur.
+
+**Verifie** (via l'API reelle, sur une base de test) :
+- Connecte en tant qu'Administrateur simple : tentative de changer le role
+  du compte Super administrateur -> 403 ; tentative de le desactiver -> 403 ;
+  tentative de reinitialiser son mot de passe -> 403 ; tentative de le
+  supprimer -> 403.
+- Connecte en tant que Super administrateur : modification d'un autre compte
+  Super administrateur -> reussie (200).
+- Connecte en tant qu'Administrateur simple : modification d'un compte
+  Administrateur ordinaire -> toujours reussie (200), aucun changement de
+  comportement pour l'usage normal.
+- Suite complete `smoke_api.sh` rejouee apres ce correctif : aucune
+  regression.
+
 ## Correctif de livraison : l'installateur etait verrouille dans les paquets livres
 
 En travaillant sur le point ci-dessus, un probleme distinct et plus grave a

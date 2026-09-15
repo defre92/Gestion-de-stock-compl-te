@@ -36,7 +36,7 @@ final class UserController
     public function update(Request $request, int $id): void
     {
         $user = $request->attribute('auth_user');
-        $this->service->update($id, $request->input(), (int)$user['id'], $_SERVER['REMOTE_ADDR'] ?? null);
+        $this->service->update($id, $request->input(), (int)$user['id'], (string)($user['role_code'] ?? ''), $_SERVER['REMOTE_ADDR'] ?? null);
         JsonResponse::send(['message' => 'Mis a jour']);
     }
 
@@ -47,6 +47,7 @@ final class UserController
             $id,
             (string)$request->input('password', ''),
             (int)$user['id'],
+            (string)($user['role_code'] ?? ''),
             $_SERVER['REMOTE_ADDR'] ?? null
         );
         JsonResponse::send(['message' => 'Mot de passe reinitialise']);
@@ -67,7 +68,7 @@ final class UserController
     public function destroy(Request $request, int $id): void
     {
         $user = $request->attribute('auth_user');
-        $this->service->delete($id, (int)$user['id'], $_SERVER['REMOTE_ADDR'] ?? null);
+        $this->service->delete($id, (int)$user['id'], (string)($user['role_code'] ?? ''), $_SERVER['REMOTE_ADDR'] ?? null);
         JsonResponse::empty();
     }
 }
