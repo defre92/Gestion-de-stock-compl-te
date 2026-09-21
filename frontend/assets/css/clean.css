@@ -3,8 +3,19 @@
     --bg-accent: #dff0eb;
     --ink: #10222d;
     --muted: #4d6670;
-    --primary: #0f8f74;
-    --primary-deep: #0b6b56;
+    /*
+     * La couleur principale est configurable (installation, puis Parametres
+     * > Administration). --brand-primary est definie inline sur :root par
+     * index.php/login.php a partir de config/tenant.php ; --primary en
+     * derive directement et --primary-deep est calculee automatiquement
+     * (teinte assombrie) pour l'etat hover, sans qu'il soit necessaire de
+     * fournir une seconde couleur. Avant ce correctif, --primary etait
+     * codee en dur ici et ignorait totalement la couleur choisie a
+     * l'installation : seuls l'accent-color des cases a cocher et un
+     * border-left en tenaient compte.
+     */
+    --primary: var(--brand-primary, #0f8f74);
+    --primary-deep: color-mix(in srgb, var(--brand-primary, #0f8f74) 78%, black);
     --secondary: #0f4f78;
     --danger: #cb3e3e;
     --line: #d2e0e8;

@@ -1445,6 +1445,20 @@ async function renderCrud(module) {
     const root = document.getElementById('appContent');
     const writable = canWrite(module);
 
+    // La couleur principale est un reglage comme un autre (table app_settings,
+    // cle "tenant_primary_color"), mais elle merite un controle dedie (input
+    // color) plutot que de demander a l'admin de saisir un code hexadecimal a
+    // la main dans le tableau generique juste en dessous.
+    let currentColorRow = null;
+    if (module === 'settings') {
+        try {
+            const colorResponse = await apiRequest('/settings?setting_key=tenant_primary_color');
+            currentColorRow = normalizeRows(colorResponse)[0] ?? null;
+        } catch (_) {
+            currentColorRow = null;
+        }
+    }
+
     const query = {
         page: state.crudPages[module] ?? 1,
         per_page: state.crudPerPage,
@@ -1533,6 +1547,19 @@ async function renderCrud(module) {
     }
 
     root.innerHTML = `
+        ${module === 'settings' ? `
+        <section class="panel">
+            <h4>Apparence</h4>
+            <p class="muted">Couleur principale de l'application (boutons, liens, elements actifs). S'applique a tous les utilisateurs.</p>
+            ${writable ? `
+            <form id="appearanceForm" class="form-grid">
+                <label><span>Couleur principale</span><input type="color" name="tenant_primary_color" value="${sanitize(currentColorRow?.setting_value || '#2563eb')}"></label>
+                <button type="submit" class="btn btn-primary">Enregistrer</button>
+            </form>
+            <p id="appearanceFeedback" class="feedback"></p>
+            ` : '<p class="muted">Acces reserve aux administrateurs.</p>'}
+        </section>
+        ` : ''}
         <section class="panel">
             <div class="panel-head">
                 <h4>Gestion ${config.label}</h4>
@@ -1954,6 +1981,45 @@ async function renderCrud(module) {
         } else {
             state.activeProductId = null;
         }
+    }
+
+    if (module === 'settings' && writable) {
+        document.getElementById('appearanceForm')?.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const appearanceFeedback = document.getElementById('appearanceFeedback');
+            const submitBtn = event.target.querySelector('button[type="submit"]');
+            const color = event.target.tenant_primary_color.value;
+            appearanceFeedback.textContent = '';
+            appearanceFeedback.classList.remove('is-error');
+            submitBtn.disabled = true;
+            try {
+                if (currentColorRow?.id) {
+                    await apiRequest(`/settings/${currentColorRow.id}`, {
+                        method: 'PUT',
+                        body: { setting_value: color },
+                    });
+                } else {
+                    await apiRequest('/settings', {
+                        method: 'POST',
+                        body: { setting_key: 'tenant_primary_color', setting_value: color },
+                    });
+                }
+                // On relit la ligne (id compris) au lieu de re-rendre tout
+                // l'ecran : un re-rendu remplacerait immediatement ce message
+                // de confirmation par un formulaire flambant neuf, et il ne
+                // resterait jamais assez longtemps a l'ecran pour etre lu.
+                // Garder l'id a jour permet aussi un 2e enregistrement dans la
+                // foulee (PUT) plutot qu'un POST en doublon sur une cle unique.
+                const refreshed = await apiRequest('/settings?setting_key=tenant_primary_color');
+                currentColorRow = normalizeRows(refreshed)[0] ?? currentColorRow;
+                appearanceFeedback.textContent = 'Couleur enregistree. Recharge la page pour la voir appliquee partout.';
+                submitBtn.disabled = false;
+            } catch (error) {
+                appearanceFeedback.textContent = error.message;
+                appearanceFeedback.classList.add('is-error');
+                submitBtn.disabled = false;
+            }
+        });
     }
 }
 

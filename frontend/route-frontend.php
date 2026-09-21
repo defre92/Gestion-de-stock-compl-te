@@ -106,3 +106,25 @@ if ($tenantLogoFile !== null && !is_file($brandDir . $tenantLogoFile)) {
 $tenantLogoUrl = $tenantLogoFile
     ? FRONTEND_BASE_URL . '/assets/img/brand/' . rawurlencode($tenantLogoFile)
     : FRONTEND_BASE_URL . '/assets/img/brand/lm-code-monogram.svg';
+
+// La couleur principale choisie a l'installation (config/tenant.php, via
+// TENANT_PRIMARY_COLOR) peut ensuite etre changee depuis l'ecran Parametres
+// de l'application, sans reinstaller : ce reglage est stocke comme n'importe
+// quel autre dans app_settings et prime ici sur le fichier de configuration
+// s'il existe. La base peut etre momentanement indisponible (maintenance,
+// pic de charge) : dans ce cas on garde la couleur du fichier plutot que de
+// casser l'affichage de la page de connexion ou du tableau de bord.
+try {
+    require_once dirname(__DIR__) . '/backend/src/Shared/Support/Autoloader.php';
+    \App\Shared\Support\Autoloader::register(dirname(__DIR__) . '/backend');
+    $settingsPdo = \App\Shared\Database\Database::connection();
+    $settingsStmt = $settingsPdo->prepare('SELECT setting_value FROM app_settings WHERE setting_key = :key LIMIT 1');
+    $settingsStmt->execute([':key' => 'tenant_primary_color']);
+    $dbPrimaryColor = $settingsStmt->fetchColumn();
+    if (is_string($dbPrimaryColor) && preg_match('/^#[0-9a-fA-F]{6}$/', $dbPrimaryColor) === 1) {
+        $tenant['primary_color'] = $dbPrimaryColor;
+    }
+} catch (\Throwable $ignored) {
+    // Base indisponible ou table absente (installation non terminee) : on
+    // garde la couleur de config/tenant.php.
+}
