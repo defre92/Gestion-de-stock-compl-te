@@ -71,9 +71,15 @@ function connectDatabase(array $config): PDO
     $rootPdo->exec("CREATE DATABASE IF NOT EXISTS `{$dbName}` CHARACTER SET {$config['charset']} COLLATE utf8mb4_unicode_ci");
 
     $dbDsn = sprintf('mysql:host=%s;port=%d;dbname=%s;charset=%s', $config['host'], $config['port'], $dbName, $config['charset']);
-    return new PDO($dbDsn, (string)$config['username'], (string)$config['password'], [
+    $pdo = new PDO($dbDsn, (string)$config['username'], (string)$config['password'], [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         PDO::ATTR_EMULATE_PREPARES => false,
     ]);
+
+    // Voir Database::connection() (backend/src/Shared/Database/Database.php).
+    $offset = (new DateTime('now', new DateTimeZone('Europe/Paris')))->format('P');
+    $pdo->exec("SET time_zone = '{$offset}'");
+
+    return $pdo;
 }

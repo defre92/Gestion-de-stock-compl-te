@@ -298,6 +298,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             ]);
+
+            // Voir Database::connection() (backend/src/Shared/Database/Database.php) :
+            // sans ceci, les CURRENT_TIMESTAMP par defaut (comptes crees pendant
+            // l'installation, migrations...) suivraient le fuseau du serveur
+            // MySQL plutot que celui de Paris.
+            $tzOffset = (new DateTime('now', new DateTimeZone('Europe/Paris')))->format('P');
+            $pdo->exec("SET time_zone = '{$tzOffset}'");
         } catch (Throwable $e) {
             $errors[] = 'Connexion MySQL impossible : ' . $e->getMessage();
         }

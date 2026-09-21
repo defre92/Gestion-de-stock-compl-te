@@ -1558,6 +1558,7 @@ async function renderCrud(module) {
         </section>
         ${module === 'users' ? renderRoleMatrix() : ''}
         ${module === 'products' ? '<section class="panel" id="productDetailPane"><h4>Fiche produit</h4><p class="muted">Selectionne un produit pour afficher sa fiche detaillee.</p></section>' : ''}
+        ${module === 'customers' ? '<section class="panel" id="customerHistoryPane"><h4>Historique client</h4><p class="muted">Selectionne un client pour afficher ses livraisons (bons de livraison).</p></section>' : ''}
         ${module === 'product-variants' && writable ? renderVariantGenerator() : ''}
     `;
 
@@ -1661,6 +1662,7 @@ async function renderCrud(module) {
         const crudClickHandler = async (event) => {
             const editBtn = event.target.closest('[data-action="edit"]');
             const viewBtn = event.target.closest('[data-action="view"]');
+            const historyBtn = event.target.closest('[data-action="history"]');
             if (viewBtn) {
                 const id = Number(viewBtn.dataset.id);
                 state.activeProductId = id;
@@ -1669,6 +1671,15 @@ async function renderCrud(module) {
                 // il fallait defiler soi-meme a chaque clic sur "Fiche" pour
                 // la voir apparaitre.
                 document.getElementById('productDetailPane')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+                return;
+            }
+
+            if (historyBtn) {
+                const id = Number(historyBtn.dataset.id);
+                await renderCustomerHistory(id);
+                // Meme logique que la fiche produit ci-dessus : l'historique
+                // s'affiche en bas de la liste, on y amene la vue directement.
+                document.getElementById('customerHistoryPane')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
                 return;
             }
 
@@ -4675,6 +4686,77 @@ async function renderProductDetail(productId) {
     await loadLabelPreview(productId);
 }
 
+/**
+ * Historique d'un client : ses bons de livraison (BL).
+ *
+ * Il n'existe pas de "commandes client" dans cette application - les
+ * commandes (purchase_orders) sont passees AUPRES des fournisseurs, jamais
+ * par un client (voir le module Achats). Le seul historique transactionnel
+ * cote client, ce sont les livraisons : chaque livraison EST le bon de
+ * livraison (numero, lignes de produits livres, entrepot, statut, montant).
+ * "Commandes, livraisons, BL" se resume donc ici a cette seule liste.
+ */
+async function renderCustomerHistory(customerId) {
+    const pane = document.getElementById('customerHistoryPane');
+    if (!pane) {
+        return;
+    }
+
+    pane.innerHTML = '<h4>Historique client</h4><p class="muted">Chargement...</p>';
+
+    const [customerResponse, deliveriesResponse] = await Promise.all([
+        apiRequest(`/customers/${customerId}`),
+        apiRequest(`/deliveries?customer_id=${customerId}&per_page=100`),
+    ]);
+
+    const customer = customerResponse.data;
+    const deliveries = normalizeRows(deliveriesResponse);
+
+    pane.innerHTML = `
+        <div class="panel-head">
+            <h4>Historique: ${sanitize(customer.name)}${customer.code ? ` (${sanitize(customer.code)})` : ''}</h4>
+        </div>
+        <p class="muted">Bons de livraison de ce client - aucune commande cote client n'existe dans l'application (les commandes sont passees aupres des fournisseurs, voir le module Achats).</p>
+        ${renderSimpleTable(deliveries, [
+            ['delivery_number', 'N° BL', (value, row) => `
+                ${sanitize(value)}
+                <button type="button" class="btn btn-soft btn-sm" data-view-customer-delivery-lines="${row.id}">Produits livres</button>
+            `],
+            ['warehouse_name', 'Entrepot'],
+            ['status', 'Statut'],
+            ['total_amount', 'Montant', (value) => formatMoney(value)],
+            ['delivered_at', 'Date'],
+        ])}
+    `;
+
+    pane.querySelectorAll('[data-view-customer-delivery-lines]').forEach((button) => {
+        button.addEventListener('click', async () => {
+            const deliveryId = button.getAttribute('data-view-customer-delivery-lines');
+            try {
+                const detail = await apiRequest(`/deliveries/${deliveryId}`);
+                const delivery = detail.data;
+                const linesHtml = (delivery.lines ?? []).map((line) => `
+                    <tr>
+                        <td>${sanitize(line.sku)}</td>
+                        <td>${sanitize(line.product_name)}${line.variant_id ? ` - ${sanitize(variantDescriptor({ ...line, sku: line.variant_sku }))}` : ''}</td>
+                        <td>${line.serial_number ? sanitize(line.serial_number) : '-'}</td>
+                        <td>${Number(line.quantity)}</td>
+                        <td>${formatMoney(line.unit_price)}</td>
+                    </tr>
+                `).join('');
+                showModal(`Produits livres - BL ${delivery.delivery_number}`, `
+                    <table class="simple-table">
+                        <thead><tr><th>SKU</th><th>Produit</th><th>N° Serie</th><th>Qte</th><th>PU</th></tr></thead>
+                        <tbody>${linesHtml || '<tr><td colspan="5">Aucune ligne</td></tr>'}</tbody>
+                    </table>
+                `);
+            } catch (error) {
+                window.alert(error.message);
+            }
+        });
+    });
+}
+
 function renderDownloadTable(rows, type) {
     // Pour les medias, une colonne d'apercu : une photo produit listee par son
     // seul nom de fichier oblige a la telecharger pour savoir ce qu'elle
@@ -5520,17 +5602,22 @@ function renderCrudTable(config, rows, canWrite, module = '') {
         if (module === 'products') {
             actions = `<button data-action="view" data-id="${row.id}" class="btn btn-primary">Fiche</button>` + actions;
         }
+        if (module === 'customers') {
+            actions = `<button data-action="history" data-id="${row.id}" class="btn btn-primary">Historique</button>` + actions;
+        }
 
         const actionCell = actions !== '' ? `<td class="actions">${actions}</td>` : '';
 
         return `<tr>${cells}${actionCell}</tr>`;
     }).join('');
 
+    const hasActionColumn = canWrite || module === 'products' || module === 'customers';
+
     return `
         <div class="table-wrap">
             <table class="data-table">
-                <thead><tr>${headerCells}${(canWrite || module === 'products') ? '<th>Actions</th>' : ''}</tr></thead>
-                <tbody>${rowCells || `<tr><td colspan="${config.columns.length + ((canWrite || module === 'products') ? 1 : 0)}">Aucune donnee</td></tr>`}</tbody>
+                <thead><tr>${headerCells}${hasActionColumn ? '<th>Actions</th>' : ''}</tr></thead>
+                <tbody>${rowCells || `<tr><td colspan="${config.columns.length + (hasActionColumn ? 1 : 0)}">Aucune donnee</td></tr>`}</tbody>
             </table>
         </div>
     `;

@@ -2444,6 +2444,89 @@ reapparaissent un jour dans l'arborescence de travail (par exemple apres un
 test d'installation local), bien les supprimer avant de construire un
 nouveau paquet.
 
+## Correctif majeur : toutes les dates affichees avaient 1h a 2h de retard
+
+**Signale** : "le fuseau horaire du logiciel est 2h en retard" - une date de
+mouvement, de livraison, de creation de compte... affichee dans l'application
+etait systematiquement en retard par rapport a l'heure reelle (2h actuellement,
+heure d'ete ; 1h en heure d'hiver).
+
+**Cause reelle** : PHP est bien configure sur `Europe/Paris`
+(`date_default_timezone_set()` dans `backend/bootstrap.php`), mais la grande
+majorite des dates de l'application (`created_at`, `delivered_at`, dates de
+mouvement de stock...) ne sont pas ecrites par PHP - elles viennent de
+`DEFAULT CURRENT_TIMESTAMP` directement dans les tables MySQL. Or
+`CURRENT_TIMESTAMP` suit le fuseau horaire de la **session MySQL**, qui n'a
+absolument aucun rapport avec celui de PHP : sans configuration explicite,
+une session MySQL suit le fuseau du **serveur** MySQL lui-meme (parametre
+`SYSTEM`), qui est regle en UTC sur la grande majorite des hebergements
+mutualises. Regler le fuseau de PHP ne change donc rien a ces dates-la.
+Verifie directement sur l'environnement de test : `NOW()` renvoyait `11:20`
+en base pendant qu'il etait `13:20` a Paris au meme instant - soit
+exactement les 2h de decalage signales.
+
+**Correctif** : juste apres chaque connexion a la base (le point d'entree
+principal de l'API `Database::connection()`, mais aussi les scripts autonomes
+`backend/bin/migrate.php`, `backend/bin/seed.php`, `frontend/demo-data.php`,
+`frontend/migrate.php` et `frontend/install.php`, qui ouvrent chacun leur
+propre connexion - voir la note sur leur autonomie plus haut), l'application
+regle desormais explicitement le fuseau de la session MySQL sur celui de
+Paris avec `SET time_zone = '+02:00'` (ou `+01:00` en hiver). Ce decalage est
+recalcule par PHP a chaque connexion (`(new DateTime('now', new
+DateTimeZone('Europe/Paris')))->format('P')`), donc la bascule heure
+d'ete/hiver est automatique - sans depender des tables de fuseaux horaires
+nommes de MySQL (`Europe/Paris` en tant que tel), qui necessitent
+`mysql_tzinfo_to_sql` et ne sont generalement pas installees sur un
+hebergement mutualise sans acces SSH.
+
+**Verifie** :
+- Avant correctif : `SELECT NOW()` cote MySQL renvoyait l'heure UTC
+  (`11:20`) alors qu'il etait `13:20` a Paris au meme instant.
+- Apres correctif : une categorie creee via l'API reelle a immediatement un
+  `created_at` correspondant a l'heure de Paris (`13:20:48`, verifie a la
+  seconde pres contre l'horloge systeme et PHP).
+- Une livraison creee via l'API et affichee dans l'ecran reel (navigateur)
+  affiche la bonne heure de Paris (capture d'ecran a l'appui).
+- Suite complete de tests API/BDD (`smoke_api.sh`) rejouee apres le
+  correctif : aucune regression.
+
+## Fiche client : historique des livraisons (bons de livraison)
+
+**Demande** : pouvoir, depuis la fiche d'un client, consulter son
+historique - "ses commandes, livraisons, BL".
+
+**Ce qui existe reellement dans l'application** : il n'y a pas de notion de
+"commande client" - les commandes (`purchase_orders`) sont **toujours**
+passees aupres d'un fournisseur (module Achats), jamais par un client. Le
+seul historique transactionnel qui concerne un client, ce sont ses
+**livraisons** : chaque livraison EST le bon de livraison (numero, lignes de
+produits livres, entrepot, statut, montant) - "livraisons" et "BL" designent
+donc la meme chose ici.
+
+**Ajout** : un bouton **Historique** sur chaque ligne de l'ecran Clients,
+a cote de Editer/Supprimer (visible par tous, y compris en consultation
+seule). Il ouvre, sous la liste, la fiche du client avec la liste de ses
+bons de livraison (numero, entrepot, statut, montant, date), et un bouton
+**Produits livres** par ligne qui ouvre le detail (SKU, produit, numero de
+serie le cas echeant, quantite, prix unitaire) - repris a l'identique de
+l'ecran Livraisons existant, pour rester coherent. Aucun changement cote
+API : le filtre `GET /deliveries?customer_id=...` existait deja cote
+serveur (utilise par cet ajout), rien n'a du etre modifie en base ni dans
+les controleurs.
+
+**Verifie** :
+- Le bouton "Historique" apparait sur chaque client de la liste.
+- Cliquer dessus charge et affiche la liste de ses bons de livraison
+  (verifie avec une vraie livraison creee via l'API reelle, dans un
+  navigateur reel).
+- Le bouton "Produits livres" ouvre bien le detail de la livraison
+  (SKU, produit, quantite, prix unitaire) dans une fenetre modale.
+- Suite de tests automatises (jsdom) dediee a cette fonctionnalite : bouton
+  present, appel `/deliveries?customer_id=...` emis, contenu affiche,
+  ouverture du detail - tout passe, aucune regression sur les suites
+  existantes (fiche produit, formulaire produit).
+- Suite complete `smoke_api.sh` rejouee : aucune regression.
+
 ## Migrations et seed interne LM-Code (dev interne uniquement - PAS pour un client)
 **A ne pas confondre avec `frontend/demo-data.php` (section dediee plus haut),
 qui est le bon outil pour donner de la demo a un client.** Ce qui suit est
