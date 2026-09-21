@@ -1,27 +1,89 @@
+/*
+ * Themes de couleur - voir config/themes.php (source de verite cote
+ * serveur) et THEME_CATALOG dans app-clean.js (memes cles, pour l'ecran
+ * Parametres > Apparence). index.php/login.php posent l'attribut
+ * data-theme="<cle>" sur <html> a partir du theme choisi (installation,
+ * puis modifiable dans l'admin sans reinstaller) ; le bloc [data-theme]
+ * correspondant ci-dessous ecrase alors --primary/--secondary/--sidebar-*
+ * herites de :root. "emeraude" (ci-dessous, dans :root) est a la fois le
+ * theme par defaut et le theme applique quand aucun data-theme n'est pose
+ * (ancienne page, jeton absent...).
+ *
+ * --primary-deep (etat hover des boutons) est calculee automatiquement a
+ * partir de --primary via color-mix : nul besoin de la fournir par theme.
+ */
 :root {
     --bg: #f3f7fa;
     --bg-accent: #dff0eb;
     --ink: #10222d;
     --muted: #4d6670;
-    /*
-     * La couleur principale est configurable (installation, puis Parametres
-     * > Administration). --brand-primary est definie inline sur :root par
-     * index.php/login.php a partir de config/tenant.php ; --primary en
-     * derive directement et --primary-deep est calculee automatiquement
-     * (teinte assombrie) pour l'etat hover, sans qu'il soit necessaire de
-     * fournir une seconde couleur. Avant ce correctif, --primary etait
-     * codee en dur ici et ignorait totalement la couleur choisie a
-     * l'installation : seuls l'accent-color des cases a cocher et un
-     * border-left en tenaient compte.
-     */
-    --primary: var(--brand-primary, #0f8f74);
-    --primary-deep: color-mix(in srgb, var(--brand-primary, #0f8f74) 78%, black);
+    --primary: #0f8f74;
     --secondary: #0f4f78;
+    --sidebar-1: #0d2532;
+    --sidebar-2: #0d443d;
+    --sidebar-3: #0e3b5a;
+    --primary-deep: color-mix(in srgb, var(--primary) 78%, black);
     --danger: #cb3e3e;
     --line: #d2e0e8;
     --card: #ffffff;
     --shadow: 0 18px 36px rgba(17, 40, 56, 0.1);
     --radius: 14px;
+}
+
+:root[data-theme="ocean"] {
+    --primary: #2563eb;
+    --secondary: #0ea5e9;
+    --sidebar-1: #0b1e3a;
+    --sidebar-2: #0d2f52;
+    --sidebar-3: #0b3a63;
+}
+
+:root[data-theme="violet"] {
+    --primary: #7c3aed;
+    --secondary: #a855f7;
+    --sidebar-1: #1e1033;
+    --sidebar-2: #2d1854;
+    --sidebar-3: #3a1f6e;
+}
+
+:root[data-theme="ardoise"] {
+    --primary: #475569;
+    --secondary: #64748b;
+    --sidebar-1: #0f172a;
+    --sidebar-2: #1e293b;
+    --sidebar-3: #334155;
+}
+
+:root[data-theme="rubis"] {
+    --primary: #dc2626;
+    --secondary: #b91c1c;
+    --sidebar-1: #2a0e0e;
+    --sidebar-2: #4a1414;
+    --sidebar-3: #5c1a1a;
+}
+
+:root[data-theme="ambre"] {
+    --primary: #d97706;
+    --secondary: #b45309;
+    --sidebar-1: #2a1a06;
+    --sidebar-2: #452b0a;
+    --sidebar-3: #5c380d;
+}
+
+:root[data-theme="framboise"] {
+    --primary: #db2777;
+    --secondary: #be185d;
+    --sidebar-1: #2a0e1c;
+    --sidebar-2: #4a1430;
+    --sidebar-3: #5c1a3c;
+}
+
+:root[data-theme="indigo"] {
+    --primary: #4f46e5;
+    --secondary: #4338ca;
+    --sidebar-1: #0e1029;
+    --sidebar-2: #191c47;
+    --sidebar-3: #22265c;
 }
 
 * {
@@ -33,8 +95,8 @@ body {
     font-family: 'Manrope', sans-serif;
     color: var(--ink);
     background:
-        radial-gradient(circle at 0% 0%, rgba(15, 143, 116, 0.18), transparent 45%),
-        radial-gradient(circle at 100% 0%, rgba(15, 79, 120, 0.16), transparent 35%),
+        radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--primary) 18%, transparent), transparent 45%),
+        radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--secondary) 16%, transparent), transparent 35%),
         var(--bg);
 }
 
@@ -148,7 +210,7 @@ h1 {
     border: none;
     padding: 0;
     background: none;
-    accent-color: var(--brand-primary, #2563eb);
+    accent-color: var(--primary);
 }
 
 .form-grid {
@@ -283,7 +345,7 @@ textarea {
 }
 
 .sidebar {
-    background: linear-gradient(165deg, #0d2532, #0d443d 45%, #0e3b5a 100%);
+    background: linear-gradient(165deg, var(--sidebar-1), var(--sidebar-2) 45%, var(--sidebar-3) 100%);
     color: #edf5f3;
     padding: 1.4rem 1.1rem;
     display: flex;
@@ -447,12 +509,12 @@ textarea {
 
 .app-footer a {
     text-decoration: none;
-    color: #0f4f78;
+    color: var(--secondary);
     font-weight: 600;
 }
 
 .app-footer a:hover {
-    color: #0b6b56;
+    color: var(--primary-deep);
     text-decoration: underline;
 }
 
@@ -605,6 +667,50 @@ textarea {
     width: auto;
     min-width: 150px;
     max-width: 220px;
+}
+
+/* Vignettes de choix de theme (ecran Parametres > Apparence). */
+.theme-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 0.7rem;
+    max-width: 640px;
+}
+
+.theme-swatch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--muted);
+}
+
+.theme-swatch input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+}
+
+.theme-preview {
+    display: block;
+    width: 100%;
+    height: 44px;
+    border-radius: 10px;
+    border: 2px solid transparent;
+}
+
+.theme-swatch input:checked + .theme-preview {
+    border-color: var(--ink);
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink);
+}
+
+.theme-swatch input:focus-visible + .theme-preview {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
 }
 
 .hidden {
@@ -881,7 +987,7 @@ td.is-positive {
     padding: 12px 14px;
     border-radius: 8px;
     background: rgba(37, 99, 235, 0.06);
-    border-left: 3px solid var(--brand-primary, #2563eb);
+    border-left: 3px solid var(--primary);
 }
 
 .panel-inline p {

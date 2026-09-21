@@ -84,13 +84,14 @@ if (!headers_sent()) {
 // donc ici aussi le .env pour que le branding (config/tenant.php) soit a jour.
 require_once dirname(__DIR__) . '/config/env-loader.php';
 
-// Identite du client final (nom, logo, couleur) - personnalisable par install.php.
+// Identite du client final (nom, logo, theme de couleur) - personnalisable
+// par install.php.
 $tenantConfigFile = dirname(__DIR__) . '/config/tenant.php';
 $tenant = is_file($tenantConfigFile) ? require $tenantConfigFile : [];
 $tenant += [
     'company_name' => 'Gestion Stock',
     'logo_file' => null,
-    'primary_color' => '#2563eb',
+    'theme' => 'emeraude',
     'support_email' => '',
     'footer_text' => '',
 ];
@@ -107,24 +108,34 @@ $tenantLogoUrl = $tenantLogoFile
     ? FRONTEND_BASE_URL . '/assets/img/brand/' . rawurlencode($tenantLogoFile)
     : FRONTEND_BASE_URL . '/assets/img/brand/lm-code-monogram.svg';
 
-// La couleur principale choisie a l'installation (config/tenant.php, via
-// TENANT_PRIMARY_COLOR) peut ensuite etre changee depuis l'ecran Parametres
-// de l'application, sans reinstaller : ce reglage est stocke comme n'importe
-// quel autre dans app_settings et prime ici sur le fichier de configuration
-// s'il existe. La base peut etre momentanement indisponible (maintenance,
-// pic de charge) : dans ce cas on garde la couleur du fichier plutot que de
-// casser l'affichage de la page de connexion ou du tableau de bord.
+// config/themes.php est la seule source de verite pour les cles de theme
+// valides : toute valeur hors catalogue (ancienne valeur, ligne corrompue en
+// base) retombe silencieusement sur le theme par defaut plutot que de poser
+// un data-theme invalide sur <html> (qui laisserait l'application dans le
+// theme "emeraude" de :root sans qu'on comprenne pourquoi).
+$themeCatalog = require dirname(__DIR__) . '/config/themes.php';
+if (!array_key_exists($tenant['theme'], $themeCatalog)) {
+    $tenant['theme'] = 'emeraude';
+}
+
+// Le theme choisi a l'installation (config/tenant.php, via TENANT_THEME)
+// peut ensuite etre change depuis l'ecran Parametres de l'application, sans
+// reinstaller : ce reglage est stocke comme n'importe quel autre dans
+// app_settings et prime ici sur le fichier de configuration s'il existe. La
+// base peut etre momentanement indisponible (maintenance, pic de charge) :
+// dans ce cas on garde le theme du fichier plutot que de casser l'affichage
+// de la page de connexion ou du tableau de bord.
 try {
     require_once dirname(__DIR__) . '/backend/src/Shared/Support/Autoloader.php';
     \App\Shared\Support\Autoloader::register(dirname(__DIR__) . '/backend');
     $settingsPdo = \App\Shared\Database\Database::connection();
     $settingsStmt = $settingsPdo->prepare('SELECT setting_value FROM app_settings WHERE setting_key = :key LIMIT 1');
-    $settingsStmt->execute([':key' => 'tenant_primary_color']);
-    $dbPrimaryColor = $settingsStmt->fetchColumn();
-    if (is_string($dbPrimaryColor) && preg_match('/^#[0-9a-fA-F]{6}$/', $dbPrimaryColor) === 1) {
-        $tenant['primary_color'] = $dbPrimaryColor;
+    $settingsStmt->execute([':key' => 'tenant_theme']);
+    $dbTheme = $settingsStmt->fetchColumn();
+    if (is_string($dbTheme) && array_key_exists($dbTheme, $themeCatalog)) {
+        $tenant['theme'] = $dbTheme;
     }
 } catch (\Throwable $ignored) {
     // Base indisponible ou table absente (installation non terminee) : on
-    // garde la couleur de config/tenant.php.
+    // garde le theme de config/tenant.php.
 }

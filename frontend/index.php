@@ -3,7 +3,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/route-frontend.php';
 ?>
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" data-theme="<?= htmlspecialchars($tenant['theme'], ENT_QUOTES, 'UTF-8') ?>">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -14,7 +14,6 @@ require_once __DIR__ . '/route-frontend.php';
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="<?= assetUrl('assets/css/clean.css') ?>">
     <link rel="icon" type="image/svg+xml" href="<?= FRONTEND_BASE_URL ?>/assets/img/brand/lm-code-monogram.svg">
-    <style>:root { --brand-primary: <?= htmlspecialchars($tenant['primary_color'], ENT_QUOTES, 'UTF-8') ?>; }</style>
 </head>
 <body class="app-body">
     <div class="app-layout">

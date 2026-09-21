@@ -21,6 +21,7 @@ $lockFile = $rootPath . '/config/.installed';
 $keyFile = $rootPath . '/config/install.key';
 $errors = [];
 $success = null;
+$themeCatalog = require $rootPath . '/config/themes.php';
 
 function e(?string $value): string
 {
@@ -251,7 +252,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $tenantName = trim((string)($_POST['tenant_name'] ?? ''));
     $tenantSupportEmail = trim((string)($_POST['tenant_support_email'] ?? ''));
-    $tenantPrimaryColor = trim((string)($_POST['tenant_primary_color'] ?? '#2563eb'));
+    $tenantTheme = trim((string)($_POST['tenant_theme'] ?? 'emeraude'));
+    if (!array_key_exists($tenantTheme, $themeCatalog)) {
+        $tenantTheme = 'emeraude';
+    }
     $tenantFooterText = trim((string)($_POST['tenant_footer_text'] ?? ''));
 
     $siteUrl = rtrim(trim((string)($_POST['site_url'] ?? '')), '/');
@@ -413,7 +417,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 . "DB_CHARSET=utf8mb4\n\n"
                 . "TENANT_NAME={$tenantName}\n"
                 . "TENANT_LOGO_FILE={$logoFileName}\n"
-                . "TENANT_PRIMARY_COLOR={$tenantPrimaryColor}\n"
+                . "TENANT_THEME={$tenantTheme}\n"
                 . "TENANT_SUPPORT_EMAIL={$tenantSupportEmail}\n"
                 . "TENANT_FOOTER_TEXT={$tenantFooterText}\n";
 
@@ -458,6 +462,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   .success code{background:#dcfce7;padding:2px 6px;border-radius:4px}
   .hint{color:#64748b;font-size:.82rem;margin-top:-8px;margin-bottom:14px}
   .warn-box{background:#fffbeb;border:1px solid #fcd34d;color:#92400e;padding:14px 18px;border-radius:8px;margin-top:20px}
+  .theme-picker{margin-bottom:14px}
+  .theme-picker>span{display:block;margin-bottom:8px;color:#475569;font-size:.92rem}
+  .theme-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .theme-swatch{display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;margin:0;font-size:.78rem;color:#475569}
+  .theme-swatch input{position:absolute;opacity:0;width:1px;height:1px}
+  .theme-preview{display:block;width:100%;height:40px;border-radius:8px;border:2px solid transparent}
+  .theme-swatch input:checked+.theme-preview{border-color:#1e293b;box-shadow:0 0 0 2px #fff, 0 0 0 4px #1e293b}
+  .theme-swatch input:focus-visible+.theme-preview{outline:2px solid #2563eb;outline-offset:2px}
 </style>
 </head>
 <body>
@@ -510,7 +522,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <legend>Informations du client final</legend>
       <label><span>Nom de la societe / application</span><input type="text" name="tenant_name" value="<?= e($_POST['tenant_name'] ?? '') ?>" required></label>
       <label><span>Email de support (optionnel)</span><input type="email" name="tenant_support_email" value="<?= e($_POST['tenant_support_email'] ?? '') ?>"></label>
-      <label><span>Couleur principale</span><input type="color" name="tenant_primary_color" value="<?= e($_POST['tenant_primary_color'] ?? '#2563eb') ?>"></label>
+      <div class="theme-picker">
+        <span>Theme de couleur</span>
+        <div class="theme-grid">
+          <?php $selectedTheme = $_POST['tenant_theme'] ?? 'emeraude'; ?>
+          <?php foreach ($themeCatalog as $themeKey => $theme): ?>
+            <label class="theme-swatch">
+              <input type="radio" name="tenant_theme" value="<?= e($themeKey) ?>" <?= $selectedTheme === $themeKey ? 'checked' : '' ?>>
+              <span class="theme-preview" style="background: linear-gradient(135deg, <?= e($theme['sidebar'][0]) ?>, <?= e($theme['primary']) ?>)"></span>
+              <span class="theme-name"><?= e($theme['label']) ?></span>
+            </label>
+          <?php endforeach; ?>
+        </div>
+      </div>
       <label><span>Texte de pied de page (optionnel)</span><input type="text" name="tenant_footer_text" value="<?= e($_POST['tenant_footer_text'] ?? '') ?>"></label>
       <label><span>Logo (png, jpg, webp, gif ou svg, optionnel)</span><input type="file" name="tenant_logo" accept=".png,.jpg,.jpeg,.webp,.gif,.svg"></label>
     </fieldset>

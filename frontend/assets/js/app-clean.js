@@ -73,6 +73,22 @@ const moduleTitles = {
     reports: 'Rapports',
 };
 
+// Catalogue des themes de couleur - doit rester synchronise avec
+// config/themes.php (memes cles, memes libelles). Le back-end reste la
+// source de verite pour la validation (route-frontend.php n'accepte que ces
+// cles) ; ce catalogue cote front ne sert qu'a dessiner les vignettes de
+// choix dans Parametres > Apparence.
+const THEME_CATALOG = {
+    emeraude: { label: 'Emeraude', primary: '#0f8f74', sidebar: ['#0d2532', '#0d443d', '#0e3b5a'] },
+    ocean: { label: 'Ocean', primary: '#2563eb', sidebar: ['#0b1e3a', '#0d2f52', '#0b3a63'] },
+    violet: { label: 'Violet', primary: '#7c3aed', sidebar: ['#1e1033', '#2d1854', '#3a1f6e'] },
+    ardoise: { label: 'Ardoise', primary: '#475569', sidebar: ['#0f172a', '#1e293b', '#334155'] },
+    rubis: { label: 'Rubis', primary: '#dc2626', sidebar: ['#2a0e0e', '#4a1414', '#5c1a1a'] },
+    ambre: { label: 'Ambre', primary: '#d97706', sidebar: ['#2a1a06', '#452b0a', '#5c380d'] },
+    framboise: { label: 'Framboise', primary: '#db2777', sidebar: ['#2a0e1c', '#4a1430', '#5c1a3c'] },
+    indigo: { label: 'Indigo (nuit)', primary: '#4f46e5', sidebar: ['#0e1029', '#191c47', '#22265c'] },
+};
+
 const crudModules = {
     categories: {
         endpoint: '/categories',
@@ -1445,17 +1461,17 @@ async function renderCrud(module) {
     const root = document.getElementById('appContent');
     const writable = canWrite(module);
 
-    // La couleur principale est un reglage comme un autre (table app_settings,
-    // cle "tenant_primary_color"), mais elle merite un controle dedie (input
-    // color) plutot que de demander a l'admin de saisir un code hexadecimal a
-    // la main dans le tableau generique juste en dessous.
-    let currentColorRow = null;
+    // Le theme de couleur est un reglage comme un autre (table app_settings,
+    // cle "tenant_theme"), mais il merite des vignettes cliquables plutot que
+    // de demander a l'admin de saisir la cle a la main dans le tableau
+    // generique juste en dessous.
+    let currentThemeRow = null;
     if (module === 'settings') {
         try {
-            const colorResponse = await apiRequest('/settings?setting_key=tenant_primary_color');
-            currentColorRow = normalizeRows(colorResponse)[0] ?? null;
+            const themeResponse = await apiRequest('/settings?setting_key=tenant_theme');
+            currentThemeRow = normalizeRows(themeResponse)[0] ?? null;
         } catch (_) {
-            currentColorRow = null;
+            currentThemeRow = null;
         }
     }
 
@@ -1550,11 +1566,19 @@ async function renderCrud(module) {
         ${module === 'settings' ? `
         <section class="panel">
             <h4>Apparence</h4>
-            <p class="muted">Couleur principale de l'application (boutons, liens, elements actifs). S'applique a tous les utilisateurs.</p>
+            <p class="muted">Theme de couleur de l'application (boutons, liens, barre laterale, elements actifs). S'applique a tous les utilisateurs.</p>
             ${writable ? `
-            <form id="appearanceForm" class="form-grid">
-                <label><span>Couleur principale</span><input type="color" name="tenant_primary_color" value="${sanitize(currentColorRow?.setting_value || '#2563eb')}"></label>
-                <button type="submit" class="btn btn-primary">Enregistrer</button>
+            <form id="appearanceForm">
+                <div class="theme-grid">
+                    ${Object.entries(THEME_CATALOG).map(([themeKey, theme]) => `
+                        <label class="theme-swatch">
+                            <input type="radio" name="tenant_theme" value="${themeKey}" ${(currentThemeRow?.setting_value || 'emeraude') === themeKey ? 'checked' : ''}>
+                            <span class="theme-preview" style="background: linear-gradient(135deg, ${theme.sidebar[0]}, ${theme.primary})"></span>
+                            <span class="theme-name">${sanitize(theme.label)}</span>
+                        </label>
+                    `).join('')}
+                </div>
+                <button type="submit" class="btn btn-primary" style="margin-top: 0.8rem;">Enregistrer</button>
             </form>
             <p id="appearanceFeedback" class="feedback"></p>
             ` : '<p class="muted">Acces reserve aux administrateurs.</p>'}
@@ -1988,20 +2012,20 @@ async function renderCrud(module) {
             event.preventDefault();
             const appearanceFeedback = document.getElementById('appearanceFeedback');
             const submitBtn = event.target.querySelector('button[type="submit"]');
-            const color = event.target.tenant_primary_color.value;
+            const theme = event.target.tenant_theme.value;
             appearanceFeedback.textContent = '';
             appearanceFeedback.classList.remove('is-error');
             submitBtn.disabled = true;
             try {
-                if (currentColorRow?.id) {
-                    await apiRequest(`/settings/${currentColorRow.id}`, {
+                if (currentThemeRow?.id) {
+                    await apiRequest(`/settings/${currentThemeRow.id}`, {
                         method: 'PUT',
-                        body: { setting_value: color },
+                        body: { setting_value: theme },
                     });
                 } else {
                     await apiRequest('/settings', {
                         method: 'POST',
-                        body: { setting_key: 'tenant_primary_color', setting_value: color },
+                        body: { setting_key: 'tenant_theme', setting_value: theme },
                     });
                 }
                 // On relit la ligne (id compris) au lieu de re-rendre tout
@@ -2010,9 +2034,9 @@ async function renderCrud(module) {
                 // resterait jamais assez longtemps a l'ecran pour etre lu.
                 // Garder l'id a jour permet aussi un 2e enregistrement dans la
                 // foulee (PUT) plutot qu'un POST en doublon sur une cle unique.
-                const refreshed = await apiRequest('/settings?setting_key=tenant_primary_color');
-                currentColorRow = normalizeRows(refreshed)[0] ?? currentColorRow;
-                appearanceFeedback.textContent = 'Couleur enregistree. Recharge la page pour la voir appliquee partout.';
+                const refreshed = await apiRequest('/settings?setting_key=tenant_theme');
+                currentThemeRow = normalizeRows(refreshed)[0] ?? currentThemeRow;
+                appearanceFeedback.textContent = 'Theme enregistre. Recharge la page pour le voir applique partout.';
                 submitBtn.disabled = false;
             } catch (error) {
                 appearanceFeedback.textContent = error.message;
