@@ -458,6 +458,40 @@ final class ProductRepository extends PdoCrudRepository
     }
 
     /**
+     * Quantite totale d'un produit, tous entrepots et emplacements confondus.
+     * Utilisee par ValuationService pour la moyenne ponderee (CUMP) : cette
+     * methode calcule un cout unique par produit, pas par entrepot.
+     */
+    public function totalQuantity(int $productId): int
+    {
+        $stmt = $this->pdo->prepare('SELECT COALESCE(SUM(quantity), 0) FROM stock_levels WHERE product_id = :product_id');
+        $stmt->execute([':product_id' => $productId]);
+
+        return (int)$stmt->fetchColumn();
+    }
+
+    /**
+     * Verrouille la ligne produit (cost_price, valuation_method) le temps de
+     * la transaction en cours. Sans ce verrou, deux receptions simultanees du
+     * meme produit liraient le meme cost_price de depart et la moyenne
+     * ponderee de l'une ecraserait celle de l'autre au lieu de s'accumuler.
+     */
+    public function lockForValuation(int $productId): ?array
+    {
+        $stmt = $this->pdo->prepare('SELECT id, cost_price, valuation_method FROM products WHERE id = :id FOR UPDATE');
+        $stmt->execute([':id' => $productId]);
+        $row = $stmt->fetch();
+
+        return $row ?: null;
+    }
+
+    public function updateCostPrice(int $productId, float $costPrice): void
+    {
+        $stmt = $this->pdo->prepare('UPDATE products SET cost_price = :cost_price WHERE id = :id');
+        $stmt->execute([':cost_price' => $costPrice, ':id' => $productId]);
+    }
+
+    /**
      * Ecrit la quantite d'UNE ligne de stock (produit + variante + entrepot +
      * emplacement), en la creant si elle n'existe pas.
      *

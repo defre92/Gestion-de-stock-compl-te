@@ -190,6 +190,11 @@ final class PurchaseOrderService
                     'warehouse_id' => (int)$order['warehouse_id'],
                     'type' => 'IN',
                     'quantity' => $receivedQty,
+                    // Cout reellement paye au fournisseur pour cette ligne :
+                    // c'est la source la plus fiable pour la valorisation
+                    // (CUMP/FIFO, voir ValuationService) - contrairement a une
+                    // entree manuelle, ce cout est toujours connu ici.
+                    'unit_cost' => (float)$orderItem['unit_cost'],
                     'reason_code' => 'PO_RECEIPT',
                     'reference_type' => 'PURCHASE_ORDER',
                     'reference_id' => $id,

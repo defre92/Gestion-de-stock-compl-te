@@ -2088,6 +2088,10 @@ async function renderMovements() {
                     <option value="TRANSFER">Transfert</option>
                 </select></label>
                 <label><span>Quantite</span><input type="number" name="quantity" min="1" required></label>
+                <div class="full hidden" id="movementUnitCostWrap">
+                    <label><span>Cout unitaire (optionnel)</span><input type="number" name="unit_cost" min="0" step="0.01" placeholder="Laisser vide = cout actuel du produit"></label>
+                    <small class="field-hint">Sert a la valorisation du stock (CUMP/FIFO - voir la fiche produit). Laisse vide, le cout actuel du produit est repris tel quel.</small>
+                </div>
                 ${selectField('customer_id', 'Client (sortie)', state.lookups.customers, 'id', 'name', false)}
                 <div class="full" id="movementSerialsInWrap">
                     <label>
@@ -2137,6 +2141,7 @@ async function renderMovements() {
                 ['product_name', 'Produit'],
                 ['variant_sku', 'Variante', (v, row) => (row.variant_id ? sanitize(variantDescriptor(row)) : '-')],
                 ['quantity', 'Quantite'],
+                ['unit_cost', 'Cout unitaire', (value) => (value === null || value === undefined ? '-' : formatMoney(value))],
                 ['balance_after', 'Stock apres'],
                 ['warehouse_name', 'Source'],
                 ['source_location_code', 'Empl. source'],
@@ -2215,11 +2220,14 @@ async function renderMovements() {
             `).join('');
     };
 
+    const unitCostWrap = document.getElementById('movementUnitCostWrap');
+
     const toggleSerialsWrap = () => {
         const isIn = typeSelect?.value === 'IN';
         const isOut = typeSelect?.value === 'OUT';
         serialsInWrap?.classList.toggle('hidden', !isIn);
         serialsOutWrap?.classList.toggle('hidden', !isOut);
+        unitCostWrap?.classList.toggle('hidden', !isIn);
         if (isOut) {
             loadOutSerialOptions();
         }
@@ -2323,6 +2331,7 @@ async function renderMovements() {
             destination_location_id: data.get('destination_location_id') ? Number(data.get('destination_location_id')) : null,
             type,
             quantity,
+            unit_cost: data.get('unit_cost') ? Number(data.get('unit_cost')) : null,
             reason_code: String(data.get('reason_code') ?? ''),
             notes: String(data.get('notes') ?? ''),
             reference_type: customerId ? 'CUSTOMER' : null,
@@ -4371,13 +4380,16 @@ async function renderProductDetail(productId) {
         return;
     }
 
-    const [productResponse, movementResponse] = await Promise.all([
+    const [productResponse, movementResponse, costLayersResponse] = await Promise.all([
         apiRequest(`/products/${productId}`),
         apiRequest(`/stock/movements?product_id=${productId}&per_page=20`),
+        apiRequest(`/products/${productId}/cost-layers`).catch(() => null),
     ]);
 
     const product = productResponse.data;
     const movements = normalizeRows(movementResponse);
+    const costLayers = normalizeRows(costLayersResponse);
+    const isFifo = String(product.valuation_method ?? '').toUpperCase() === 'FIFO';
     const media = Array.isArray(product?.media) ? product.media : [];
     const stockRows = Array.isArray(product?.stock_by_warehouse) ? product.stock_by_warehouse : [];
     const canManageProduct = canWrite('products');
@@ -4400,11 +4412,27 @@ async function renderProductDetail(productId) {
                 <article class="metric-card"><p>Fournisseur</p><h3>${sanitize(product.supplier_name)}</h3></article>
                 <article class="metric-card"><p>Stock total</p><h3>${sanitize(product.stock_total)}</h3></article>
                 <article class="metric-card"><p>Prix vente</p><h3>${formatMoney(product.unit_price)}</h3></article>
-                <article class="metric-card"><p>Prix achat</p><h3>${formatMoney(product.cost_price)}</h3></article>
+                <article class="metric-card"><p>Prix achat (${sanitize(product.valuation_method)})</p><h3>${formatMoney(product.cost_price)}</h3></article>
                 <article class="metric-card"><p>Code-barres</p><h3>${sanitize(product.barcode || '-')}</h3></article>
             </div>
             <p class="muted">${sanitize(product.description)}</p>
             <p>${renderTagBadges(product.tags)}</p>
+            <div class="hint-box">
+                ${isFifo
+                    ? "Valorisation FIFO : le prix d'achat ci-dessus est la moyenne des lots encore en stock (voir ci-dessous). Chaque sortie consomme d'abord le lot le plus ancien."
+                    : "Valorisation CUMP : le prix d'achat ci-dessus est recalcule automatiquement en moyenne ponderee a chaque reception de stock (commande fournisseur ou entree manuelle avec un cout)."}
+            </div>
+            ${isFifo ? `
+            <h4 style="margin-top: 1rem;">Lots en stock (du plus ancien au plus recent)</h4>
+            ${costLayers.length === 0
+                ? '<p class="muted">Aucun lot en stock actuellement.</p>'
+                : renderSimpleTable(costLayers, [
+                    ['created_at', 'Reçu le'],
+                    ['quantity_remaining', 'Quantite restante'],
+                    ['unit_cost', 'Cout unitaire', (value) => formatMoney(value)],
+                    ['source_type', 'Origine', (value) => sanitize(localizeValue(value, 'reference_type'))],
+                ])}
+            ` : ''}
         </div>
         <div class="tab-panel hidden" data-tab-panel="stock">
             ${renderProductLocationSummary(stockRows)}

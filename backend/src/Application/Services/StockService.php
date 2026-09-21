@@ -19,7 +19,8 @@ final class StockService
         private readonly WarehouseRepository $warehouseRepository,
         private readonly StockMovementRepository $movementRepository,
         private readonly StockAlertRepository $alertRepository,
-        private readonly AuditRepository $auditRepository
+        private readonly AuditRepository $auditRepository,
+        private readonly ValuationService $valuationService
     ) {
     }
 
@@ -193,6 +194,13 @@ final class StockService
             $pdo->beginTransaction();
         }
 
+        // Cout unitaire reellement applique par la valorisation (CUMP/FIFO,
+        // voir ValuationService) : inscrit sur le mouvement pour tracabilite.
+        // Reste null pour un TRANSFERT (ni entree ni sortie de valeur pour
+        // l'entreprise, juste un changement d'emplacement) et pour un
+        // AJUSTEMENT sans ecart reel (delta nul).
+        $unitCostUsed = null;
+
         try {
             // Le stock est suivi par EMPLACEMENT depuis la migration
             // 202602270012. Une "ligne de stock" est donc identifiee par
@@ -202,6 +210,18 @@ final class StockService
             // lui, deux mouvements simultanes sur le meme article lisent la
             // meme quantite et le second ecrase le premier.
             if ($type === 'IN') {
+                // La valorisation (CUMP/FIFO) doit lire la quantite AVANT
+                // cette entree : elle est donc appelee avant d'ecrire la
+                // nouvelle quantite en stock, jamais apres.
+                $unitCostUsed = $this->valuationService->receiveStock(
+                    $productId,
+                    $variantId,
+                    $quantity,
+                    isset($payload['unit_cost']) && $payload['unit_cost'] !== '' ? (float)$payload['unit_cost'] : null,
+                    $payload['reference_type'] ?? 'MANUAL',
+                    isset($payload['reference_id']) ? (int)$payload['reference_id'] : null
+                );
+
                 // Pour une entree, l'emplacement pertinent est celui ou l'on
                 // range : la destination, ou a defaut la source si l'operateur
                 // n'a rempli que ce champ.
@@ -213,8 +233,23 @@ final class StockService
             } elseif ($type === 'OUT') {
                 $this->assertLocationBelongsTo($sourceLocationId, $warehouseId);
                 $this->consumeFromWarehouse($productId, $warehouseId, $variantId, $quantity, $sourceLocationId, 'Stock insuffisant');
+                $unitCostUsed = $this->valuationService->consumeStock($productId, $variantId, $quantity);
             } elseif ($type === 'ADJUSTMENT') {
+                // La quantite saisie REMPLACE la quantite en place (voir
+                // applyAdjustment) : on ne sait donc si l'ecart est une
+                // entree ou une sortie de valeur qu'en comparant avant/apres.
+                $qtyBeforeAdjustment = $this->productRepository->warehouseQuantity($productId, $warehouseId, $variantId);
                 $this->applyAdjustment($productId, $warehouseId, $variantId, $quantity, $destinationLocationId ?? $sourceLocationId);
+                $qtyAfterAdjustment = $this->productRepository->warehouseQuantity($productId, $warehouseId, $variantId);
+                $delta = $qtyAfterAdjustment - $qtyBeforeAdjustment;
+
+                if ($delta > 0) {
+                    // Aucun cout saisi sur un ajustement : on reprend le
+                    // cost_price courant (voir ValuationService::receiveStock).
+                    $unitCostUsed = $this->valuationService->receiveStock($productId, $variantId, $delta, null, 'ADJUSTMENT', null);
+                } elseif ($delta < 0) {
+                    $unitCostUsed = $this->valuationService->consumeStock($productId, $variantId, -$delta);
+                }
             } else {
                 // Deux transferts possibles depuis que le stock est suivi par
                 // emplacement :
@@ -297,6 +332,7 @@ final class StockService
                 'destination_location_id' => $destinationLocationId,
                 'type' => $type,
                 'quantity' => $quantity,
+                'unit_cost' => $unitCostUsed,
                 'balance_after' => $nextQty,
                 'reference_type' => $payload['reference_type'] ?? null,
                 'reference_id' => isset($payload['reference_id']) ? (int)$payload['reference_id'] : null,

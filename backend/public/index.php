@@ -16,6 +16,8 @@ use App\Application\Services\PurchaseRequestService;
 use App\Application\Services\ReportService;
 use App\Application\Services\ProductSerialService;
 use App\Application\Services\StockService;
+use App\Application\Services\ValuationService;
+use App\Infrastructure\Persistence\CostLayerRepository;
 use App\Application\Services\UserService;
 use App\Infrastructure\Persistence\AppSettingRepository;
 use App\Infrastructure\Persistence\AuditRepository;
@@ -145,9 +147,10 @@ $stockAlertController = new CrudController(new CrudService(new StockAlertReposit
 $importJobController = new CrudController(new CrudService(new ImportJobRepository(), $auditRepository, 'import_job', ['entity_type', 'status', 'started_by']));
 
 $dashboardController = new DashboardController(new DashboardService(new DashboardRepository()));
-$stockService = new StockService(new ProductRepository(), new WarehouseRepository(), new StockMovementRepository(), new StockAlertRepository(), $auditRepository);
+$valuationService = new ValuationService(new ProductRepository(), new CostLayerRepository());
+$stockService = new StockService(new ProductRepository(), new WarehouseRepository(), new StockMovementRepository(), new StockAlertRepository(), $auditRepository, $valuationService);
 $productSerialController = new ProductSerialController(new ProductSerialService(new ProductSerialRepository(), $auditRepository, $stockService));
-$stockController = new StockController($stockService);
+$stockController = new StockController($stockService, new CostLayerRepository());
 $deliveryController = new DeliveryController(new DeliveryService(new DeliveryRepository(), $stockService, $auditRepository, new ProductSerialRepository(), new ProductRepository()));
 $purchaseOrderController = new PurchaseOrderController(new PurchaseOrderService(new PurchaseOrderRepository(), $stockService, $auditRepository, new PurchaseRequestRepository(), new ProductRepository()));
 $purchaseRequestController = new PurchaseRequestController(new PurchaseRequestService(new PurchaseRequestRepository(), $auditRepository, new ProductRepository()));
@@ -218,6 +221,7 @@ $router->add('POST', '/api/v1/product-media', static fn (Request $req) => $produ
 $router->add('POST', '/api/v1/products/{id}/media/upload', static fn (Request $req, array $p) => $productMediaUploadController->upload($req, (int)$p['id']), [$authMiddleware, $adminRolesMiddleware]);
 $router->add('GET', '/api/v1/product-media/{id}/download', static fn (Request $req, array $p) => $productMediaUploadController->download((int)$p['id']), [$authMiddleware]);
 $router->add('GET', '/api/v1/products/{id}/label.svg', static fn (Request $req, array $p) => $barcodeController->productLabelSvg((int)$p['id']), [$authMiddleware]);
+$router->add('GET', '/api/v1/products/{id}/cost-layers', static fn (Request $req, array $p) => $stockController->costLayers((int)$p['id']), [$authMiddleware]);
 
 $router->add('GET', '/api/v1/brands', static fn (Request $req) => $brandController->index($req), [$authMiddleware]);
 $router->add('GET', '/api/v1/brands/{id}', static fn (Request $req, array $p) => $brandController->show((int)$p['id']), [$authMiddleware]);

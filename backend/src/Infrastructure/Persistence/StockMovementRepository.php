@@ -20,10 +20,10 @@ final class StockMovementRepository
         $stmt = $this->pdo->prepare('
             INSERT INTO stock_movements
                 (product_id, variant_id, warehouse_id, destination_warehouse_id, source_location_id, destination_location_id,
-                 type, quantity, balance_after, reference_type, reference_id, notes, reason_code, moved_by, created_at)
+                 type, quantity, unit_cost, balance_after, reference_type, reference_id, notes, reason_code, moved_by, created_at)
             VALUES
                 (:product_id, :variant_id, :warehouse_id, :destination_warehouse_id, :source_location_id, :destination_location_id,
-                 :type, :quantity, :balance_after, :reference_type, :reference_id, :notes, :reason_code, :moved_by, NOW())
+                 :type, :quantity, :unit_cost, :balance_after, :reference_type, :reference_id, :notes, :reason_code, :moved_by, NOW())
         ');
 
         $stmt->execute([
@@ -35,6 +35,7 @@ final class StockMovementRepository
             ':destination_location_id' => $payload['destination_location_id'] ?? null,
             ':type' => $payload['type'],
             ':quantity' => $payload['quantity'],
+            ':unit_cost' => $payload['unit_cost'] ?? null,
             ':balance_after' => $payload['balance_after'],
             ':reference_type' => $payload['reference_type'] ?? null,
             ':reference_id' => $payload['reference_id'] ?? null,

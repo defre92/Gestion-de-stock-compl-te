@@ -4,13 +4,16 @@ declare(strict_types=1);
 namespace App\Presentation\Controllers;
 
 use App\Application\Services\StockService;
+use App\Infrastructure\Persistence\CostLayerRepository;
 use App\Shared\Http\JsonResponse;
 use App\Shared\Http\Request;
 
 final class StockController
 {
-    public function __construct(private readonly StockService $service)
-    {
+    public function __construct(
+        private readonly StockService $service,
+        private readonly CostLayerRepository $costLayerRepository
+    ) {
     }
 
     public function movements(Request $request): void
@@ -38,5 +41,16 @@ final class StockController
     public function alerts(): void
     {
         JsonResponse::send(['data' => $this->service->lowStockAlerts()]);
+    }
+
+    /**
+     * Lots FIFO encore en stock pour un produit (voir ValuationService).
+     * Pertinent uniquement pour un produit en valorisation FIFO : un produit
+     * en CUMP renverra une liste vide (aucun lot n'y est jamais consomme),
+     * ce qui n'est pas une erreur - le front l'affiche seulement si utile.
+     */
+    public function costLayers(int $productId): void
+    {
+        JsonResponse::send(['data' => $this->costLayerRepository->listRemaining($productId)]);
     }
 }
