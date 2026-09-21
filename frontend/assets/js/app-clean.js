@@ -4022,18 +4022,48 @@ async function renderReports() {
 
     root.innerHTML = `
         <section class="panel">
-            <h4>Exports CSV</h4>
+            <h4>Rapport complet</h4>
+            <p class="muted">Telecharge en une fois un fichier ZIP contenant tous les exports ci-dessous.</p>
             <div class="panel-actions">
-                <button class="btn btn-primary" data-report="/reports/stock.csv" data-name="stock-report.csv">Export stock</button>
-                <button class="btn btn-primary" data-report="/reports/movements.csv" data-name="movements-report.csv">Export mouvements</button>
-                <button class="btn btn-primary" data-report="/reports/purchases.csv" data-name="purchases-report.csv">Export achats</button>
+                <button class="btn btn-primary" id="fullReportBtn" data-report="/reports/full.zip" data-name="rapport-complet.zip">Rapport complet (ZIP)</button>
+                <p id="fullReportFeedback" class="feedback"></p>
+            </div>
+        </section>
+        <section class="panel">
+            <h4>Exports CSV par module</h4>
+            <div class="panel-actions">
+                <button class="btn btn-soft" data-report="/reports/stock.csv" data-name="stock-report.csv">Export stock</button>
+                <button class="btn btn-soft" data-report="/reports/movements.csv" data-name="movements-report.csv">Export mouvements</button>
+                <button class="btn btn-soft" data-report="/reports/purchases.csv" data-name="purchases-report.csv">Export achats</button>
+                <button class="btn btn-soft" data-report="/reports/products.csv" data-name="products-report.csv">Export produits</button>
+                <button class="btn btn-soft" data-report="/reports/suppliers.csv" data-name="suppliers-report.csv">Export fournisseurs</button>
+                <button class="btn btn-soft" data-report="/reports/customers.csv" data-name="customers-report.csv">Export clients</button>
+                <button class="btn btn-soft" data-report="/reports/deliveries.csv" data-name="deliveries-report.csv">Export livraisons</button>
+                <button class="btn btn-soft" data-report="/reports/inventories.csv" data-name="inventories-report.csv">Export inventaires</button>
             </div>
         </section>
     `;
 
+    const fullReportFeedback = document.getElementById('fullReportFeedback');
+
     root.querySelectorAll('[data-report]').forEach((btn) => {
         btn.addEventListener('click', async () => {
-            await downloadCsv(btn.getAttribute('data-report'), btn.getAttribute('data-name') ?? 'report.csv');
+            const isFull = btn.id === 'fullReportBtn';
+            btn.disabled = true;
+            if (isFull) fullReportFeedback.textContent = 'Generation du rapport en cours...';
+            try {
+                await downloadCsv(btn.getAttribute('data-report'), btn.getAttribute('data-name') ?? 'report.csv');
+                if (isFull) fullReportFeedback.textContent = '';
+            } catch (error) {
+                if (isFull) {
+                    fullReportFeedback.textContent = error.message;
+                    fullReportFeedback.classList.add('is-error');
+                } else {
+                    window.alert(error.message);
+                }
+            } finally {
+                btn.disabled = false;
+            }
         });
     });
 }

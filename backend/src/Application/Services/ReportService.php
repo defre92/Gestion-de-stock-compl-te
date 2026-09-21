@@ -26,6 +26,71 @@ final class ReportService
         return $this->toCsv($this->repository->purchaseSummary());
     }
 
+    public function productCsv(): string
+    {
+        return $this->toCsv($this->repository->productCatalog());
+    }
+
+    public function supplierCsv(): string
+    {
+        return $this->toCsv($this->repository->supplierList());
+    }
+
+    public function customerCsv(): string
+    {
+        return $this->toCsv($this->repository->customerList());
+    }
+
+    public function deliveryCsv(): string
+    {
+        return $this->toCsv($this->repository->deliveryJournal());
+    }
+
+    public function inventoryCsv(): string
+    {
+        return $this->toCsv($this->repository->inventorySessions());
+    }
+
+    /**
+     * Rapport complet : un ZIP contenant l'ensemble des exports CSV. Genere
+     * dans un fichier temporaire (ZipArchive ne sait pas ecrire directement
+     * en memoire) puis lu et supprime avant de renvoyer son contenu binaire.
+     */
+    public function fullReportZip(): string
+    {
+        $files = [
+            'stock.csv' => $this->stockCsv(),
+            'mouvements.csv' => $this->movementCsv(),
+            'achats.csv' => $this->purchaseCsv(),
+            'produits.csv' => $this->productCsv(),
+            'fournisseurs.csv' => $this->supplierCsv(),
+            'clients.csv' => $this->customerCsv(),
+            'livraisons.csv' => $this->deliveryCsv(),
+            'inventaires.csv' => $this->inventoryCsv(),
+        ];
+
+        $tmpPath = tempnam(sys_get_temp_dir(), 'report-');
+        if ($tmpPath === false) {
+            throw new \RuntimeException('Impossible de generer le rapport complet');
+        }
+
+        $zip = new \ZipArchive();
+        if ($zip->open($tmpPath, \ZipArchive::OVERWRITE) !== true) {
+            @unlink($tmpPath);
+            throw new \RuntimeException('Impossible de generer le rapport complet');
+        }
+
+        foreach ($files as $name => $content) {
+            $zip->addFromString($name, $content);
+        }
+        $zip->close();
+
+        $content = file_get_contents($tmpPath) ?: '';
+        @unlink($tmpPath);
+
+        return $content;
+    }
+
     /**
      * Neutralise l'injection de formule dans les tableurs.
      *

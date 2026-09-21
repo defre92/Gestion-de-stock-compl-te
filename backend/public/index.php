@@ -328,6 +328,12 @@ $router->add('POST', '/api/v1/inventories/{id}/finalize', static fn (Request $re
 $router->add('GET', '/api/v1/reports/stock.csv', static fn () => $reportController->stockCsv(), [$authMiddleware]);
 $router->add('GET', '/api/v1/reports/movements.csv', static fn () => $reportController->movementCsv(), [$authMiddleware]);
 $router->add('GET', '/api/v1/reports/purchases.csv', static fn () => $reportController->purchaseCsv(), [$authMiddleware]);
+$router->add('GET', '/api/v1/reports/products.csv', static fn () => $reportController->productCsv(), [$authMiddleware]);
+$router->add('GET', '/api/v1/reports/suppliers.csv', static fn () => $reportController->supplierCsv(), [$authMiddleware]);
+$router->add('GET', '/api/v1/reports/customers.csv', static fn () => $reportController->customerCsv(), [$authMiddleware]);
+$router->add('GET', '/api/v1/reports/deliveries.csv', static fn () => $reportController->deliveryCsv(), [$authMiddleware]);
+$router->add('GET', '/api/v1/reports/inventories.csv', static fn () => $reportController->inventoryCsv(), [$authMiddleware]);
+$router->add('GET', '/api/v1/reports/full.zip', static fn () => $reportController->fullZip(), [$authMiddleware]);
 $router->add('POST', '/api/v1/imports/{entity}', static fn (Request $req, array $p) => $importController->upload($req, (string)$p['entity']), [$authMiddleware, $adminRolesMiddleware]);
 $router->add('GET', '/api/v1/import-jobs', static fn (Request $req) => $importJobController->index($req), [$authMiddleware, $adminRolesMiddleware]);
 
