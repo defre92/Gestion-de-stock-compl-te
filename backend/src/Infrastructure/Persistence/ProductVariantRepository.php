@@ -36,6 +36,41 @@ final class ProductVariantRepository extends PdoCrudRepository
     ];
     protected array $filterable = ['product_id', 'is_active'];
 
+    /**
+     * Mot-cle d'attribut -> colonne. Permet de retrouver "toutes les
+     * variantes qui ont un millesime" en tapant "millesime" dans la
+     * recherche globale, alors que ce mot n'est JAMAIS stocke en base (seule
+     * la valeur l'est, ex: l'annee "2019" dans `vintage`) - il n'apparait
+     * qu'a l'affichage (variantDescriptor cote frontend,
+     * refreshProductAlert cote backend). Sans cette table, chercher
+     * "millesime" ne pouvait remonter qu'une coincidence (une valeur qui
+     * contient ces lettres par hasard), jamais les variantes concernees.
+     *
+     * Cles normalisees (minuscules, sans accents) et testees en
+     * "correspondance partielle du mot-cle" : "mill" retrouve deja
+     * "millesime" (voir buildWhere), pas besoin de taper le mot en entier.
+     *
+     * @var array<string, string>
+     */
+    private const ATTRIBUTE_KEYWORDS = [
+        'taille' => 'size',
+        'pointure' => 'size',
+        'couleur' => 'color',
+        'millesime' => 'vintage',
+        'contenance' => 'volume_cl',
+        'volume' => 'volume_cl',
+        'largeur' => 'width',
+        'hauteur' => 'height',
+        'profondeur' => 'depth',
+        'poids' => 'weight',
+        'puissance' => 'puissance',
+        'marque' => 'marque',
+        'type' => 'type',
+        'vitesse' => 'vitesse',
+        'tension' => 'tension',
+        'forme' => 'forme',
+    ];
+
     public function paginate(int $page, int $perPage, array $filters = []): array
     {
         $page = max(1, $page);
@@ -128,9 +163,36 @@ final class ProductVariantRepository extends PdoCrudRepository
                 $searchClauses[] = "{$column} LIKE {$token}";
                 $params[$token] = $like;
             }
+
+            // Recherche par mot-cle d'attribut (voir ATTRIBUTE_KEYWORDS) : en
+            // plus de la recherche par valeur ci-dessus, "millesime" retrouve
+            // aussi toute variante dont la colonne `vintage` est renseignee,
+            // meme si aucune valeur ne contient litteralement ce mot. Les noms
+            // de colonnes viennent d'une liste figee dans le code (jamais de
+            // la requete HTTP), leur interpolation directe est donc sans
+            // risque.
+            $normalizedQuery = self::stripAccents(mb_strtolower(trim((string)$filters['q']), 'UTF-8'));
+            if ($normalizedQuery !== '') {
+                $matchedColumns = [];
+                foreach (self::ATTRIBUTE_KEYWORDS as $keyword => $column) {
+                    if (str_contains($keyword, $normalizedQuery) && !in_array($column, $matchedColumns, true)) {
+                        $matchedColumns[] = $column;
+                        $searchClauses[] = "(v.{$column} IS NOT NULL AND v.{$column} <> '')";
+                    }
+                }
+            }
+
             $clauses[] = '(' . implode(' OR ', $searchClauses) . ')';
         }
 
         return [$clauses !== [] ? 'WHERE ' . implode(' AND ', $clauses) : '', $params];
+    }
+
+    /** Retire les accents (utf8 -> ascii) pour une comparaison insensible : "millésime" et "millesime" doivent matcher le meme mot-cle. */
+    private static function stripAccents(string $value): string
+    {
+        $transliterated = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+
+        return $transliterated !== false ? $transliterated : $value;
     }
 }
