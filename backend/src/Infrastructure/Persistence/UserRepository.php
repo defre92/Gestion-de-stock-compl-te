@@ -126,6 +126,15 @@ final class UserRepository extends PdoCrudRepository implements UserRepositoryIn
             $params[$token] = $value;
         }
 
+        // Recherche globale (nom, email) - voir la meme remarque dans
+        // PdoCrudRepository::buildWhere.
+        if (isset($filters['q']) && trim((string)$filters['q']) !== '') {
+            $like = '%' . $filters['q'] . '%';
+            $clauses[] = "({$prefix}full_name LIKE :f_q1 OR {$prefix}email LIKE :f_q2)";
+            $params[':f_q1'] = $like;
+            $params[':f_q2'] = $like;
+        }
+
         return [$clauses !== [] ? 'WHERE ' . implode(' AND ', $clauses) : '', $params];
     }
 }

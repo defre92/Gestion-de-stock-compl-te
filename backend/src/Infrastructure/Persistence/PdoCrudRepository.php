@@ -19,6 +19,16 @@ abstract class PdoCrudRepository implements CrudRepositoryInterface
     protected array $filterable = [];
 
     /**
+     * Colonnes interrogees par le filtre libre `q` (recherche globale, voir
+     * app-clean.js/GLOBAL_SEARCH_MODULES). Vide = recherche non supportee sur
+     * ce referentiel, `q` est alors silencieusement ignore (comportement
+     * inchange).
+     *
+     * @var array<int, string>
+     */
+    protected array $searchable = [];
+
+    /**
      * Colonne de tri des listes deroulantes (voir allForLookup()). 'name' pour
      * les referentiels qui en ont une, 'code' sinon : un menu deroulant se lit
      * dans l'ordre alphabetique, pas dans l'ordre de creation.
@@ -205,6 +215,21 @@ abstract class PdoCrudRepository implements CrudRepositoryInterface
             $token = ':f_' . $key;
             $clauses[] = "{$prefix}{$key} = {$token}";
             $params[$token] = $value;
+        }
+
+        // Recherche libre (`q`) : chaque colonne declaree dans $searchable est
+        // testee avec un LIKE distinct, combinees en OR - un placeholder par
+        // colonne (pas de reutilisation d'un meme nom), indispensable en mode
+        // prepares natifs (voir la meme remarque dans ProductRepository).
+        if (isset($filters['q']) && trim((string)$filters['q']) !== '' && $this->searchable !== []) {
+            $like = '%' . $filters['q'] . '%';
+            $searchClauses = [];
+            foreach ($this->searchable as $index => $column) {
+                $token = ':f_q' . $index;
+                $searchClauses[] = "{$prefix}{$column} LIKE {$token}";
+                $params[$token] = $like;
+            }
+            $clauses[] = '(' . implode(' OR ', $searchClauses) . ')';
         }
 
         $whereSql = $clauses !== [] ? 'WHERE ' . implode(' AND ', $clauses) : '';

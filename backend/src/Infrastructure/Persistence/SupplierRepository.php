@@ -18,5 +18,6 @@ final class SupplierRepository extends PdoCrudRepository
         'status',
     ];
     protected array $filterable = ['name', 'email', 'status'];
+    protected array $searchable = ['name', 'contact_name', 'email', 'phone'];
     protected string $lookupOrderColumn = 'name';
 }

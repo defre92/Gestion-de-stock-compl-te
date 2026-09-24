@@ -8,6 +8,7 @@ final class WarehouseRepository extends PdoCrudRepository
     protected string $table = 'warehouses';
     protected array $fillable = ['code', 'name', 'location', 'is_default', 'status'];
     protected array $filterable = ['code', 'name', 'is_default', 'status'];
+    protected array $searchable = ['code', 'name', 'location'];
     protected string $lookupOrderColumn = 'name';
 
     public function defaultWarehouseId(): ?int

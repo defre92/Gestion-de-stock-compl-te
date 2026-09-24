@@ -8,5 +8,6 @@ final class CustomerRepository extends PdoCrudRepository
     protected string $table = 'customers';
     protected array $fillable = ['code', 'name', 'email', 'phone', 'address', 'status'];
     protected array $filterable = ['code', 'name', 'email', 'status'];
+    protected array $searchable = ['code', 'name', 'email', 'phone'];
     protected string $lookupOrderColumn = 'name';
 }

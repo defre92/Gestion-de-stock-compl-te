@@ -181,6 +181,7 @@ final class ProductRepository extends PdoCrudRepository
 
         $rows = $stmt->fetchAll();
         $this->attachTags($rows);
+        $this->attachVariants($rows);
 
         return [
             'data' => $rows,
@@ -331,6 +332,47 @@ final class ProductRepository extends PdoCrudRepository
 
         foreach ($rows as &$row) {
             $row['tags'] = $byProduct[(int)$row['id']] ?? [];
+        }
+        unset($row);
+    }
+
+    /**
+     * Attache la liste des variantes actives a chaque ligne produit (colonne
+     * "Variantes" personnalisable de l'ecran Produits, voir
+     * app-clean.js/variantsSummary) - une seule requete pour toute la page
+     * plutot qu'une par produit (meme principe que attachTags()).
+     *
+     * Champs necessaires et suffisants a variantDescriptor() cote frontend :
+     * pas de jointure de stock ici, cette colonne ne fait qu'afficher les
+     * DECLINAISONS existantes, pas leurs quantites (deja visibles ailleurs).
+     *
+     * @param array<int, array<string, mixed>> $rows
+     */
+    private function attachVariants(array &$rows): void
+    {
+        if ($rows === []) {
+            return;
+        }
+
+        $ids = array_map(static fn (array $row): int => (int)$row['id'], $rows);
+        $placeholders = implode(', ', array_fill(0, count($ids), '?'));
+
+        $stmt = $this->pdo->prepare("
+            SELECT id, product_id, sku, size, color, vintage, volume_cl, width, height, depth, weight,
+                   puissance, marque, type, vitesse, tension, forme
+            FROM product_variants
+            WHERE product_id IN ({$placeholders}) AND is_active = 1
+            ORDER BY id ASC
+        ");
+        $stmt->execute($ids);
+
+        $byProduct = [];
+        foreach ($stmt->fetchAll() as $variantRow) {
+            $byProduct[(int)$variantRow['product_id']][] = $variantRow;
+        }
+
+        foreach ($rows as &$row) {
+            $row['variants'] = $byProduct[(int)$row['id']] ?? [];
         }
         unset($row);
     }

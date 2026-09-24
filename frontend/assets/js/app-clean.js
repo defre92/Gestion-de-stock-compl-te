@@ -73,6 +73,18 @@ const moduleTitles = {
     reports: 'Rapports',
 };
 
+// Ecrans ou la recherche globale (barre en haut, #globalSearch) s'applique.
+// Chacun de ces modules passe le texte tape en filtre `q` a son propre
+// endpoint (voir renderCrud) : la recherche porte donc sur l'onglet
+// actuellement affiche, pas systematiquement sur Produits comme avant.
+// `settings` en est volontairement exclu : ce module se filtre par cle exacte
+// (setting_key), pas par recherche libre.
+const GLOBAL_SEARCH_MODULES = [
+    'products', 'product-variants', 'categories', 'brands', 'units', 'taxes',
+    'tags', 'suppliers', 'customers', 'warehouses', 'warehouse-zones',
+    'warehouse-locations', 'users',
+];
+
 // Catalogue des themes de couleur - doit rester synchronise avec
 // config/themes.php (memes cles, memes libelles). Le back-end reste la
 // source de verite pour la validation (route-frontend.php n'accepte que ces
@@ -324,6 +336,11 @@ const crudModules = {
             { key: 'sku', label: 'SKU' },
             { key: 'barcode', label: 'Code barre', secondary: true },
             { key: 'name', label: 'Nom' },
+            // Detail des variantes (declinaisons existantes), pas juste
+            // "a des variantes: oui/non" (voir has_variants plus bas) :
+            // reutilise variantDescriptor(), la meme regle de priorite que
+            // partout ailleurs (vetement, bouteille, dimensions, materiel).
+            { key: 'variants_summary', label: 'Variantes', secondary: true, format: (_v, row) => renderVariantsSummary(row.variants) },
             { key: 'category_name', label: 'Categorie' },
             { key: 'brand_name', label: 'Marque', secondary: true },
             { key: 'unit_code', label: 'Unite', secondary: true },
@@ -335,7 +352,7 @@ const crudModules = {
             { key: 'is_active', label: 'Actif', format: (v) => (Number(v) === 1 ? 'Oui' : 'Non') },
             // Ou aller chercher l'article, sans ouvrir sa fiche.
             { key: 'location_summary', label: 'Emplacements', format: (value) => (value ? sanitize(value) : '<span class="muted">non range</span>') },
-            { key: 'has_variants', label: 'Variantes', secondary: true, format: (v) => (Number(v) === 1 ? 'Oui' : 'Non') },
+            { key: 'has_variants', label: 'Variantes (oui/non)', secondary: true, format: (v) => (Number(v) === 1 ? 'Oui' : 'Non') },
             { key: 'tags', label: 'Tags', format: (value) => renderTagBadges(value) },
         ],
     },
@@ -583,6 +600,7 @@ async function boot() {
         dimensionSettingResponse,
         technicalSettingResponse,
         valuationSettingResponse,
+        productColumnsSettingResponse,
     ] = await Promise.all([
         apiRequest('/auth/me'),
         apiRequest('/lookups/options'),
@@ -591,6 +609,7 @@ async function boot() {
         apiRequest('/settings?setting_key=dimension_variants_enabled').catch(() => null),
         apiRequest('/settings?setting_key=technical_variants_enabled').catch(() => null),
         apiRequest('/settings?setting_key=default_valuation_method').catch(() => null),
+        apiRequest('/settings?setting_key=product_list_columns').catch(() => null),
     ]);
 
     state.user = meResponse.data;
@@ -604,6 +623,7 @@ async function boot() {
     state.dimensionVariantsEnabled = String(dimensionRow?.setting_value ?? '0') === '1';
     state.technicalVariantsEnabled = String(technicalRow?.setting_value ?? '0') === '1';
     syncValuationSettingState(normalizeRows(valuationSettingResponse)[0]?.setting_value);
+    syncProductColumnsSettingState(normalizeRows(productColumnsSettingResponse)[0]?.setting_value);
 
     const userPill = document.getElementById('userPill');
     userPill.textContent = `${state.user.full_name} | ${localizeValue(state.user.role)}`;
@@ -639,6 +659,27 @@ function syncValuationSettingState(settingValue) {
     // que de proposer un choix invalide dans le formulaire produit.
     const value = String(settingValue ?? '').trim().toUpperCase();
     state.defaultValuationMethod = value === 'FIFO' ? 'FIFO' : 'CUMP';
+}
+
+/**
+ * Colonnes personnalisees de l'ecran Produits (reglage `product_list_columns`,
+ * ecran Parametres > "Colonnes du tableau Produits"). Valeur JSON (tableau de
+ * cles de colonnes) ou absente/vide : dans ce dernier cas, comportement
+ * inchange (vue "essentielles"/"toutes les colonnes" existante) - voir
+ * visibleColumns().
+ */
+function syncProductColumnsSettingState(settingValue) {
+    if (!settingValue) {
+        state.productListColumns = null;
+        return;
+    }
+
+    try {
+        const parsed = JSON.parse(settingValue);
+        state.productListColumns = Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+    } catch (_) {
+        state.productListColumns = null;
+    }
 }
 
 function variantsAttributesLabel() {
@@ -773,12 +814,18 @@ async function runGlobalSearch(rawValue) {
             const value = globalSearchPending;
             globalSearchPending = null;
 
+            // La recherche porte sur l'onglet actuellement affiche (voir
+            // GLOBAL_SEARCH_MODULES) : elle ne bascule plus systematiquement
+            // sur Produits comme avant.
+            if (!GLOBAL_SEARCH_MODULES.includes(state.module)) {
+                continue;
+            }
+
             state.globalQuery = value;
             // Nouvelle recherche = nouveau jeu de resultats : rester page 3
             // afficherait une page vide.
-            state.crudPages.products = 1;
-            setActiveNav('products');
-            await renderModule('products');
+            state.crudPages[state.module] = 1;
+            await renderModule(state.module, false);
         }
     } finally {
         globalSearchRunning = false;
@@ -789,18 +836,18 @@ async function runGlobalSearch(rawValue) {
  * Recherche validee par Entree - c'est aussi ce que produit une douchette,
  * qui se comporte comme un clavier : elle "tape" le code puis envoie Entree.
  *
- * La liste produit est toujours filtree sur le code. En plus, si ce code
- * designe UN SEUL article et qu'il correspond exactement a son code barre ou
- * a son SKU, sa fiche s'ouvre directement : c'est le geste attendu apres un
- * scan. Une recherche par mot ("velo"), ou un code qui remonte plusieurs
- * articles, laisse simplement la liste filtree - aucune fiche ne s'ouvre a
- * tort.
+ * Sur l'ecran Produits uniquement : si le code tape designe UN SEUL article
+ * et qu'il correspond exactement a son code barre ou a son SKU, sa fiche
+ * s'ouvre directement - c'est le geste attendu apres un scan. Une recherche
+ * par mot ("velo"), un code qui remonte plusieurs articles, ou une recherche
+ * sur un autre onglet, laisse simplement la liste filtree - aucune fiche ne
+ * s'ouvre a tort.
  */
 async function submitGlobalSearch(rawValue) {
     const query = String(rawValue ?? '').trim();
     await runGlobalSearch(query);
 
-    if (query === '') {
+    if (query === '' || state.module !== 'products') {
         return;
     }
 
@@ -828,10 +875,11 @@ function setupGlobalSearch() {
     // Recherche au fil de la frappe. Le delai evite une requete par touche :
     // on n'interroge l'API qu'une fois la saisie stabilisee.
     input?.addEventListener('input', () => {
-        // Depuis un autre ecran, on ne bascule pas sur Produits des la
-        // premiere lettre - ce serait deroutant si l'utilisateur est en train
-        // de remplir un formulaire. La touche Entree reste la pour ca.
-        if (state.module !== 'products') {
+        // Rien a chercher sur un ecran qui ne le supporte pas (le champ est
+        // de toute facon desactive, voir renderModule) - et sur un ecran qui
+        // le supporte, la saisie filtre CET ecran, pas systematiquement
+        // Produits.
+        if (!GLOBAL_SEARCH_MODULES.includes(state.module)) {
             return;
         }
 
@@ -845,7 +893,7 @@ function setupGlobalSearch() {
         if (event.key === 'Escape') {
             input.value = '';
             window.clearTimeout(globalSearchTimer);
-            if (state.module === 'products') {
+            if (GLOBAL_SEARCH_MODULES.includes(state.module)) {
                 await runGlobalSearch('');
             }
             return;
@@ -1020,23 +1068,26 @@ async function renderModule(module, updateUrl = true) {
     // On normalise toujours le module pour eviter les routes UI invalides.
     const normalized = normalizeModule(module);
 
-    // La recherche globale ne filtre que les produits. En quittant cet ecran
-    // on la vide, champ compris : sinon on revenait sur Produits avec "velo"
-    // toujours ecrit et la liste toujours filtree, sans comprendre pourquoi -
-    // et pire, le mot restait affiche pendant qu'on consultait Fournisseurs ou
-    // Mouvements, ou il ne s'appliquait pas.
-    if (state.module === 'products' && normalized !== 'products') {
+    // La recherche globale s'applique a l'onglet affiche (voir
+    // GLOBAL_SEARCH_MODULES). En le quittant on la vide, champ compris :
+    // sinon on revenait sur ce module avec "velo" toujours ecrit et la liste
+    // toujours filtree, sans comprendre pourquoi - et pire, le mot restait
+    // affiche pendant qu'on consultait un autre ecran ou il ne s'appliquait
+    // plus.
+    if (GLOBAL_SEARCH_MODULES.includes(state.module) && normalized !== state.module) {
         state.globalQuery = '';
+        state.crudPages[state.module] = 1;
+        const searchInput = document.getElementById('globalSearch');
+        if (searchInput) {
+            searchInput.value = '';
+        }
+    }
+    if (state.module === 'products' && normalized !== 'products') {
         state.tagFilter = '';
         state.warehouseFilter = '';
         state.categoryFilter = '';
         state.supplierFilter = '';
         state.locationFilter = '';
-        state.crudPages.products = 1;
-        const searchInput = document.getElementById('globalSearch');
-        if (searchInput) {
-            searchInput.value = '';
-        }
     }
 
     state.module = normalized;
@@ -1046,6 +1097,17 @@ async function renderModule(module, updateUrl = true) {
     }
 
     document.getElementById('pageTitle').textContent = moduleTitles[normalized] ?? normalized;
+
+    const globalSearchInput = document.getElementById('globalSearch');
+    if (globalSearchInput) {
+        const searchable = GLOBAL_SEARCH_MODULES.includes(normalized);
+        globalSearchInput.disabled = !searchable;
+        globalSearchInput.placeholder = normalized === 'products'
+            ? 'Recherche ou scan douchette : nom, SKU, code barre'
+            : searchable
+                ? `Rechercher dans ${moduleTitles[normalized] ?? normalized}...`
+                : 'Recherche indisponible sur cet ecran';
+    }
 
     if (normalized === 'dashboard') {
         await renderDashboard();
@@ -1488,6 +1550,10 @@ async function renderCrud(module) {
     // de demander a l'admin de saisir la cle a la main dans le tableau
     // generique juste en dessous.
     let currentThemeRow = null;
+    // Meme principe pour les colonnes du tableau Produits (reglage
+    // product_list_columns) : une case a cocher par colonne plutot que de
+    // demander a l'admin de taper un JSON a la main.
+    let currentProductColumnsRow = null;
     if (module === 'settings') {
         try {
             const themeResponse = await apiRequest('/settings?setting_key=tenant_theme');
@@ -1495,13 +1561,21 @@ async function renderCrud(module) {
         } catch (_) {
             currentThemeRow = null;
         }
+        try {
+            const productColumnsResponse = await apiRequest('/settings?setting_key=product_list_columns');
+            currentProductColumnsRow = normalizeRows(productColumnsResponse)[0] ?? null;
+        } catch (_) {
+            currentProductColumnsRow = null;
+        }
     }
 
     const query = {
         page: state.crudPages[module] ?? 1,
         per_page: state.crudPerPage,
     };
-    if (module === 'products' && state.globalQuery !== '') {
+    // Recherche globale (barre en haut) : s'applique a l'ecran affiche, pas
+    // seulement a Produits (voir GLOBAL_SEARCH_MODULES / runGlobalSearch).
+    if (GLOBAL_SEARCH_MODULES.includes(module) && state.globalQuery !== '') {
         query.q = state.globalQuery;
     }
     if (module === 'products' && state.tagFilter !== '') {
@@ -1605,6 +1679,27 @@ async function renderCrud(module) {
             <p id="appearanceFeedback" class="feedback"></p>
             ` : '<p class="muted">Acces reserve aux administrateurs.</p>'}
         </section>
+        <section class="panel">
+            <h4>Colonnes du tableau Produits</h4>
+            <p class="muted">Choisis les colonnes affichees dans l'ecran Produits. Laisse tout decoche pour revenir a l'affichage par defaut (colonnes essentielles / toutes les colonnes).</p>
+            ${writable ? `
+            <form id="productColumnsForm" class="form-grid">
+                <div class="full" style="display:flex; flex-wrap:wrap; gap:0.6rem 1.4rem;">
+                    ${crudModules.products.columns.filter((column) => column.key !== 'id').map((column) => `
+                        <label style="display:flex; align-items:center; gap:0.4rem; font-weight:normal;">
+                            <input type="checkbox" name="product_columns" value="${column.key}" ${(state.productListColumns ?? []).includes(column.key) ? 'checked' : ''}>
+                            ${sanitize(column.label)}
+                        </label>
+                    `).join('')}
+                </div>
+                <div class="full form-actions">
+                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                    <button type="button" class="btn btn-soft" id="resetProductColumnsBtn">Revenir a l'affichage par defaut</button>
+                </div>
+            </form>
+            <p id="productColumnsFeedback" class="feedback"></p>
+            ` : '<p class="muted">Acces reserve aux administrateurs.</p>'}
+        </section>
         ` : ''}
         <section class="panel">
             <div class="panel-head">
@@ -1616,7 +1711,7 @@ async function renderCrud(module) {
                     ${module === 'products' ? `<select id="productLocationFilter" ${state.warehouseFilter === '' ? 'disabled' : ''}><option value="">${state.warehouseFilter === '' ? "Choisis d'abord un entrepot" : 'Tous les emplacements'}</option>${locationFilterOptions}</select>` : ''}
                     ${module === 'products' ? `<select id="productTagFilter"><option value="">Tous les tags</option>${tagFilterOptions}</select>` : ''}
                     ${module === 'products' ? '<button class="btn btn-soft" id="clearProductSearch">Effacer filtres</button>' : ''}
-                    ${config.columns.some((column) => column.secondary)
+                    ${config.columns.some((column) => column.secondary) && !(module === 'products' && Array.isArray(state.productListColumns))
                         ? `<button class="btn btn-soft" id="toggleColumnsBtn">${state.allColumns[module] ? 'Colonnes essentielles' : 'Toutes les colonnes'}</button>`
                         : ''}
                     ${writable ? '<button class="btn btn-primary" id="createBtn">Nouveau</button>' : ''}
@@ -2065,6 +2160,58 @@ async function renderCrud(module) {
                 appearanceFeedback.classList.add('is-error');
                 submitBtn.disabled = false;
             }
+        });
+
+        const saveProductColumns = async (columnKeys) => {
+            const productColumnsFeedback = document.getElementById('productColumnsFeedback');
+            productColumnsFeedback.textContent = '';
+            productColumnsFeedback.classList.remove('is-error');
+            const value = JSON.stringify(columnKeys);
+            try {
+                if (currentProductColumnsRow?.id) {
+                    if (columnKeys.length === 0) {
+                        // Retour a l'affichage par defaut : on supprime la
+                        // ligne plutot que d'y laisser un tableau vide, pour
+                        // qu'aucune ambiguite ne subsiste avec "0 colonne
+                        // affichee" (voir syncProductColumnsSettingState).
+                        await apiRequest(`/settings/${currentProductColumnsRow.id}`, { method: 'DELETE' });
+                        currentProductColumnsRow = null;
+                    } else {
+                        await apiRequest(`/settings/${currentProductColumnsRow.id}`, {
+                            method: 'PUT',
+                            body: { setting_value: value },
+                        });
+                    }
+                } else if (columnKeys.length > 0) {
+                    await apiRequest('/settings', {
+                        method: 'POST',
+                        body: { setting_key: 'product_list_columns', setting_value: value },
+                    });
+                }
+
+                const refreshed = await apiRequest('/settings?setting_key=product_list_columns');
+                currentProductColumnsRow = normalizeRows(refreshed)[0] ?? null;
+                syncProductColumnsSettingState(currentProductColumnsRow?.setting_value);
+                productColumnsFeedback.textContent = columnKeys.length > 0
+                    ? 'Colonnes enregistrees.'
+                    : 'Affichage par defaut restaure.';
+            } catch (error) {
+                productColumnsFeedback.textContent = error.message;
+                productColumnsFeedback.classList.add('is-error');
+            }
+        };
+
+        document.getElementById('productColumnsForm')?.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const checked = Array.from(event.target.querySelectorAll('input[name="product_columns"]:checked')).map((el) => el.value);
+            await saveProductColumns(checked);
+        });
+
+        document.getElementById('resetProductColumnsBtn')?.addEventListener('click', async () => {
+            await saveProductColumns([]);
+            document.querySelectorAll('#productColumnsForm input[name="product_columns"]').forEach((el) => {
+                el.checked = false;
+            });
         });
     }
 }
@@ -5786,6 +5933,14 @@ function setupPurchaseScopeToggle(module, rerender) {
  * cache la moitie des colonnes sans le dire.
  */
 function visibleColumns(config, module) {
+    // Ecran Produits avec une selection personnalisee de colonnes (reglage
+    // product_list_columns, Parametres) : elle remplace entierement la
+    // logique essentielles/toutes ci-dessous, ordre du tableau `columns`
+    // conserve (celui choisi a la conception, pas celui de la coche).
+    if (module === 'products' && Array.isArray(state.productListColumns)) {
+        return config.columns.filter((column) => state.productListColumns.includes(column.key));
+    }
+
     if (state.allColumns[module]) {
         return config.columns;
     }
@@ -6399,6 +6554,20 @@ function variantDescriptor(v) {
     }
 
     return sku || '-';
+}
+
+/**
+ * Colonne "Variantes" (detail) de l'ecran Produits : une ligne par variante
+ * active, meme libelle que variantDescriptor() partout ailleurs. `variants`
+ * vient de ProductRepository::attachVariants() - absent ou vide pour un
+ * produit sans variante.
+ */
+function renderVariantsSummary(variants) {
+    if (!Array.isArray(variants) || variants.length === 0) {
+        return '<span class="muted">-</span>';
+    }
+
+    return variants.map((v) => sanitize(variantDescriptor(v))).join('<br>');
 }
 
 function sanitize(value) {

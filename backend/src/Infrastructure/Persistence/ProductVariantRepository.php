@@ -44,7 +44,10 @@ final class ProductVariantRepository extends PdoCrudRepository
 
         [$whereSql, $params] = $this->buildWhere($filters);
 
-        $countStmt = $this->pdo->prepare("SELECT COUNT(*) FROM product_variants v {$whereSql}");
+        // INNER JOIN products des le COUNT : le filtre `q` (recherche
+        // globale) porte aussi sur le nom/SKU du produit parent, pas
+        // seulement sur les colonnes de la variante (voir buildWhere).
+        $countStmt = $this->pdo->prepare("SELECT COUNT(*) FROM product_variants v INNER JOIN products p ON p.id = v.product_id {$whereSql}");
         $countStmt->execute($params);
         $total = (int)$countStmt->fetchColumn();
 
@@ -105,6 +108,27 @@ final class ProductVariantRepository extends PdoCrudRepository
             $token = ':f_' . $key;
             $clauses[] = $prefix . $key . ' = ' . $token;
             $params[$token] = $value;
+        }
+
+        // Recherche globale (barre en haut, onglet Variantes) : porte sur les
+        // colonnes de la variante elle-meme (SKU, code barre, et toutes les
+        // "saveurs" - vetement, bouteille, dimensions, materiel) ainsi que le
+        // nom/SKU du produit parent (jointure ajoutee dans paginate()).
+        if (isset($filters['q']) && trim((string)$filters['q']) !== '') {
+            $like = '%' . $filters['q'] . '%';
+            $columns = [
+                'v.sku', 'v.barcode', 'v.size', 'v.color', 'v.vintage', 'v.volume_cl',
+                'v.width', 'v.height', 'v.depth', 'v.weight',
+                'v.puissance', 'v.marque', 'v.type', 'v.vitesse', 'v.tension', 'v.forme',
+                'p.name', 'p.sku',
+            ];
+            $searchClauses = [];
+            foreach ($columns as $index => $column) {
+                $token = ':f_q' . $index;
+                $searchClauses[] = "{$column} LIKE {$token}";
+                $params[$token] = $like;
+            }
+            $clauses[] = '(' . implode(' OR ', $searchClauses) . ')';
         }
 
         return [$clauses !== [] ? 'WHERE ' . implode(' AND ', $clauses) : '', $params];

@@ -1876,6 +1876,75 @@ L'option est a `0` par defaut : une installation existante ne voit
 strictement aucun changement tant qu'elle n'est pas activee dans l'ecran
 Parametres.
 
+## Colonnes personnalisables du tableau Produits
+
+Reglage `product_list_columns` (cle JSON dans `app_settings`), ecran
+Parametres > "Colonnes du tableau Produits". Un client peut avoir besoin
+d'un ecran Produits epure (ex: SKU, Nom, Variantes, Stock, Emplacements,
+Tags et rien d'autre) sans que ce choix soit impose a toutes les
+installations : ce reglage remplace, pour CETTE installation uniquement,
+la logique existante "colonnes essentielles / toutes les colonnes"
+(`state.allColumns`, bouton a cote du tableau) - qui reste le comportement
+par defaut tant que le reglage n'est pas defini.
+
+**Fonctionnement.** Une case a cocher par colonne disponible (le meme
+catalogue que `crudModules.products.columns`), enregistree sous la forme
+`["sku","name","variants_summary","stock_total","location_summary","tags"]`
+(l'ORDRE d'affichage suit celui de `columns`, pas celui de la coche). Ce
+tableau remplace entierement la colonne "Variantes (oui/non)" habituelle,
+si elle n'est pas cochee - les deux colonnes Variantes restent neanmoins
+disponibles au choix (voir plus bas). Decocher toutes les cases et
+enregistrer revient a l'affichage par defaut : la ligne de reglage est
+supprimee (`DELETE /settings/{id}`) plutot que laissee a `[]`, pour ne pas
+confondre "aucun reglage" et "0 colonne affichee".
+
+**Nouvelle colonne "Variantes" (detail).** Distincte de l'ancienne colonne
+"Variantes (oui/non)" (renommee, comportement inchange) : elle affiche le
+descripteur reel de chaque variante active du produit (une ligne par
+variante, ex: "Puissance 1200 W / Marque Bosch"), avec la meme regle de
+priorite que partout ailleurs (`variantDescriptor`). Alimentee par
+`ProductRepository::attachVariants()`, une seule requete groupee pour toute
+la page (meme principe que `attachTags()`), sans jointure de stock - cette
+colonne montre les declinaisons existantes, pas leurs quantites.
+
+L'absence du reglage laisse le comportement exactement identique a avant
+cette fonctionnalite : aucun changement pour une installation qui n'y
+touche pas.
+
+## Recherche globale generalisee a tous les referentiels
+
+La barre de recherche en haut (`#globalSearch`) ne filtrait QUE l'ecran
+Produits, quel que soit l'onglet ouvert au moment de la saisie - appuyer sur
+Entree y basculait meme systematiquement. Elle filtre desormais l'onglet
+**reellement affiche**, avec un champ desactive (placeholder "Recherche
+indisponible sur cet ecran") sur les ecrans qui n'ont pas ce genre de liste
+(tableau de bord, mouvements, alertes...).
+
+**Perimetre.** `GLOBAL_SEARCH_MODULES` (app-clean.js) : Produits, **Variantes**,
+Categories, Marques, Unites, Taxes, Tags, Fournisseurs, Clients, Entrepots,
+Zones, Emplacements, Utilisateurs. Parametres en est volontairement exclu (il
+se filtre par cle exacte, pas par recherche libre). Quitter un onglet vide la
+recherche (champ compris) : revenir dessus plus tard, ou passer a un autre
+onglet, ne garde jamais un filtre invisible en memoire.
+
+**Cote backend.** Nouvelle propriete `$searchable` sur `PdoCrudRepository`
+(liste de colonnes, vide par defaut = recherche non supportee, `q` alors
+simplement ignore sans erreur) et un bloc generique dans
+`buildWhere()` qui les combine en `LIKE ... OR LIKE ...`. Les quelques
+referentiels qui redefinissent entierement `buildWhere()` (`UserRepository`,
+`ProductVariantRepository`) recoivent le meme bloc ecrit a la main. Pour les
+Variantes, la recherche porte sur TOUTES les colonnes de la variante (SKU,
+code barre, et les 4 "saveurs" : vetement, bouteille, dimensions, materiel)
+ainsi que sur le nom/SKU du produit parent (jointure `products` ajoutee au
+`COUNT` comme au `SELECT`, sinon "Bosch" ne remontrait que les variantes qui
+portent elles-memes ce mot, pas celles dont c'est le PRODUIT qui s'appelle
+ainsi).
+
+`UserController::index` ne transmettait jusqu'ici aucun filtre a
+`UserService::paginate()` (seuls `page`/`per_page` passaient) : corrige au
+passage, sans quoi la recherche sur l'ecran Utilisateurs n'aurait rien
+retourne malgre la colonne `$searchable` cote repository.
+
 ## Stock suivi par emplacement
 
 Migration `202602270012_stock_by_location`. Le stock n'est plus suivi a la

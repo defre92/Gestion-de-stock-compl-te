@@ -17,8 +17,10 @@ final class UserController
     {
         $page = (int)$request->query('page', 1);
         $perPage = (int)$request->query('per_page', 20);
+        $filters = $request->queryParams();
+        unset($filters['page'], $filters['per_page']);
 
-        JsonResponse::send($this->service->paginate($page, $perPage));
+        JsonResponse::send($this->service->paginate($page, $perPage, $filters));
     }
 
     public function show(int $id): void
