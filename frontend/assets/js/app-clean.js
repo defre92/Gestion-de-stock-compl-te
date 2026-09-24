@@ -2239,6 +2239,18 @@ async function renderMovements() {
                 <div class="full hidden" id="movementVariantWrap">
                     <label><span>Variante</span><select name="variant_id" id="movementVariantSelect"></select></label>
                     <small class="field-hint">Ce produit utilise des variantes : choisis celle concernee par ce mouvement.</small>
+                    <div class="hidden" id="movementMultiToggleWrap">
+                        <label class="checklist-item">
+                            <input type="checkbox" id="movementMultiToggle">
+                            Deplacer plusieurs variantes a la fois (stock disponible complet, sans saisir de quantite)
+                        </label>
+                    </div>
+                </div>
+                <div class="full hidden" id="movementVariantMultiWrap">
+                    <span>Variantes a deplacer</span>
+                    <div id="movementVariantMultiList" class="serial-checklist"></div>
+                    <small class="field-hint">Coche les variantes concernees : pour chacune, la quantite disponible a l'emplacement source choisi (ou dans tout l'entrepot si aucun emplacement precis) est deplacee automatiquement.</small>
+                    <button type="button" class="btn btn-soft" id="movementMultiBackBtn">Revenir a une seule variante</button>
                 </div>
                 ${selectField('warehouse_id', 'Entrepot source', state.lookups.warehouses, 'id', 'name', true)}
                 <label><span>Emplacement source (optionnel)</span>
@@ -2256,7 +2268,9 @@ async function renderMovements() {
                     <option value="ADJUSTMENT">Ajustement</option>
                     <option value="TRANSFER">Transfert</option>
                 </select></label>
-                <label><span>Quantite</span><input type="number" name="quantity" min="1" required></label>
+                <div id="movementQuantityWrap">
+                    <label><span>Quantite</span><input type="number" name="quantity" id="movementQuantityInput" min="1" required></label>
+                </div>
                 <div class="full hidden" id="movementUnitCostWrap">
                     <label><span>Cout unitaire (optionnel)</span><input type="number" name="unit_cost" min="0" step="0.01" placeholder="Laisser vide = cout actuel du produit"></label>
                     <small class="field-hint">Sert a la valorisation du stock (CUMP/FIFO - voir la fiche produit). Laisse vide, le cout actuel du produit est repris tel quel.</small>
@@ -2333,7 +2347,91 @@ async function renderMovements() {
     const serialOutList = document.getElementById('movementSerialOutList');
     const variantWrap = document.getElementById('movementVariantWrap');
     const variantSelect = document.getElementById('movementVariantSelect');
+    const multiToggleWrap = document.getElementById('movementMultiToggleWrap');
+    const multiToggle = document.getElementById('movementMultiToggle');
+    const variantMultiWrap = document.getElementById('movementVariantMultiWrap');
+    const variantMultiList = document.getElementById('movementVariantMultiList');
+    const multiBackBtn = document.getElementById('movementMultiBackBtn');
+    const quantityWrap = document.getElementById('movementQuantityWrap');
+    const quantityInput = document.getElementById('movementQuantityInput');
     let availableOutSerialCount = 0;
+    let multiMode = false;
+    let lastLoadedVariants = [];
+
+    // "Deplacer plusieurs variantes a la fois" : uniquement pertinent sur une
+    // sortie ou un transfert (il faut du stock existant a deplacer - une
+    // entree ou un ajustement n'ont pas de "stock disponible" a reprendre
+    // automatiquement).
+    const isMultiCapableType = () => ['OUT', 'TRANSFER'].includes(String(typeSelect?.value ?? ''));
+
+    const loadMultiVariantChecklist = async () => {
+        if (!variantMultiList) {
+            return;
+        }
+        const productId = productSelect?.value;
+        if (!productId) {
+            variantMultiList.innerHTML = '<p class="muted">Choisis d\'abord un produit.</p>';
+            return;
+        }
+        variantMultiList.innerHTML = '<p class="muted">Chargement...</p>';
+        const detail = await apiRequest(`/products/${productId}`);
+        const stockByWarehouse = Array.isArray(detail?.data?.stock_by_warehouse) ? detail.data.stock_by_warehouse : [];
+        const availability = computeVariantAvailability(
+            stockByWarehouse,
+            warehouseSelect?.value ?? '',
+            document.getElementById('movementSourceLocation')?.value ?? ''
+        );
+        variantMultiList.innerHTML = lastLoadedVariants.length === 0
+            ? '<p class="muted">Aucune variante active pour ce produit</p>'
+            : lastLoadedVariants.map((v) => {
+                const available = availability.get(String(v.id)) ?? 0;
+                return `
+                    <label class="checklist-item">
+                        <input type="checkbox" class="movement-variant-multi-checkbox" value="${v.id}" data-available="${available}" ${available <= 0 ? 'disabled' : ''}>
+                        ${sanitize(variantDescriptor(v))} (disponible ici : ${available})
+                    </label>
+                `;
+            }).join('');
+    };
+
+    const applyVariantMode = () => {
+        const productId = productSelect?.value;
+        const product = state.lookups.products.find((p) => String(p.id) === String(productId));
+        const hasVariants = Number(product?.has_variants) === 1;
+        const multiCapable = hasVariants && isMultiCapableType() && !!productId;
+
+        multiToggleWrap?.classList.toggle('hidden', !multiCapable);
+        if (!multiCapable && multiMode) {
+            multiMode = false;
+            if (multiToggle) {
+                multiToggle.checked = false;
+            }
+        }
+
+        variantWrap.classList.toggle('hidden', !hasVariants || multiMode);
+        variantSelect.required = hasVariants && !multiMode;
+        variantMultiWrap?.classList.toggle('hidden', !multiMode);
+        quantityWrap?.classList.toggle('hidden', multiMode);
+        if (quantityInput) {
+            quantityInput.required = !multiMode;
+        }
+
+        if (multiMode) {
+            loadMultiVariantChecklist();
+        }
+    };
+
+    multiToggle?.addEventListener('change', () => {
+        multiMode = !!multiToggle.checked;
+        applyVariantMode();
+    });
+    multiBackBtn?.addEventListener('click', () => {
+        multiMode = false;
+        if (multiToggle) {
+            multiToggle.checked = false;
+        }
+        applyVariantMode();
+    });
 
     const loadVariantOptions = async () => {
         if (!variantWrap || !variantSelect) {
@@ -2342,23 +2440,25 @@ async function renderMovements() {
         const productId = productSelect?.value;
         const product = state.lookups.products.find((p) => String(p.id) === String(productId));
         const hasVariants = Number(product?.has_variants) === 1;
-        variantWrap.classList.toggle('hidden', !hasVariants);
-        variantSelect.required = hasVariants;
 
         if (!hasVariants || !productId) {
             variantSelect.innerHTML = '';
+            lastLoadedVariants = [];
+            applyVariantMode();
             return;
         }
 
         variantSelect.innerHTML = '<option value="">Chargement...</option>';
         const response = await apiRequest(`/product-variants?product_id=${productId}&is_active=1&per_page=200`);
         const variants = normalizeRows(response);
+        lastLoadedVariants = variants;
         variantSelect.innerHTML = variants.length === 0
             ? '<option value="">Aucune variante active pour ce produit</option>'
             : variants.map((v) => {
                 const descriptors = variantDescriptor(v);
                 return `<option value="${v.id}">${sanitize(descriptors)} (stock: ${v.stock_total ?? 0})</option>`;
             }).join('');
+        applyVariantMode();
     };
 
     const loadOutSerialOptions = async () => {
@@ -2393,7 +2493,11 @@ async function renderMovements() {
 
     const toggleSerialsWrap = () => {
         const isIn = typeSelect?.value === 'IN';
-        const isOut = typeSelect?.value === 'OUT';
+        // En mode multi-variantes, les numeros de serie a sortir ne sont pas
+        // proposes : on ne sait pas a quelle variante (donc a quel exemplaire)
+        // rattacher chaque case cochee. Pour du materiel serialise, on garde
+        // le mode variante unique.
+        const isOut = typeSelect?.value === 'OUT' && !multiMode;
         serialsInWrap?.classList.toggle('hidden', !isIn);
         serialsOutWrap?.classList.toggle('hidden', !isOut);
         unitCostWrap?.classList.toggle('hidden', !isIn);
@@ -2403,6 +2507,7 @@ async function renderMovements() {
     };
     toggleSerialsWrap();
     typeSelect?.addEventListener('change', toggleSerialsWrap);
+    typeSelect?.addEventListener('change', applyVariantMode);
     productSelect?.addEventListener('change', loadOutSerialOptions);
     warehouseSelect?.addEventListener('change', loadOutSerialOptions);
     productSelect?.addEventListener('change', loadVariantOptions);
@@ -2428,11 +2533,21 @@ async function renderMovements() {
             ? destinationWarehouseSelect.value
             : (warehouseSelect?.value ?? '');
         fillLocationOptions(destinationLocationSelect, destinationWarehouse);
+        if (multiMode) {
+            loadMultiVariantChecklist();
+        }
     };
 
     warehouseSelect?.addEventListener('change', refreshLocations);
     destinationWarehouseSelect?.addEventListener('change', refreshLocations);
     typeSelect?.addEventListener('change', refreshLocations);
+    // Le choix de l'emplacement source ne recharge pas la liste (fillLocationOptions
+    // ne l'ecoute pas), mais change la disponibilite affichee en mode multi-variantes.
+    sourceLocationSelect?.addEventListener('change', () => {
+        if (multiMode) {
+            loadMultiVariantChecklist();
+        }
+    });
     refreshLocations();
 
     form?.addEventListener('submit', async (event) => {
@@ -2441,6 +2556,63 @@ async function renderMovements() {
         feedback.classList.remove('is-error');
 
         const data = new FormData(form);
+
+        if (multiMode) {
+            const customerId = data.get('customer_id') ? Number(data.get('customer_id')) : null;
+            const type = String(data.get('type'));
+            const productId = Number(data.get('product_id'));
+            const warehouseId = Number(data.get('warehouse_id'));
+            const checked = Array.from(document.querySelectorAll('.movement-variant-multi-checkbox:checked'));
+
+            if (checked.length === 0) {
+                feedback.textContent = 'Coche au moins une variante a deplacer.';
+                feedback.classList.add('is-error');
+                return;
+            }
+
+            const basePayload = {
+                product_id: productId,
+                warehouse_id: warehouseId,
+                destination_warehouse_id: data.get('destination_warehouse_id') ? Number(data.get('destination_warehouse_id')) : null,
+                source_location_id: data.get('source_location_id') ? Number(data.get('source_location_id')) : null,
+                destination_location_id: data.get('destination_location_id') ? Number(data.get('destination_location_id')) : null,
+                type,
+                reason_code: String(data.get('reason_code') ?? ''),
+                notes: String(data.get('notes') ?? ''),
+                reference_type: customerId ? 'CUSTOMER' : null,
+                reference_id: customerId,
+            };
+
+            let successCount = 0;
+            const failures = [];
+            for (const checkbox of checked) {
+                const available = Number(checkbox.dataset.available ?? 0);
+                if (available <= 0) {
+                    continue;
+                }
+                try {
+                    await apiRequest('/stock/movements', {
+                        method: 'POST',
+                        body: { ...basePayload, variant_id: Number(checkbox.value), quantity: available },
+                    });
+                    successCount += 1;
+                } catch (error) {
+                    failures.push(`${checkbox.parentElement?.textContent?.trim() ?? checkbox.value} : ${error.message}`);
+                }
+            }
+
+            await renderMovements();
+            const freshFeedback = document.getElementById('movementFeedback');
+            if (freshFeedback) {
+                freshFeedback.textContent = failures.length > 0
+                    ? `${successCount} mouvement(s) enregistre(s). Echecs :\n${failures.join('\n')}`
+                    : `${successCount} mouvement(s) enregistre(s) (une ligne par variante deplacee).`;
+                freshFeedback.classList.toggle('is-error', failures.length > 0);
+                freshFeedback.classList.toggle('is-success', failures.length === 0);
+            }
+            return;
+        }
+
         const customerId = data.get('customer_id') ? Number(data.get('customer_id')) : null;
         const type = String(data.get('type'));
         const productId = Number(data.get('product_id'));
@@ -4658,6 +4830,18 @@ async function renderProductDetail(productId) {
                 <div class="full ${Number(product.has_variants) === 1 ? '' : 'hidden'}" id="productMoveVariantWrap">
                     <label><span>Variante</span><select name="variant_id" id="productMoveVariantSelect" ${Number(product.has_variants) === 1 ? 'required' : ''}></select></label>
                     <small class="field-hint">Ce produit utilise des variantes : choisis celle concernee par ce mouvement.</small>
+                    <div class="hidden" id="productMoveMultiToggleWrap">
+                        <label class="checklist-item">
+                            <input type="checkbox" id="productMoveMultiToggle">
+                            Deplacer plusieurs variantes a la fois (stock disponible complet, sans saisir de quantite)
+                        </label>
+                    </div>
+                </div>
+                <div class="full hidden" id="productMoveVariantMultiWrap">
+                    <span>Variantes a deplacer</span>
+                    <div id="productMoveVariantMultiList" class="serial-checklist"></div>
+                    <small class="field-hint">Coche les variantes concernees : pour chacune, la quantite disponible a l'emplacement source choisi (ou dans tout l'entrepot si aucun emplacement precis) est deplacee automatiquement.</small>
+                    <button type="button" class="btn btn-soft" id="productMoveMultiBackBtn">Revenir a une seule variante</button>
                 </div>
                 <label><span>Type</span><select name="type" required>
                     <option value="IN">Entree</option>
@@ -4665,7 +4849,9 @@ async function renderProductDetail(productId) {
                     <option value="ADJUSTMENT">Ajustement</option>
                     <option value="TRANSFER">Transfert</option>
                 </select></label>
-                <label><span>Quantite</span><input type="number" min="1" name="quantity" required></label>
+                <div id="productMoveQuantityWrap">
+                    <label><span>Quantite</span><input type="number" min="1" name="quantity" id="productMoveQuantityInput" required></label>
+                </div>
                 ${selectField('customer_id', 'Client (sortie)', state.lookups.customers, 'id', 'name', false)}
                 <div class="full" id="productMoveSerialsInWrap">
                     <label>
@@ -4745,7 +4931,80 @@ async function renderProductDetail(productId) {
     const productMoveSerialsOutWrap = document.getElementById('productMoveSerialsOutWrap');
     const productMoveSerialOutList = document.getElementById('productMoveSerialOutList');
     const productMoveVariantSelect = document.getElementById('productMoveVariantSelect');
+    const productMoveMultiToggleWrap = document.getElementById('productMoveMultiToggleWrap');
+    const productMoveMultiToggle = document.getElementById('productMoveMultiToggle');
+    const productMoveVariantMultiWrap = document.getElementById('productMoveVariantMultiWrap');
+    const productMoveVariantMultiList = document.getElementById('productMoveVariantMultiList');
+    const productMoveMultiBackBtn = document.getElementById('productMoveMultiBackBtn');
+    const productMoveQuantityWrap = document.getElementById('productMoveQuantityWrap');
+    const productMoveQuantityInput = document.getElementById('productMoveQuantityInput');
     let productMoveAvailableOutSerialCount = 0;
+    let productMoveMultiMode = false;
+    let productMoveLastVariants = [];
+
+    const isProductMoveMultiCapableType = () => ['OUT', 'TRANSFER'].includes(String(moveTypeSelect?.value ?? ''));
+
+    const loadProductMoveMultiVariantChecklist = () => {
+        if (!productMoveVariantMultiList) {
+            return;
+        }
+        const availability = computeVariantAvailability(
+            stockRows,
+            moveWarehouseSelect?.value ?? '',
+            document.getElementById('productMoveSourceLocation')?.value ?? ''
+        );
+        productMoveVariantMultiList.innerHTML = productMoveLastVariants.length === 0
+            ? '<p class="muted">Aucune variante active pour ce produit</p>'
+            : productMoveLastVariants.map((v) => {
+                const available = availability.get(String(v.id)) ?? 0;
+                return `
+                    <label class="checklist-item">
+                        <input type="checkbox" class="product-move-variant-multi-checkbox" value="${v.id}" data-available="${available}" ${available <= 0 ? 'disabled' : ''}>
+                        ${sanitize(variantDescriptor(v))} (disponible ici : ${available})
+                    </label>
+                `;
+            }).join('');
+    };
+
+    const applyProductMoveVariantMode = () => {
+        if (Number(product.has_variants) !== 1) {
+            return;
+        }
+        const multiCapable = isProductMoveMultiCapableType();
+        productMoveMultiToggleWrap?.classList.toggle('hidden', !multiCapable);
+        if (!multiCapable && productMoveMultiMode) {
+            productMoveMultiMode = false;
+            if (productMoveMultiToggle) {
+                productMoveMultiToggle.checked = false;
+            }
+        }
+
+        document.getElementById('productMoveVariantWrap')?.classList.toggle('hidden', productMoveMultiMode);
+        if (productMoveVariantSelect) {
+            productMoveVariantSelect.required = !productMoveMultiMode;
+        }
+        productMoveVariantMultiWrap?.classList.toggle('hidden', !productMoveMultiMode);
+        productMoveQuantityWrap?.classList.toggle('hidden', productMoveMultiMode);
+        if (productMoveQuantityInput) {
+            productMoveQuantityInput.required = !productMoveMultiMode;
+        }
+
+        if (productMoveMultiMode) {
+            loadProductMoveMultiVariantChecklist();
+        }
+    };
+
+    productMoveMultiToggle?.addEventListener('change', () => {
+        productMoveMultiMode = !!productMoveMultiToggle.checked;
+        applyProductMoveVariantMode();
+    });
+    productMoveMultiBackBtn?.addEventListener('click', () => {
+        productMoveMultiMode = false;
+        if (productMoveMultiToggle) {
+            productMoveMultiToggle.checked = false;
+        }
+        applyProductMoveVariantMode();
+    });
 
     const loadProductMoveVariantOptions = async () => {
         if (!productMoveVariantSelect || Number(product.has_variants) !== 1) {
@@ -4754,12 +5013,14 @@ async function renderProductDetail(productId) {
         productMoveVariantSelect.innerHTML = '<option value="">Chargement...</option>';
         const response = await apiRequest(`/product-variants?product_id=${productId}&is_active=1&per_page=200`);
         const variants = normalizeRows(response);
+        productMoveLastVariants = variants;
         productMoveVariantSelect.innerHTML = variants.length === 0
             ? '<option value="">Aucune variante active pour ce produit</option>'
             : '<option value="">Choisir...</option>' + variants.map((v) => {
                 const descriptors = variantDescriptor(v);
                 return `<option value="${v.id}">${sanitize(descriptors)} (stock: ${v.stock_total ?? 0})</option>`;
             }).join('');
+        applyProductMoveVariantMode();
     };
 
     const loadProductMoveOutSerialOptions = async () => {
@@ -4785,7 +5046,9 @@ async function renderProductDetail(productId) {
 
     const toggleProductMoveSerialsWrap = () => {
         const isIn = moveTypeSelect?.value === 'IN';
-        const isOut = moveTypeSelect?.value === 'OUT';
+        // En mode multi-variantes, pas de numeros de serie a sortir : voir la
+        // meme remarque sur l'ecran Mouvements.
+        const isOut = moveTypeSelect?.value === 'OUT' && !productMoveMultiMode;
         productMoveSerialsInWrap?.classList.toggle('hidden', !isIn);
         productMoveSerialsOutWrap?.classList.toggle('hidden', !isOut);
         if (isOut) {
@@ -4794,6 +5057,7 @@ async function renderProductDetail(productId) {
     };
     toggleProductMoveSerialsWrap();
     moveTypeSelect?.addEventListener('change', toggleProductMoveSerialsWrap);
+    moveTypeSelect?.addEventListener('change', applyProductMoveVariantMode);
     moveWarehouseSelect?.addEventListener('change', loadProductMoveOutSerialOptions);
     loadProductMoveVariantOptions();
 
@@ -4814,11 +5078,19 @@ async function renderProductDetail(productId) {
             ? moveDestinationWarehouse.value
             : (moveWarehouseSelect?.value ?? '');
         fillLocationOptions(moveDestinationLocation, destinationWarehouse);
+        if (productMoveMultiMode) {
+            loadProductMoveMultiVariantChecklist();
+        }
     };
 
     moveWarehouseSelect?.addEventListener('change', refreshProductMoveLocations);
     moveDestinationWarehouse?.addEventListener('change', refreshProductMoveLocations);
     moveTypeSelect?.addEventListener('change', refreshProductMoveLocations);
+    moveSourceLocation?.addEventListener('change', () => {
+        if (productMoveMultiMode) {
+            loadProductMoveMultiVariantChecklist();
+        }
+    });
     refreshProductMoveLocations();
 
     moveForm?.addEventListener('submit', async (event) => {
@@ -4827,6 +5099,56 @@ async function renderProductDetail(productId) {
         feedback.textContent = '';
         feedback.classList.remove('is-error');
         const data = new FormData(moveForm);
+
+        if (productMoveMultiMode) {
+            const customerId = data.get('customer_id') ? Number(data.get('customer_id')) : null;
+            const type = String(data.get('type') ?? 'IN');
+            const warehouseId = Number(data.get('warehouse_id'));
+            const checked = Array.from(document.querySelectorAll('.product-move-variant-multi-checkbox:checked'));
+
+            if (checked.length === 0) {
+                feedback.textContent = 'Coche au moins une variante a deplacer.';
+                feedback.classList.add('is-error');
+                return;
+            }
+
+            const basePayload = {
+                product_id: productId,
+                warehouse_id: warehouseId,
+                destination_warehouse_id: data.get('destination_warehouse_id') ? Number(data.get('destination_warehouse_id')) : null,
+                source_location_id: data.get('source_location_id') ? Number(data.get('source_location_id')) : null,
+                destination_location_id: data.get('destination_location_id') ? Number(data.get('destination_location_id')) : null,
+                type,
+                reason_code: String(data.get('reason_code') ?? ''),
+                reference_type: customerId ? 'CUSTOMER' : null,
+                reference_id: customerId,
+            };
+
+            let successCount = 0;
+            const failures = [];
+            for (const checkbox of checked) {
+                const available = Number(checkbox.dataset.available ?? 0);
+                if (available <= 0) {
+                    continue;
+                }
+                try {
+                    await apiRequest('/stock/movements', {
+                        method: 'POST',
+                        body: { ...basePayload, variant_id: Number(checkbox.value), quantity: available },
+                    });
+                    successCount += 1;
+                } catch (error) {
+                    failures.push(`${checkbox.parentElement?.textContent?.trim() ?? checkbox.value} : ${error.message}`);
+                }
+            }
+
+            await renderProductDetail(productId);
+            if (failures.length > 0) {
+                window.alert(`${successCount} mouvement(s) enregistre(s). Echecs :\n${failures.join('\n')}`);
+            }
+            return;
+        }
+
         const customerId = data.get('customer_id') ? Number(data.get('customer_id')) : null;
         const type = String(data.get('type') ?? 'IN');
         const warehouseId = Number(data.get('warehouse_id'));
@@ -6677,6 +6999,35 @@ function searchNormalize(value) {
  * et permettrait de ranger un article dans une allee qui n'existe pas la ou
  * il se trouve.
  */
+function computeVariantAvailability(stockByWarehouse, warehouseId, locationId) {
+    // Stock disponible par variante pour un entrepot (et, si precise, un
+    // emplacement) donne - utilise pour le mode "deplacer plusieurs
+    // variantes a la fois" (Mouvements et fiche produit > Stock), qui a
+    // besoin de connaitre la quantite exacte disponible a l'endroit choisi
+    // avant de deplacer automatiquement le stock complet de chaque variante
+    // cochee. Sans emplacement precise, on additionne toutes les lignes de
+    // cet entrepot (meme semantique que source_location_id vide sur un
+    // mouvement classique).
+    const map = new Map();
+    if (!Array.isArray(stockByWarehouse) || !warehouseId) {
+        return map;
+    }
+    stockByWarehouse.forEach((row) => {
+        if (row.variant_id === null || row.variant_id === undefined) {
+            return;
+        }
+        if (String(row.warehouse_id) !== String(warehouseId)) {
+            return;
+        }
+        if (locationId && String(row.location_id ?? '') !== String(locationId)) {
+            return;
+        }
+        const key = String(row.variant_id);
+        map.set(key, (map.get(key) ?? 0) + Number(row.quantity ?? 0));
+    });
+    return map;
+}
+
 function fillLocationOptions(select, warehouseId, selectedValue = '') {
     if (!select) {
         return;
