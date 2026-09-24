@@ -21,6 +21,15 @@ final class ProductVariantRepository extends PdoCrudRepository
         'height',
         'depth',
         'weight',
+        // Quatrieme saveur (materiel electrique/mecanique), voir la migration
+        // 202602270018_technical_variants.sql. Champs texte libres, comme les
+        // dimensions ci-dessus.
+        'puissance',
+        'marque',
+        'type',
+        'vitesse',
+        'tension',
+        'forme',
         'attributes_json',
         'unit_price',
         'is_active',

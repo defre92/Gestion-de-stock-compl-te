@@ -377,6 +377,19 @@ const crudModules = {
                     { key: 'weight', label: 'Poids (unite libre, ex: 12,5 kg)', type: 'text' },
                 );
             }
+            // Quatrieme saveur : materiel electrique/mecanique. Champs texte
+            // libres (unite comprise dans la saisie), voir la migration
+            // 202602270018_technical_variants.sql.
+            if (state.technicalVariantsEnabled) {
+                fields.push(
+                    { key: 'puissance', label: 'Puissance (ex: 1200 W)', type: 'text' },
+                    { key: 'marque', label: 'Marque', type: 'text' },
+                    { key: 'type', label: 'Type', type: 'text' },
+                    { key: 'vitesse', label: 'Vitesse (ex: 3000 tr/min)', type: 'text' },
+                    { key: 'tension', label: 'Tension (ex: 230 V)', type: 'text' },
+                    { key: 'forme', label: 'Forme', type: 'text' },
+                );
+            }
             fields.push(
                 { key: 'unit_price', label: 'Prix (vide = prix du produit)', type: 'number', step: '0.01' },
                 { key: 'is_active', label: 'Actif', type: 'select', options: [
@@ -568,6 +581,7 @@ async function boot() {
         clothingSettingResponse,
         bottleSettingResponse,
         dimensionSettingResponse,
+        technicalSettingResponse,
         valuationSettingResponse,
     ] = await Promise.all([
         apiRequest('/auth/me'),
@@ -575,6 +589,7 @@ async function boot() {
         apiRequest('/settings?setting_key=clothing_variants_enabled').catch(() => null),
         apiRequest('/settings?setting_key=bottle_variants_enabled').catch(() => null),
         apiRequest('/settings?setting_key=dimension_variants_enabled').catch(() => null),
+        apiRequest('/settings?setting_key=technical_variants_enabled').catch(() => null),
         apiRequest('/settings?setting_key=default_valuation_method').catch(() => null),
     ]);
 
@@ -583,9 +598,11 @@ async function boot() {
     const clothingRow = normalizeRows(clothingSettingResponse)[0];
     const bottleRow = normalizeRows(bottleSettingResponse)[0];
     const dimensionRow = normalizeRows(dimensionSettingResponse)[0];
+    const technicalRow = normalizeRows(technicalSettingResponse)[0];
     state.clothingVariantsEnabled = String(clothingRow?.setting_value ?? '0') === '1';
     state.bottleVariantsEnabled = String(bottleRow?.setting_value ?? '0') === '1';
     state.dimensionVariantsEnabled = String(dimensionRow?.setting_value ?? '0') === '1';
+    state.technicalVariantsEnabled = String(technicalRow?.setting_value ?? '0') === '1';
     syncValuationSettingState(normalizeRows(valuationSettingResponse)[0]?.setting_value);
 
     const userPill = document.getElementById('userPill');
@@ -637,16 +654,19 @@ function variantsAttributesLabel() {
     if (state.dimensionVariantsEnabled) {
         parts.push('largeur/hauteur/profondeur/poids');
     }
+    if (state.technicalVariantsEnabled) {
+        parts.push('puissance/marque/type/vitesse/tension/forme');
+    }
     return parts.length === 0 ? 'aucune option activee' : parts.join(' ou ');
 }
 
 // Les reglages qui pilotent le module Variantes. Regroupes ici pour qu'une
 // quatrieme "saveur" ne demande pas de repasser sur chaque appel.
-const VARIANT_SETTING_KEYS = ['clothing_variants_enabled', 'bottle_variants_enabled', 'dimension_variants_enabled'];
+const VARIANT_SETTING_KEYS = ['clothing_variants_enabled', 'bottle_variants_enabled', 'dimension_variants_enabled', 'technical_variants_enabled'];
 
 /** Au moins une "saveur" de variantes est-elle activee dans Parametres ? */
 function anyVariantsEnabled() {
-    return Boolean(state.clothingVariantsEnabled || state.bottleVariantsEnabled || state.dimensionVariantsEnabled);
+    return Boolean(state.clothingVariantsEnabled || state.bottleVariantsEnabled || state.dimensionVariantsEnabled || state.technicalVariantsEnabled);
 }
 
 function syncVariantsSettingState(settingKey, settingValue) {
@@ -657,6 +677,8 @@ function syncVariantsSettingState(settingKey, settingValue) {
         state.bottleVariantsEnabled = enabled;
     } else if (settingKey === 'dimension_variants_enabled') {
         state.dimensionVariantsEnabled = enabled;
+    } else if (settingKey === 'technical_variants_enabled') {
+        state.technicalVariantsEnabled = enabled;
     }
 
     // Reaffiche/masque immediatement le lien "Variantes" sans attendre un
@@ -5050,6 +5072,7 @@ function renderVariantGenerator() {
     const clothing = state.clothingVariantsEnabled;
     const bottle = state.bottleVariantsEnabled;
     const dimension = state.dimensionVariantsEnabled;
+    const technical = state.technicalVariantsEnabled;
 
     const attributeFields = [];
     if (clothing) {
@@ -5081,6 +5104,26 @@ function renderVariantGenerator() {
         attributeFields.push(`
             <label><span>Poids (unite libre)</span>
                 <input type="text" name="gen_weights" placeholder="12,5 kg, 25 kg"></label>`);
+    }
+    if (technical) {
+        attributeFields.push(`
+            <label><span>Puissances (unite libre)</span>
+                <input type="text" name="gen_puissances" placeholder="800 W, 1200 W"></label>`);
+        attributeFields.push(`
+            <label><span>Marques</span>
+                <input type="text" name="gen_marques" placeholder="Bosch, Makita"></label>`);
+        attributeFields.push(`
+            <label><span>Types</span>
+                <input type="text" name="gen_types" placeholder="Standard, Pro"></label>`);
+        attributeFields.push(`
+            <label><span>Vitesses (unite libre)</span>
+                <input type="text" name="gen_vitesses" placeholder="1500 tr/min, 3000 tr/min"></label>`);
+        attributeFields.push(`
+            <label><span>Tensions (unite libre)</span>
+                <input type="text" name="gen_tensions" placeholder="12 V, 230 V"></label>`);
+        attributeFields.push(`
+            <label><span>Formes</span>
+                <input type="text" name="gen_formes" placeholder="Ronde, Rectangulaire"></label>`);
     }
 
     const report = lastVariantGenerationReport;
@@ -5238,6 +5281,14 @@ function setupVariantGenerator() {
             }
         }
 
+        // Materiel : egalement libre, aucune validation de format.
+        for (const [field, key] of [['gen_puissances', 'puissance'], ['gen_marques', 'marque'], ['gen_types', 'type'], ['gen_vitesses', 'vitesse'], ['gen_tensions', 'tension'], ['gen_formes', 'forme']]) {
+            const values = parseVariantList(form.elements[field]?.value);
+            if (values.length > 0) {
+                dimensions.push({ key, values });
+            }
+        }
+
         if (dimensions.length === 0) {
             feedback.textContent = 'Renseigne au moins une liste de valeurs.';
             feedback.classList.add('is-error');
@@ -5289,6 +5340,12 @@ function setupVariantGenerator() {
                 height: combo.height ?? '',
                 depth: combo.depth ?? '',
                 weight: combo.weight ?? '',
+                puissance: combo.puissance ?? '',
+                marque: combo.marque ?? '',
+                type: combo.type ?? '',
+                vitesse: combo.vitesse ?? '',
+                tension: combo.tension ?? '',
+                forme: combo.forme ?? '',
                 unit_price: price,
                 is_active: 1,
                 exists: existingSkus.has(sku.toUpperCase()),
@@ -5301,6 +5358,7 @@ function setupVariantGenerator() {
         const hasClothing = dimensions.some((d) => d.key === 'size' || d.key === 'color');
         const hasBottle = dimensions.some((d) => d.key === 'vintage' || d.key === 'volume_cl');
         const hasDimension = dimensions.some((d) => ['width', 'height', 'depth', 'weight'].includes(d.key));
+        const hasTechnical = dimensions.some((d) => ['puissance', 'marque', 'type', 'vitesse', 'tension', 'forme'].includes(d.key));
 
         preview.innerHTML = `
             <div class="table-wrap">
@@ -5310,6 +5368,7 @@ function setupVariantGenerator() {
                         ${hasClothing ? '<th>Taille</th><th>Couleur</th>' : ''}
                         ${hasBottle ? '<th>Millesime</th><th>Contenance</th>' : ''}
                         ${hasDimension ? '<th>Largeur</th><th>Hauteur</th><th>Profondeur</th><th>Poids</th>' : ''}
+                        ${hasTechnical ? '<th>Puissance</th><th>Marque</th><th>Type</th><th>Vitesse</th><th>Tension</th><th>Forme</th>' : ''}
                         <th>Etat</th>
                     </tr></thead>
                     <tbody>
@@ -5319,6 +5378,7 @@ function setupVariantGenerator() {
                                 ${hasClothing ? `<td>${sanitize(row.size || '-')}</td><td>${sanitize(row.color || '-')}</td>` : ''}
                                 ${hasBottle ? `<td>${sanitize(row.vintage || '-')}</td><td>${sanitize(row.volume_cl ? row.volume_cl + ' cl' : '-')}</td>` : ''}
                                 ${hasDimension ? `<td>${sanitize(row.width || '-')}</td><td>${sanitize(row.height || '-')}</td><td>${sanitize(row.depth || '-')}</td><td>${sanitize(row.weight || '-')}</td>` : ''}
+                                ${hasTechnical ? `<td>${sanitize(row.puissance || '-')}</td><td>${sanitize(row.marque || '-')}</td><td>${sanitize(row.type || '-')}</td><td>${sanitize(row.vitesse || '-')}</td><td>${sanitize(row.tension || '-')}</td><td>${sanitize(row.forme || '-')}</td>` : ''}
                                 <td>${row.exists ? 'Existe deja - ignoree' : 'A creer'}</td>
                             </tr>
                         `).join('')}
@@ -5365,6 +5425,12 @@ function setupVariantGenerator() {
                         height: combo.height,
                         depth: combo.depth,
                         weight: combo.weight,
+                        puissance: combo.puissance,
+                        marque: combo.marque,
+                        type: combo.type,
+                        vitesse: combo.vitesse,
+                        tension: combo.tension,
+                        forme: combo.forme,
                         unit_price: combo.unit_price,
                         is_active: 1,
                     },
@@ -6262,6 +6328,12 @@ function variantDescriptor(v) {
     const height = v.height ?? v.variant_height;
     const depth = v.depth ?? v.variant_depth;
     const weight = v.weight ?? v.variant_weight;
+    const puissance = v.puissance ?? v.variant_puissance;
+    const marque = v.marque ?? v.variant_marque;
+    const type = v.type ?? v.variant_type;
+    const vitesse = v.vitesse ?? v.variant_vitesse;
+    const tension = v.tension ?? v.variant_tension;
+    const forme = v.forme ?? v.variant_forme;
     const sku = v.sku ?? v.variant_sku;
 
     const clothing = [size, color].filter(Boolean);
@@ -6298,6 +6370,32 @@ function variantDescriptor(v) {
     }
     if (dimensions.length > 0) {
         return dimensions.join(' / ');
+    }
+
+    // Materiel (electrique/mecanique) : "Puissance 1200 W / Marque Bosch /
+    // Type ... / Vitesse 3000 tr/min / Tension 230 V / Forme ...". Meme
+    // libelle que cote backend (StockService::refreshProductAlert).
+    const technical = [];
+    if (puissance) {
+        technical.push(`Puissance ${puissance}`);
+    }
+    if (marque) {
+        technical.push(`Marque ${marque}`);
+    }
+    if (type) {
+        technical.push(`Type ${type}`);
+    }
+    if (vitesse) {
+        technical.push(`Vitesse ${vitesse}`);
+    }
+    if (tension) {
+        technical.push(`Tension ${tension}`);
+    }
+    if (forme) {
+        technical.push(`Forme ${forme}`);
+    }
+    if (technical.length > 0) {
+        return technical.join(' / ');
     }
 
     return sku || '-';

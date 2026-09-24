@@ -33,11 +33,11 @@ Application de gestion de stock professionnelle avec separation stricte Frontend
 - Administration: roles, utilisateurs, audit.
 - Avance: import CSV multi-entites, pieces jointes, etiquettes/code-barres.
 
-## Variantes produit - optionnel, 3 "saveurs" disponibles
+## Variantes produit - optionnel, 4 "saveurs" disponibles
 
 Fonctionnalite optionnelle pour les catalogues avec variantes. Desactivee
 par defaut, elle ne change rien pour une installation qui n'en a pas besoin.
-**Trois options independantes**, chacune activable ou non selon l'activite
+**Quatre options independantes**, chacune activable ou non selon l'activite
 concernee :
 
 - `clothing_variants_enabled` = `1` : taille + couleur — couvre le
@@ -50,6 +50,10 @@ concernee :
   **Ces quatre champs sont libres** : l'unite fait partie de la valeur
   saisie, on peut donc ecrire "120 cm", "2 m", "3/4 pouce", "12,5 kg" ou
   meme "sur mesure" sans etre bloque par une unite imposee.
+- `technical_variants_enabled` = `1` : puissance + marque + type + vitesse +
+  tension + forme (materiel electrique/mecanique : outillage, moteurs,
+  appareils). **Ces six champs sont libres**, meme principe que les
+  dimensions : "1200 W", "230 V", "3000 tr/min" s'ecrivent unite comprise.
 
 Ces dimensions de variante ne remplacent pas les champs numeriques
 Largeur/Hauteur/Profondeur/Poids de la **fiche produit** : les deux
@@ -57,12 +61,13 @@ coexistent selon les articles. La fiche produit porte les cotes d'un article
 qui n'a qu'une seule taille ; la variante porte les cotes de chaque
 declinaison d'un article qui en a plusieurs, chacune avec son propre stock.
 
-Les cles se creent dans l'ecran Parametres. Des qu'au moins une des trois
+Les cles se creent dans l'ecran Parametres. Des qu'au moins une des quatre
 est activee, l'entree "Variantes" apparait dans le menu lateral sous
 **Referentiels**, juste apres Produits - avec un seul et meme module (pas
-trois ecrans separes) : chaque variante ne remplit que les champs qui la
-concernent (taille/couleur, millesime/contenance OU dimensions), les autres
-restent vides. Le module reste masque si aucune des trois n'est activee.
+quatre ecrans separes) : chaque variante ne remplit que les champs qui la
+concernent (taille/couleur, millesime/contenance, dimensions OU materiel),
+les autres restent vides. Le module reste masque si aucune des quatre n'est
+activee.
 
 Le formulaire suit la meme regle : le champ "Ce produit a des variantes"
 n'apparait sur la fiche produit que si au moins une option est active, et
@@ -315,8 +320,8 @@ jouees puis fichier execute trois fois de suite) :
 De quoi remplir 6 pages de catalogue a 25 lignes par page, avec des articles
 volontairement sous leur seuil pour alimenter le tableau de bord et l'ecran
 Alertes. Pour voir les variantes, active `clothing_variants_enabled`,
-`bottle_variants_enabled` et/ou `dimension_variants_enabled` dans l'ecran
-Parametres.
+`bottle_variants_enabled`, `dimension_variants_enabled` et/ou
+`technical_variants_enabled` dans l'ecran Parametres.
 
 **Ne touche jamais**: `users`, `roles`, `personal_access_tokens`. Aucun
 compte, aucun mot de passe n'est cree ou modifie par cette action -
@@ -1830,6 +1835,42 @@ construction.
 **Donnees de demo.** Cinq variantes de dimensions sont livrees dans
 `catalog-demo.sql` (un tableau blanc en trois formats, un caisson en deux
 profondeurs), avec du stock, en `NOT EXISTS` comme le reste du fichier.
+
+L'option est a `0` par defaut : une installation existante ne voit
+strictement aucun changement tant qu'elle n'est pas activee dans l'ecran
+Parametres.
+
+## Variantes "materiel" (electrique/mecanique)
+
+Migration `202602270018_technical_variants`, reglage
+`technical_variants_enabled`. Quatrieme "saveur" de variantes, demandee pour
+un prospect vendant du materiel electrique/mecanique : six colonnes
+supplementaires sur `product_variants` - `puissance`, `marque`, `type`,
+`vitesse`, `tension`, `forme` - et rien d'autre a changer, meme principe que
+les trois saveurs precedentes (le stock, les mouvements, les alertes, les
+livraisons, les achats et les inventaires ne raisonnent qu'en `variant_id`).
+
+**Valeurs libres, et c'est voulu.** Comme pour les dimensions, ces six
+colonnes sont des `VARCHAR`, pas des `DECIMAL`/`ENUM` : "1200 W", "230 V",
+"3000 tr/min" s'ecrivent unite comprise, sans format impose.
+
+**"Marque" ici n'est pas la table `brands`.** C'est un champ texte propre a
+**la variante**, distinct du champ `brand_id` deja present sur le produit
+(fiche produit -> `brands`). Deux variantes techniques du meme produit
+generique peuvent avoir des marques differentes ; ce champ reste donc
+volontairement independant de toute table de reference, coherent avec les
+trois autres saveurs qui n'en referencent aucune.
+
+**Affichage.** Le libelle de variante devient `Puissance 1200 W / Marque
+Bosch / Type Pro / Vitesse 3000 tr/min / Tension 230 V / Forme Ronde` (seuls
+les champs renseignes apparaissent), avec la meme regle de priorite
+qu'auparavant, cote frontend (`variantDescriptor`) et cote backend
+(`StockService::refreshProductAlert`) : vetement, puis bouteille, puis
+dimensions, puis materiel, puis le SKU a defaut.
+
+**Generation en lot.** Le generateur de variantes accepte les six nouvelles
+listes (puissances, marques, types, vitesses, tensions, formes) comme axes
+du produit cartesien, sans validation de format, par construction.
 
 L'option est a `0` par defaut : une installation existante ne voit
 strictement aucun changement tant qu'elle n'est pas activee dans l'ecran

@@ -241,7 +241,7 @@ final class ProductRepository extends PdoCrudRepository
                    loc.code AS location_code, loc.description AS location_description,
                    zone.code AS zone_code, zone.name AS zone_name,
                    sl.quantity, sl.reserved_quantity,
-                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl, v.width AS variant_width, v.height AS variant_height, v.depth AS variant_depth, v.weight AS variant_weight,
+                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl, v.width AS variant_width, v.height AS variant_height, v.depth AS variant_depth, v.weight AS variant_weight, v.puissance AS variant_puissance, v.marque AS variant_marque, v.type AS variant_type, v.vitesse AS variant_vitesse, v.tension AS variant_tension, v.forme AS variant_forme,
                    (
                        SELECT COALESCE(dloc.code, sloc.code)
                        FROM stock_movements sm

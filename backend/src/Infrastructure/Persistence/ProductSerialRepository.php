@@ -56,7 +56,7 @@ final class ProductSerialRepository
         $sql = "
             SELECT ps.*, p.sku, p.name AS product_name, w.name AS warehouse_name,
                    loc.code AS location_code, loc.description AS location_description,
-                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl, v.width AS variant_width, v.height AS variant_height, v.depth AS variant_depth, v.weight AS variant_weight
+                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl, v.width AS variant_width, v.height AS variant_height, v.depth AS variant_depth, v.weight AS variant_weight, v.puissance AS variant_puissance, v.marque AS variant_marque, v.type AS variant_type, v.vitesse AS variant_vitesse, v.tension AS variant_tension, v.forme AS variant_forme
             FROM product_serials ps
             INNER JOIN products p ON p.id = ps.product_id
             LEFT JOIN warehouses w ON w.id = ps.warehouse_id
@@ -91,7 +91,7 @@ final class ProductSerialRepository
         $stmt = $this->pdo->prepare('
             SELECT ps.*, p.sku, p.name AS product_name, w.name AS warehouse_name,
                    loc.code AS location_code, loc.description AS location_description,
-                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl, v.width AS variant_width, v.height AS variant_height, v.depth AS variant_depth, v.weight AS variant_weight
+                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl, v.width AS variant_width, v.height AS variant_height, v.depth AS variant_depth, v.weight AS variant_weight, v.puissance AS variant_puissance, v.marque AS variant_marque, v.type AS variant_type, v.vitesse AS variant_vitesse, v.tension AS variant_tension, v.forme AS variant_forme
             FROM product_serials ps
             INNER JOIN products p ON p.id = ps.product_id
             LEFT JOIN warehouses w ON w.id = ps.warehouse_id
@@ -111,7 +111,7 @@ final class ProductSerialRepository
         $stmt = $this->pdo->prepare('
             SELECT ps.*, p.sku, p.name AS product_name, w.name AS warehouse_name,
                    loc.code AS location_code, loc.description AS location_description,
-                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl, v.width AS variant_width, v.height AS variant_height, v.depth AS variant_depth, v.weight AS variant_weight
+                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl, v.width AS variant_width, v.height AS variant_height, v.depth AS variant_depth, v.weight AS variant_weight, v.puissance AS variant_puissance, v.marque AS variant_marque, v.type AS variant_type, v.vitesse AS variant_vitesse, v.tension AS variant_tension, v.forme AS variant_forme
             FROM product_serials ps
             INNER JOIN products p ON p.id = ps.product_id
             LEFT JOIN warehouses w ON w.id = ps.warehouse_id

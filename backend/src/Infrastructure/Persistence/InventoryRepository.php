@@ -85,7 +85,7 @@ final class InventoryRepository
 
         $items = $this->pdo->prepare('
             SELECT isi.*, p.sku, p.name AS product_name, l.code AS location_code, u.full_name AS counted_by_name,
-                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl, v.width AS variant_width, v.height AS variant_height, v.depth AS variant_depth, v.weight AS variant_weight
+                   v.sku AS variant_sku, v.size AS variant_size, v.color AS variant_color, v.vintage AS variant_vintage, v.volume_cl AS variant_volume_cl, v.width AS variant_width, v.height AS variant_height, v.depth AS variant_depth, v.weight AS variant_weight, v.puissance AS variant_puissance, v.marque AS variant_marque, v.type AS variant_type, v.vitesse AS variant_vitesse, v.tension AS variant_tension, v.forme AS variant_forme
             FROM inventory_session_items isi
             INNER JOIN products p ON p.id = isi.product_id
             LEFT JOIN warehouse_locations l ON l.id = isi.location_id
@@ -131,7 +131,7 @@ final class InventoryRepository
                 v.width AS variant_width,
                 v.height AS variant_height,
                 v.depth AS variant_depth,
-                v.weight AS variant_weight
+                v.weight AS variant_weight, v.puissance AS variant_puissance, v.marque AS variant_marque, v.type AS variant_type, v.vitesse AS variant_vitesse, v.tension AS variant_tension, v.forme AS variant_forme
             FROM stock_levels sl
             INNER JOIN products p ON p.id = sl.product_id
             LEFT JOIN product_variants v ON v.id = sl.variant_id

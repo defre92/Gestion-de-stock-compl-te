@@ -388,12 +388,12 @@ final class StockService
 
         $variantLabel = '';
         if ($variantId !== null) {
-            $variant = Database::connection()->prepare('SELECT sku, size, color, vintage, volume_cl, width, height, depth, weight FROM product_variants WHERE id = :id');
+            $variant = Database::connection()->prepare('SELECT sku, size, color, vintage, volume_cl, width, height, depth, weight, puissance, marque, type, vitesse, tension, forme FROM product_variants WHERE id = :id');
             $variant->execute([':id' => $variantId]);
             $variantRow = $variant->fetch();
             if ($variantRow) {
                 // Meme ordre de priorite que variantDescriptor() cote frontend :
-                // vetement, puis bouteille, puis dimensions, puis le SKU.
+                // vetement, puis bouteille, puis dimensions, puis materiel, puis le SKU.
                 $descriptors = array_filter([$variantRow['size'] ?? null, $variantRow['color'] ?? null]);
                 if ($descriptors === []) {
                     $bottleDescriptors = [];
@@ -416,6 +416,18 @@ final class StockService
                         $dimensionDescriptors[] = 'Poids ' . $variantRow['weight'];
                     }
                     $descriptors = $dimensionDescriptors;
+                }
+                if ($descriptors === []) {
+                    // Materiel (electrique/mecanique) : Puissance, Marque, Type,
+                    // Vitesse, Tension, Forme. Meme libelle que cote frontend
+                    // (variantDescriptor).
+                    $technicalDescriptors = [];
+                    foreach (['puissance' => 'Puissance', 'marque' => 'Marque', 'type' => 'Type', 'vitesse' => 'Vitesse', 'tension' => 'Tension', 'forme' => 'Forme'] as $column => $prefix) {
+                        if (!empty($variantRow[$column])) {
+                            $technicalDescriptors[] = $prefix . ' ' . $variantRow[$column];
+                        }
+                    }
+                    $descriptors = $technicalDescriptors;
                 }
                 $variantLabel = $descriptors !== [] ? ' (' . implode('/', $descriptors) . ')' : ' (' . $variantRow['sku'] . ')';
             }

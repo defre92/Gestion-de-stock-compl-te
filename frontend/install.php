@@ -383,9 +383,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // (n'ecrase pas une valeur deja personnalisee depuis l'ecran
             // Parametres, sauf a vouloir la remettre au defaut).
             // clothing_variants_enabled / bottle_variants_enabled /
-            // dimension_variants_enabled: options a
-            // 0 par defaut (desactivees) - voir section "Variantes produit"
-            // du README pour les activer.
+            // dimension_variants_enabled / technical_variants_enabled:
+            // options a 0 par defaut (desactivees) - voir section "Variantes
+            // produit" du README pour les activer.
             // default_valuation_method: methode pre-selectionnee a la creation
             // d'un produit (CUMP ou FIFO), modifiable produit par produit.
             $pdo->exec("
@@ -398,7 +398,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ('default_valuation_method', 'CUMP'),
                 ('clothing_variants_enabled', '0'),
                 ('bottle_variants_enabled', '0'),
-                ('dimension_variants_enabled', '0')
+                ('dimension_variants_enabled', '0'),
+                ('technical_variants_enabled', '0')
                 ON DUPLICATE KEY UPDATE setting_key = setting_key
             ");
 
