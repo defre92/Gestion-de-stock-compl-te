@@ -154,6 +154,14 @@ final class PurchaseOrderService
             throw new HttpException('Au moins un article recu est requis', 422);
         }
 
+        // Emplacement optionnel ou ranger la marchandise recue (voir
+        // createMovement / destination_location_id) : facultatif, comme
+        // avant l'ajout de ce champ (reste NULL = stock "sans emplacement
+        // precis" dans l'entrepot). createMovement verifie lui-meme que cet
+        // emplacement appartient bien a l'entrepot de la commande (sinon
+        // erreur 422), inutile de le revalider ici.
+        $locationId = !empty($payload['location_id']) ? (int)$payload['location_id'] : null;
+
         $indexedItems = [];
         foreach ($order['items'] as $orderItem) {
             $indexedItems[(int)$orderItem['id']] = $orderItem;
@@ -188,6 +196,7 @@ final class PurchaseOrderService
                     'product_id' => (int)$orderItem['product_id'],
                     'variant_id' => $orderItem['variant_id'] ?? null,
                     'warehouse_id' => (int)$order['warehouse_id'],
+                    'destination_location_id' => $locationId,
                     'type' => 'IN',
                     'quantity' => $receivedQty,
                     // Cout reellement paye au fournisseur pour cette ligne :

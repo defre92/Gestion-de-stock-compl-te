@@ -42,6 +42,13 @@ final class DeliveryService
         $lines = $payload['lines'] ?? [];
         $customerId = (int)($payload['customer_id'] ?? 0);
         $warehouseId = (int)($payload['warehouse_id'] ?? 0);
+        // Emplacement optionnel d'ou sortir le stock, applique a TOUTES les
+        // lignes (facultatif : reste NULL = sortie "sans emplacement precis"
+        // comme avant l'ajout de ce champ). Une ligne avec numero de serie
+        // l'ignore : elle sort deja de l'emplacement ou se trouve reellement
+        // cet exemplaire (voir plus bas), plus fiable qu'un choix unique pour
+        // tout le bon de livraison.
+        $documentLocationId = !empty($payload['location_id']) ? (int)$payload['location_id'] : null;
 
         if (!is_array($lines) || $lines === []) {
             throw new HttpException('Au moins une ligne est requise', 422);
@@ -102,10 +109,13 @@ final class DeliveryService
                 $lines[$index]['serial_id'] = $serialId;
                 // La sortie de stock doit venir de l'emplacement ou se trouve
                 // reellement cet exemplaire, pas d'une allee choisie au hasard
-                // par la repartition automatique.
+                // par la repartition automatique (ni de l'emplacement du
+                // document, potentiellement different).
                 $lines[$index]['source_location_id'] = $serial['location_id'] !== null
                     ? (int)$serial['location_id']
                     : null;
+            } else {
+                $lines[$index]['source_location_id'] = $documentLocationId;
             }
 
             $lineTotal = $qty * $unitPrice;

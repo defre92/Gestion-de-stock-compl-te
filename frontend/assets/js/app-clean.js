@@ -2915,6 +2915,11 @@ async function renderDeliveries() {
             <form id="deliveryForm" class="form-grid">
                 ${selectField('customer_id', 'Client', state.lookups.customers, 'id', 'name', true)}
                 ${selectField('warehouse_id', 'Entrepot', state.lookups.warehouses, 'id', 'name', true)}
+                <label><span>Emplacement source (optionnel)</span>
+                    <select name="location_id" id="deliveryLocation" disabled>
+                        <option value="">Choisis d'abord un entrepot</option>
+                    </select></label>
+                <small class="field-hint full">S'applique aux lignes sans numero de serie (un numero de serie sort toujours de l'emplacement ou il se trouve reellement). Laisse vide pour sortir sans emplacement precis (comme avant).</small>
                 <label class="full"><span>Notes</span><textarea name="notes"></textarea></label>
             </form>
             <div class="table-wrap">
@@ -2953,6 +2958,12 @@ async function renderDeliveries() {
 
     const linesBody = document.getElementById('deliveryLinesBody');
     const products = state.lookups.products ?? [];
+
+    const deliveryWarehouseSelect = document.querySelector('#deliveryForm select[name="warehouse_id"]');
+    const deliveryLocationSelect = document.getElementById('deliveryLocation');
+    const syncDeliveryLocations = () => fillLocationOptions(deliveryLocationSelect, deliveryWarehouseSelect?.value ?? '');
+    deliveryWarehouseSelect?.addEventListener('change', syncDeliveryLocations);
+    syncDeliveryLocations();
 
     const addLineRow = () => {
         const row = document.createElement('tr');
@@ -3078,6 +3089,7 @@ async function renderDeliveries() {
         const payload = {
             customer_id: Number(data.get('customer_id')),
             warehouse_id: Number(data.get('warehouse_id')),
+            location_id: data.get('location_id') ? Number(data.get('location_id')) : null,
             notes: String(data.get('notes') ?? ''),
             lines,
         };
@@ -3972,6 +3984,11 @@ async function renderPurchaseOrders() {
             <hr>
             <form id="poReceiptForm" class="form-grid">
                 <label><span>Commande</span><select name="purchase_order_id" id="receiptOrderId" required><option value="">Choisir</option>${orderOptions}</select></label>
+                <label><span>Emplacement (optionnel)</span>
+                    <select name="location_id" id="receiptLocation" disabled>
+                        <option value="">Choisis d'abord une commande</option>
+                    </select></label>
+                <small class="field-hint full">S'applique aux lignes receptionnees ci-dessous. Laisse vide pour ranger sans emplacement precis (comme avant).</small>
                 <div id="receiptItemsContainer" class="full"><p class="muted">Choisis une commande pour voir ses lignes restantes.</p></div>
                 <button type="submit" class="btn btn-primary">Receptionner les lignes cochees</button>
                 <p id="poReceiptFeedback" class="feedback"></p>
@@ -4174,15 +4191,21 @@ async function renderPurchaseOrders() {
     const receiptFeedback = document.getElementById('poReceiptFeedback');
     const receiptOrderSelect = document.getElementById('receiptOrderId');
     const receiptItemsContainer = document.getElementById('receiptItemsContainer');
+    const receiptLocationSelect = document.getElementById('receiptLocation');
 
     const loadReceiptItems = async (orderId) => {
         if (!orderId) {
             receiptItemsContainer.innerHTML = '<p class="muted">Choisis une commande pour voir ses lignes restantes.</p>';
+            fillLocationOptions(receiptLocationSelect, '');
             return;
         }
 
         const orderResponse = await apiRequest(`/purchase-orders/${orderId}`);
         const order = orderResponse.data ?? {};
+        // L'emplacement propose est celui de l'entrepot de LA COMMANDE (fixe
+        // pour toute la reception, comme le warehouse_id) : pas de sens de
+        // proposer un emplacement d'un autre entrepot.
+        fillLocationOptions(receiptLocationSelect, order.warehouse_id ?? '');
         const remainingItems = (order.items ?? [])
             .map((item) => {
                 const ordered = Number(item.quantity_ordered ?? 0);
@@ -4224,6 +4247,7 @@ async function renderPurchaseOrders() {
 
         const orderId = Number(receiptOrderSelect.value);
         const checkboxes = receiptItemsContainer.querySelectorAll('[data-receipt-check]:checked');
+        const locationId = receiptLocationSelect?.value ? Number(receiptLocationSelect.value) : null;
 
         const items = Array.from(checkboxes).map((checkbox) => {
             const itemId = checkbox.getAttribute('data-receipt-check');
@@ -4243,7 +4267,7 @@ async function renderPurchaseOrders() {
         try {
             await apiRequest(`/purchase-orders/${orderId}/receive`, {
                 method: 'POST',
-                body: { items },
+                body: { items, location_id: locationId },
             });
             await renderPurchaseOrders();
         } catch (error) {
