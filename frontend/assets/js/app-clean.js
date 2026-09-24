@@ -2239,18 +2239,15 @@ async function renderMovements() {
                 <div class="full hidden" id="movementVariantWrap">
                     <label><span>Variante</span><select name="variant_id" id="movementVariantSelect"></select></label>
                     <small class="field-hint">Ce produit utilise des variantes : choisis celle concernee par ce mouvement.</small>
-                    <div class="hidden" id="movementMultiToggleWrap">
-                        <label class="checklist-item">
-                            <input type="checkbox" id="movementMultiToggle">
-                            Deplacer plusieurs variantes a la fois (stock disponible complet, sans saisir de quantite)
-                        </label>
+                    <div class="hidden" id="movementMultiToggleWrap" style="margin-top: 0.6rem;">
+                        <button type="button" class="btn btn-soft" id="movementMultiToggle">Deplacer plusieurs variantes a la fois &rarr;</button>
                     </div>
                 </div>
                 <div class="full hidden" id="movementVariantMultiWrap">
-                    <span>Variantes a deplacer</span>
+                    <span>Variantes a deplacer (toutes cochees par defaut)</span>
                     <div id="movementVariantMultiList" class="serial-checklist"></div>
-                    <small class="field-hint">Coche les variantes concernees : pour chacune, la quantite disponible a l'emplacement source choisi (ou dans tout l'entrepot si aucun emplacement precis) est deplacee automatiquement.</small>
-                    <button type="button" class="btn btn-soft" id="movementMultiBackBtn">Revenir a une seule variante</button>
+                    <small class="field-hint">Decoche celles a ne pas deplacer. Pour chaque variante cochee, la quantite disponible a l'emplacement source choisi (ou dans tout l'entrepot si aucun emplacement precis) est deplacee automatiquement.</small>
+                    <button type="button" class="btn btn-soft" id="movementMultiBackBtn">&larr; Revenir a une seule variante</button>
                 </div>
                 ${selectField('warehouse_id', 'Entrepot source', state.lookups.warehouses, 'id', 'name', true)}
                 <label><span>Emplacement source (optionnel)</span>
@@ -2385,9 +2382,12 @@ async function renderMovements() {
             ? '<p class="muted">Aucune variante active pour ce produit</p>'
             : lastLoadedVariants.map((v) => {
                 const available = availability.get(String(v.id)) ?? 0;
+                // Toutes cochees par defaut : le but du mode multi-variantes
+                // est de tout deplacer en un clic, l'utilisateur decoche
+                // seulement les exceptions (voir la demande d'origine).
                 return `
                     <label class="checklist-item">
-                        <input type="checkbox" class="movement-variant-multi-checkbox" value="${v.id}" data-available="${available}" ${available <= 0 ? 'disabled' : ''}>
+                        <input type="checkbox" class="movement-variant-multi-checkbox" value="${v.id}" data-available="${available}" ${available <= 0 ? 'disabled' : 'checked'}>
                         ${sanitize(variantDescriptor(v))} (disponible ici : ${available})
                     </label>
                 `;
@@ -2403,9 +2403,6 @@ async function renderMovements() {
         multiToggleWrap?.classList.toggle('hidden', !multiCapable);
         if (!multiCapable && multiMode) {
             multiMode = false;
-            if (multiToggle) {
-                multiToggle.checked = false;
-            }
         }
 
         variantWrap.classList.toggle('hidden', !hasVariants || multiMode);
@@ -2421,15 +2418,12 @@ async function renderMovements() {
         }
     };
 
-    multiToggle?.addEventListener('change', () => {
-        multiMode = !!multiToggle.checked;
+    multiToggle?.addEventListener('click', () => {
+        multiMode = true;
         applyVariantMode();
     });
     multiBackBtn?.addEventListener('click', () => {
         multiMode = false;
-        if (multiToggle) {
-            multiToggle.checked = false;
-        }
         applyVariantMode();
     });
 
@@ -4830,18 +4824,15 @@ async function renderProductDetail(productId) {
                 <div class="full ${Number(product.has_variants) === 1 ? '' : 'hidden'}" id="productMoveVariantWrap">
                     <label><span>Variante</span><select name="variant_id" id="productMoveVariantSelect" ${Number(product.has_variants) === 1 ? 'required' : ''}></select></label>
                     <small class="field-hint">Ce produit utilise des variantes : choisis celle concernee par ce mouvement.</small>
-                    <div class="hidden" id="productMoveMultiToggleWrap">
-                        <label class="checklist-item">
-                            <input type="checkbox" id="productMoveMultiToggle">
-                            Deplacer plusieurs variantes a la fois (stock disponible complet, sans saisir de quantite)
-                        </label>
+                    <div class="hidden" id="productMoveMultiToggleWrap" style="margin-top: 0.6rem;">
+                        <button type="button" class="btn btn-soft" id="productMoveMultiToggle">Deplacer plusieurs variantes a la fois &rarr;</button>
                     </div>
                 </div>
                 <div class="full hidden" id="productMoveVariantMultiWrap">
-                    <span>Variantes a deplacer</span>
+                    <span>Variantes a deplacer (toutes cochees par defaut)</span>
                     <div id="productMoveVariantMultiList" class="serial-checklist"></div>
-                    <small class="field-hint">Coche les variantes concernees : pour chacune, la quantite disponible a l'emplacement source choisi (ou dans tout l'entrepot si aucun emplacement precis) est deplacee automatiquement.</small>
-                    <button type="button" class="btn btn-soft" id="productMoveMultiBackBtn">Revenir a une seule variante</button>
+                    <small class="field-hint">Decoche celles a ne pas deplacer. Pour chaque variante cochee, la quantite disponible a l'emplacement source choisi (ou dans tout l'entrepot si aucun emplacement precis) est deplacee automatiquement.</small>
+                    <button type="button" class="btn btn-soft" id="productMoveMultiBackBtn">&larr; Revenir a une seule variante</button>
                 </div>
                 <label><span>Type</span><select name="type" required>
                     <option value="IN">Entree</option>
@@ -4957,9 +4948,11 @@ async function renderProductDetail(productId) {
             ? '<p class="muted">Aucune variante active pour ce produit</p>'
             : productMoveLastVariants.map((v) => {
                 const available = availability.get(String(v.id)) ?? 0;
+                // Toutes cochees par defaut : voir la meme remarque sur
+                // l'ecran Mouvements.
                 return `
                     <label class="checklist-item">
-                        <input type="checkbox" class="product-move-variant-multi-checkbox" value="${v.id}" data-available="${available}" ${available <= 0 ? 'disabled' : ''}>
+                        <input type="checkbox" class="product-move-variant-multi-checkbox" value="${v.id}" data-available="${available}" ${available <= 0 ? 'disabled' : 'checked'}>
                         ${sanitize(variantDescriptor(v))} (disponible ici : ${available})
                     </label>
                 `;
@@ -4974,9 +4967,6 @@ async function renderProductDetail(productId) {
         productMoveMultiToggleWrap?.classList.toggle('hidden', !multiCapable);
         if (!multiCapable && productMoveMultiMode) {
             productMoveMultiMode = false;
-            if (productMoveMultiToggle) {
-                productMoveMultiToggle.checked = false;
-            }
         }
 
         document.getElementById('productMoveVariantWrap')?.classList.toggle('hidden', productMoveMultiMode);
@@ -4994,15 +4984,12 @@ async function renderProductDetail(productId) {
         }
     };
 
-    productMoveMultiToggle?.addEventListener('change', () => {
-        productMoveMultiMode = !!productMoveMultiToggle.checked;
+    productMoveMultiToggle?.addEventListener('click', () => {
+        productMoveMultiMode = true;
         applyProductMoveVariantMode();
     });
     productMoveMultiBackBtn?.addEventListener('click', () => {
         productMoveMultiMode = false;
-        if (productMoveMultiToggle) {
-            productMoveMultiToggle.checked = false;
-        }
         applyProductMoveVariantMode();
     });
 
