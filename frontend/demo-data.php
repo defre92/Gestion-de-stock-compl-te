@@ -27,7 +27,10 @@ declare(strict_types=1);
  *  2) Charger la demo "outillage electroportatif"
  *     (database/demo/catalog-demo-mecanique.sql) -> theme alternatif et
  *     AUTONOME (cree son propre entrepot/unite/taxe si besoin), pour montrer
- *     la 4e saveur de variantes (materiel) sur 5 produits / 10 variantes.
+ *     la 4e saveur de variantes (materiel) sur 5 produits / 20 variantes, et
+ *     un scenario complet comme le (1) : fournisseurs, clients, zone
+ *     d'entrepot dediee avec ses emplacements, demande d'achat convertie en
+ *     commande receptionnee, livraison client (BL) et mouvements de stock.
  *     Distinct du (1) pour que le client choisisse vraiment entre les deux -
  *     charger seulement celui-ci (client dont l'activite est justement
  *     l'outillage), seulement le (1), ou les deux ensemble (aucun conflit,
@@ -239,7 +242,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'load_demo_mecanique') {
         try {
             loadDemoSqlFile($pdo, $rootPath . '/database/demo/catalog-demo-mecanique.sql', (int)$admin['id'], $ip, 'DEMO_DATA_MECANIQUE_LOADED');
-            $message = "Demo 'outillage electroportatif' chargee : categorie Outillage, 5 produits, 10 variantes materiel (puissance/marque/type/vitesse/tension/forme) et leur stock. Active \"technical_variants_enabled\" dans Parametres pour voir ces champs sur l'onglet Variantes.";
+            $message = "Demo 'outillage electroportatif' chargee : categorie Outillage, 5 produits, 20 variantes materiel (4 par produit) et leur stock, 2 fournisseurs, 2 clients, une zone d'entrepot dediee avec ses emplacements, une demande d'achat convertie en commande receptionnee, une livraison client (BL) et les mouvements de stock correspondants. Active \"technical_variants_enabled\" dans Parametres pour voir les champs materiel sur l'onglet Variantes.";
         } catch (Throwable $ex) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
@@ -333,7 +336,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   <fieldset>
     <legend>Demo outillage electroportatif (materiel)</legend>
-    <p>Catalogue alternatif, axe outillage : 5 produits (perceuse-visseuse, meuleuse, visseuse a chocs, scie sauteuse, ponceuse) et 10 variantes "materiel" : puissance, marque, type, vitesse, tension, forme. A charger a la place de la demo standard ci-dessus si ton client est dans l'outillage (vetements/boissons/fournitures de bureau ne lui parleraient pas), ou en plus si tu veux montrer les deux themes - les deux catalogues n'entrent pas en conflit.</p>
+    <p>Catalogue alternatif, axe outillage : 5 produits (perceuse-visseuse, meuleuse, visseuse a chocs, scie sauteuse, ponceuse), chacun decline en 4 variantes "materiel" (entree de gamme / compacte / pro / pro+) sur puissance, marque, type, vitesse, tension et forme - 20 variantes au total. Comme la demo standard, inclut aussi un scenario complet : 2 fournisseurs, 2 clients, une zone d'entrepot dediee (avec ses emplacements), une demande d'achat convertie en commande receptionnee, une livraison client (BL) et les mouvements de stock correspondants. A charger a la place de la demo standard ci-dessus si ton client est dans l'outillage (vetements/boissons/fournitures de bureau ne lui parleraient pas), ou en plus si tu veux montrer les deux themes - les deux catalogues n'entrent pas en conflit.</p>
     <p class="hint">Autonome : peut etre charge seul, sans la demo standard ci-dessus. Active aussi "technical_variants_enabled" dans Parametres pour voir ces champs.</p>
     <form method="post">
       <input type="hidden" name="action" value="load_demo_mecanique">
