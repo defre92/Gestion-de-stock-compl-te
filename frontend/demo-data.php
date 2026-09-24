@@ -19,12 +19,20 @@ declare(strict_types=1);
  * ci-dessous pour les installations existantes qui n'avaient pas encore ce
  * role.
  *
- * Deux actions :
+ * Trois actions :
  *  1) Charger les donnees de demo catalogue (database/demo/catalog-demo.sql)
  *     -> categories, fournisseurs, produits, stock, referentiels de base.
  *     Aucun utilisateur ni role n'est touche. Peut etre relance sans risque
  *     (requetes idempotentes).
- *  2) Reinitialiser les donnees -> vide tout le catalogue/stock/mouvements/
+ *  2) Charger la demo "outillage electroportatif"
+ *     (database/demo/catalog-demo-mecanique.sql) -> theme alternatif et
+ *     AUTONOME (cree son propre entrepot/unite/taxe si besoin), pour montrer
+ *     la 4e saveur de variantes (materiel) sur 5 produits / 10 variantes.
+ *     Distinct du (1) pour que le client choisisse vraiment entre les deux -
+ *     charger seulement celui-ci (client dont l'activite est justement
+ *     l'outillage), seulement le (1), ou les deux ensemble (aucun conflit,
+ *     categories/fournisseurs/SKU distincts).
+ *  3) Reinitialiser les donnees -> vide tout le catalogue/stock/mouvements/
  *     achats/livraisons/inventaires du client, mais conserve les comptes
  *     utilisateurs, les roles, les parametres d'application et le journal
  *     d'audit. Necessite de taper "SUPPRIMER" pour confirmer, en plus de la
@@ -191,32 +199,52 @@ $admin = requireAdmin($pdo);
 $message = null;
 $error = null;
 
+/**
+ * Charge un fichier .sql de demo (place-holder __CURRENT_ADMIN_ID__ remplace
+ * par le compte connecte, comme pour le catalogue de demo standard) dans une
+ * transaction unique. Factorise entre "load_demo" et "load_demo_mecanique"
+ * (meme mecanique, seul le fichier et le message de succes changent).
+ */
+function loadDemoSqlFile(PDO $pdo, string $sqlFile, int $adminId, ?string $ip, string $auditAction): void
+{
+    $sql = file_get_contents($sqlFile);
+    if ($sql === false) {
+        throw new RuntimeException("Fichier introuvable : {$sqlFile}");
+    }
+    // Remplace le placeholder par l'id de l'admin actuellement connecte,
+    // pour que les references utilisateur du scenario de demo (commandes,
+    // livraison, inventaire...) pointent vers un compte qui existe
+    // reellement chez le client.
+    $sql = str_replace('__CURRENT_ADMIN_ID__', (string)$adminId, $sql);
+    $pdo->beginTransaction();
+    $pdo->exec($sql);
+    $pdo->commit();
+    logAudit($pdo, $adminId, $auditAction, $ip);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     $ip = $_SERVER['REMOTE_ADDR'] ?? null;
 
     if ($action === 'load_demo') {
-        $sqlFile = $rootPath . '/database/demo/catalog-demo.sql';
         try {
-            $sql = file_get_contents($sqlFile);
-            if ($sql === false) {
-                throw new RuntimeException("Fichier introuvable : {$sqlFile}");
-            }
-            // Remplace le placeholder par l'id de l'admin actuellement
-            // connecte, pour que les references utilisateur du scenario de
-            // demo (commandes, livraison, inventaire...) pointent vers un
-            // compte qui existe reellement chez le client.
-            $sql = str_replace('__CURRENT_ADMIN_ID__', (string)(int)$admin['id'], $sql);
-            $pdo->beginTransaction();
-            $pdo->exec($sql);
-            $pdo->commit();
-            logAudit($pdo, (int)$admin['id'], 'DEMO_DATA_LOADED', $ip);
+            loadDemoSqlFile($pdo, $rootPath . '/database/demo/catalog-demo.sql', (int)$admin['id'], $ip, 'DEMO_DATA_LOADED');
             $message = "Donnees de demo chargees : categories, fournisseurs, produits, stock, referentiels, et un scenario complet (demande d'achat, commande fournisseur, livraison, inventaire, mouvements, alertes). Aucun compte utilisateur n'a ete touche.";
         } catch (Throwable $ex) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
             $error = "Echec du chargement des donnees de demo : " . $ex->getMessage();
+        }
+    } elseif ($action === 'load_demo_mecanique') {
+        try {
+            loadDemoSqlFile($pdo, $rootPath . '/database/demo/catalog-demo-mecanique.sql', (int)$admin['id'], $ip, 'DEMO_DATA_MECANIQUE_LOADED');
+            $message = "Demo 'outillage electroportatif' chargee : categorie Outillage, 5 produits, 10 variantes materiel (puissance/marque/type/vitesse/tension/forme) et leur stock. Active \"technical_variants_enabled\" dans Parametres pour voir ces champs sur l'onglet Variantes.";
+        } catch (Throwable $ex) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            $error = "Echec du chargement de la demo outillage : " . $ex->getMessage();
         }
     } elseif ($action === 'reset_data') {
         if (($_POST['confirm_text'] ?? '') !== 'SUPPRIMER') {
@@ -294,12 +322,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <?php if ($error): ?><div class="errors"><?= e($error) ?></div><?php endif; ?>
 
   <fieldset>
-    <legend>Charger les donnees de demo</legend>
+    <legend>Demo standard</legend>
     <p>Ajoute un catalogue d'exemple (categories, fournisseurs, produits, stock) et un scenario complet deja en action : demande d'achat, commande fournisseur receptionnee, livraison client, session d'inventaire, mouvements de stock et alertes. Ideal pour montrer l'application "en vie" plutot qu'un catalogue vide.</p>
     <p class="hint">Sans risque : n'ajoute rien qui ecrase tes donnees existantes, ne touche aucun compte utilisateur (les references "fait par" pointent vers ton propre compte admin connecte).</p>
     <form method="post">
       <input type="hidden" name="action" value="load_demo">
-      <button type="submit">Charger les donnees de demo</button>
+      <button type="submit">Charger la demo standard</button>
+    </form>
+  </fieldset>
+
+  <fieldset>
+    <legend>Demo outillage electroportatif (materiel)</legend>
+    <p>Catalogue alternatif, axe outillage : 5 produits (perceuse-visseuse, meuleuse, visseuse a chocs, scie sauteuse, ponceuse) et 10 variantes "materiel" : puissance, marque, type, vitesse, tension, forme. A charger a la place de la demo standard ci-dessus si ton client est dans l'outillage (vetements/boissons/fournitures de bureau ne lui parleraient pas), ou en plus si tu veux montrer les deux themes - les deux catalogues n'entrent pas en conflit.</p>
+    <p class="hint">Autonome : peut etre charge seul, sans la demo standard ci-dessus. Active aussi "technical_variants_enabled" dans Parametres pour voir ces champs.</p>
+    <form method="post">
+      <input type="hidden" name="action" value="load_demo_mecanique">
+      <button type="submit">Charger la demo outillage</button>
     </form>
   </fieldset>
 

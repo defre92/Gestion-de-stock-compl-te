@@ -4596,3 +4596,4 @@ WHERE v.sku = 'DEMO-BUR-S11-P60'
 -- Les deux produits concernes doivent etre marques "a des variantes", sinon le
 -- selecteur de variante n'apparait pas dans les mouvements de stock.
 UPDATE products SET has_variants = 1 WHERE sku IN ('DEMO-BUR-004', 'DEMO-BUR-S11');
+

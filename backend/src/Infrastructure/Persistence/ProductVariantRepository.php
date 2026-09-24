@@ -174,10 +174,36 @@ final class ProductVariantRepository extends PdoCrudRepository
             $normalizedQuery = self::stripAccents(mb_strtolower(trim((string)$filters['q']), 'UTF-8'));
             if ($normalizedQuery !== '') {
                 $matchedColumns = [];
+                $paramIndex = 0;
                 foreach (self::ATTRIBUTE_KEYWORDS as $keyword => $column) {
-                    if (str_contains($keyword, $normalizedQuery) && !in_array($column, $matchedColumns, true)) {
+                    if (in_array($column, $matchedColumns, true)) {
+                        continue;
+                    }
+
+                    if (str_contains($keyword, $normalizedQuery)) {
+                        // Saisie en cours du mot-cle lui-meme ("mill" -> "millesime") :
+                        // on retrouve deja toute variante ou la colonne est renseignee,
+                        // sans attendre la valeur.
                         $matchedColumns[] = $column;
                         $searchClauses[] = "(v.{$column} IS NOT NULL AND v.{$column} <> '')";
+                        continue;
+                    }
+
+                    if (str_contains($normalizedQuery, $keyword)) {
+                        // Le mot-cle est complet et suivi d'autre chose ("millesime 2022",
+                        // "couleur noir") : on filtre alors sur la VALEUR qui suit, sur la
+                        // colonne correspondante - sinon taper une valeur apres le mot-cle
+                        // ne retrouvait plus rien (ni la recherche par valeur brute
+                        // ci-dessus, qui ne trouve pas "millesime 2022" tel quel dans une
+                        // colonne, ni la recherche par mot-cle seule, prevue pour la saisie
+                        // partielle du mot-cle et non pour un mot-cle deja complet).
+                        $remainder = trim(str_replace($keyword, '', $normalizedQuery));
+                        if ($remainder !== '') {
+                            $matchedColumns[] = $column;
+                            $token = ':f_qkw' . $paramIndex++;
+                            $searchClauses[] = "v.{$column} LIKE {$token}";
+                            $params[$token] = '%' . $remainder . '%';
+                        }
                     }
                 }
             }
