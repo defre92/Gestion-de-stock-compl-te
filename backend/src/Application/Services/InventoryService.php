@@ -7,6 +7,7 @@ use App\Infrastructure\Persistence\AuditRepository;
 use App\Infrastructure\Persistence\InventoryRepository;
 use App\Infrastructure\Persistence\ProductRepository;
 use App\Shared\Database\Database;
+use App\Shared\Export\XlsxReader;
 use App\Shared\Http\HttpException;
 use Throwable;
 
@@ -84,6 +85,135 @@ final class InventoryService
             'counted' => max(0, $total - count($items)),
             'items' => $items,
         ];
+    }
+
+    /**
+     * Feuille de comptage pour un comptage "papier"/Excel : toutes les lignes
+     * de stock de l'entrepot de la session (produit + variante + emplacement),
+     * quantite attendue pour reference, et une colonne "Quantite comptee" a
+     * remplir - ce n'est PAS la meme chose que remainingToCount(), qui ne
+     * sert qu'a l'ecran "reste a compter" et ne fonctionne qu'en mode GLOBAL.
+     * Ici, on exporte toujours tout l'entrepot : un comptage papier couvre
+     * l'ensemble, quel que soit le mode de la session.
+     */
+    public function exportCountSheet(int $sessionId): array
+    {
+        $session = $this->findSession($sessionId);
+        $lines = $this->repository->countSheetLines((int)$session['warehouse_id']);
+
+        return ['session' => $session, 'lines' => $lines];
+    }
+
+    /**
+     * Reimporte une feuille de comptage remplie dans Excel (export ci-dessus,
+     * rouvert et complete par l'utilisateur, ou re-enregistre depuis Excel
+     * lui-meme - les deux formats de fichier .xlsx sont geres par
+     * XlsxReader). Chaque ligne dont la colonne "Quantite comptee" est
+     * remplie devient un comptage, exactement comme si elle avait ete saisie
+     * une a une via addCount() - on reutilise d'ailleurs cette meme methode
+     * pour ne pas dupliquer ses regles (session modifiable, produit a
+     * variantes, calcul de l'ecart...).
+     *
+     * Une ligne dont la colonne est VIDE est ignoree, pas mise a zero : cela
+     * permet de ne remplir qu'une partie de la feuille et de reimporter
+     * plusieurs fois au fur et a mesure du comptage physique, sans ecraser
+     * par erreur les produits pas encore comptes.
+     */
+    public function importCounts(int $sessionId, array $file, int $actorId, ?string $ip): array
+    {
+        $session = $this->findSession($sessionId);
+        if (!in_array($session['status'], ['IN_PROGRESS', 'DRAFT'], true)) {
+            throw new HttpException('Cette session n\'est plus modifiable', 422);
+        }
+
+        $this->assertUploadedXlsx($file);
+
+        $rows = XlsxReader::readRows($file['tmp_name']);
+        $total = count($rows);
+        $success = 0;
+        $skipped = 0;
+        $errors = [];
+
+        foreach ($rows as $index => $row) {
+            $line = $index + 2; // ligne 1 = entete
+
+            $countedRaw = trim((string)($row['quantite_comptee'] ?? ''));
+            if ($countedRaw === '') {
+                $skipped++;
+                continue;
+            }
+
+            $productIdRaw = trim((string)($row['id_produit'] ?? ''));
+            if ($productIdRaw === '' || !is_numeric($productIdRaw)) {
+                $errors[] = "ligne {$line} : colonne \"ID Produit\" manquante ou invalide - ne modifie pas cette colonne dans le fichier exporte";
+                continue;
+            }
+
+            try {
+                $this->addCount($sessionId, [
+                    'product_id' => (int)$productIdRaw,
+                    'variant_id' => is_numeric(trim((string)($row['id_variante'] ?? ''))) ? (int)$row['id_variante'] : null,
+                    'location_id' => is_numeric(trim((string)($row['id_emplacement'] ?? ''))) ? (int)$row['id_emplacement'] : null,
+                    'counted_qty' => (int)round((float)str_replace(',', '.', $countedRaw)),
+                    'notes' => 'Import feuille de comptage Excel',
+                ], $actorId, $ip);
+                $success++;
+            } catch (Throwable $exception) {
+                $errors[] = "ligne {$line} : " . $exception->getMessage();
+            }
+        }
+
+        $this->auditRepository->log($actorId, 'IMPORT_COUNTS', 'inventory_session', $sessionId, [
+            'total' => $total,
+            'success' => $success,
+            'skipped' => $skipped,
+            'failed' => count($errors),
+        ], $ip);
+
+        return [
+            'total_rows' => $total,
+            'success_rows' => $success,
+            'skipped_rows' => $skipped,
+            'failed_rows' => count($errors),
+            'errors' => array_slice($errors, 0, 20),
+        ];
+    }
+
+    /**
+     * Meme controle que FileStorageService pour un .xlsx (extension declaree
+     * ET contenu reel via fileinfo) - sans passer par le stockage permanent
+     * des pieces jointes, cette feuille est une entree transitoire, pas un
+     * document a conserver.
+     */
+    private function assertUploadedXlsx(array $file): void
+    {
+        $error = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
+        if ($error !== UPLOAD_ERR_OK) {
+            throw new HttpException('Le televersement du fichier a echoue', 422);
+        }
+
+        $tmpName = (string)($file['tmp_name'] ?? '');
+        if ($tmpName === '' || !is_file($tmpName) || !is_uploaded_file($tmpName)) {
+            throw new HttpException('Fichier televerse manquant', 422);
+        }
+
+        $originalName = (string)($file['name'] ?? '');
+        $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+        if ($extension !== 'xlsx') {
+            throw new HttpException(
+                'Ce fichier n\'est pas un .xlsx. Reimporte le fichier Excel telecharge (ou reenregistre au format .xlsx).',
+                422
+            );
+        }
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $realMime = $finfo ? (finfo_file($finfo, $tmpName) ?: '') : '';
+        if ($finfo) {
+            finfo_close($finfo);
+        }
+        if (!in_array($realMime, ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/zip'], true)) {
+            throw new HttpException('Le contenu du fichier ne correspond pas a un fichier .xlsx', 422);
+        }
     }
 
     public function addCount(int $sessionId, array $payload, int $actorId, ?string $ip): int

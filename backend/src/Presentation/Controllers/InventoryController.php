@@ -92,4 +92,69 @@ final class InventoryController
         header('X-Content-Type-Options: nosniff');
         echo $content;
     }
+
+    /**
+     * Feuille de comptage vierge (ou a completer) : SKU/produit/variante/
+     * emplacement/quantite attendue pour reference, et une colonne "Quantite
+     * comptee" vide - a remplir dans Excel puis reimporter via importCounts().
+     * Les colonnes "ID ..." portent les identifiants techniques utilises a la
+     * reimportation : l'utilisateur ne doit pas les modifier (rappel en fin
+     * de nom de colonne), mais elles restent visibles plutot que masquees,
+     * plus robuste qu'une colonne cachee qu'un simple copier-coller peut
+     * reveler ou perdre.
+     */
+    public function exportCountSheetXlsx(int $id): void
+    {
+        $export = $this->service->exportCountSheet($id);
+        $session = $export['session'];
+
+        // Les 3 premieres colonnes sont des identifiants techniques utilises
+        // a la reimportation (voir InventoryService::importCounts) : leur nom
+        // ne doit pas changer sans mettre a jour readCsvRows/XlsxReader et
+        // les cles lues cote import (id_produit/id_variante/id_emplacement -
+        // un texte de mise en garde entre parentheses ici changerait la cle
+        // normalisee et casserait le lien avec l'import).
+        $headers = ['ID Produit', 'ID Variante', 'ID Emplacement', 'SKU', 'Produit', 'Variante', 'Emplacement', 'Quantite attendue', 'Quantite comptee'];
+        $rows = [];
+        foreach ($export['lines'] as $line) {
+            $descriptors = array_filter([$line['variant_size'] ?? null, $line['variant_color'] ?? null]);
+            $variantLabel = $line['variant_id'] !== null
+                ? ($descriptors !== [] ? implode(' / ', $descriptors) : ($line['variant_sku'] ?? '-'))
+                : '';
+
+            $rows[] = [
+                (int)$line['product_id'],
+                $line['variant_id'] !== null ? (int)$line['variant_id'] : null,
+                $line['location_id'] !== null ? (int)$line['location_id'] : null,
+                (string)$line['sku'],
+                (string)$line['product_name'],
+                $variantLabel,
+                (string)($line['location_code'] ?? ''),
+                (int)$line['expected_qty'],
+                null,
+            ];
+        }
+
+        $content = XlsxWriter::generate($headers, $rows);
+        $filename = 'comptage-' . preg_replace('/[^A-Za-z0-9_-]/', '', (string)$session['code']) . '.xlsx';
+
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Length: ' . (string)strlen($content));
+        header('X-Content-Type-Options: nosniff');
+        echo $content;
+    }
+
+    public function importCounts(Request $request, int $id): void
+    {
+        $user = $request->attribute('auth_user');
+        $file = $request->file('file');
+        if (!$file) {
+            JsonResponse::send(['message' => 'Le fichier est requis'], 422);
+            return;
+        }
+
+        $summary = $this->service->importCounts($id, $file, (int)$user['id'], $_SERVER['REMOTE_ADDR'] ?? null);
+        JsonResponse::send(['data' => $summary], 201);
+    }
 }

@@ -150,6 +150,48 @@ final class InventoryRepository
         return $stmt->fetchAll();
     }
 
+    /**
+     * Liste complete des lignes de stock a compter dans un entrepot, pour la
+     * feuille de comptage Excel (une ligne par produit + variante +
+     * emplacement, contrairement a remainingToCount() qui regroupe par
+     * emplacement pour l'affichage "reste a compter" a l'ecran). Inclut
+     * TOUJOURS toutes les lignes, deja comptees ou non : contrairement a
+     * remainingToCount(), le but ici est un support papier/Excel complet
+     * pour un comptage physique, pas seulement ce qu'il manque.
+     */
+    public function countSheetLines(int $warehouseId): array
+    {
+        $stmt = $this->pdo->prepare('
+            SELECT
+                sl.product_id,
+                sl.variant_id,
+                sl.location_id,
+                sl.quantity AS expected_qty,
+                p.sku,
+                p.name AS product_name,
+                l.code AS location_code,
+                v.sku AS variant_sku,
+                v.size AS variant_size,
+                v.color AS variant_color,
+                v.vintage AS variant_vintage,
+                v.volume_cl AS variant_volume_cl,
+                v.width AS variant_width,
+                v.height AS variant_height,
+                v.depth AS variant_depth,
+                v.weight AS variant_weight, v.puissance AS variant_puissance, v.marque AS variant_marque, v.type AS variant_type, v.vitesse AS variant_vitesse, v.tension AS variant_tension, v.forme AS variant_forme
+            FROM stock_levels sl
+            INNER JOIN products p ON p.id = sl.product_id
+            LEFT JOIN product_variants v ON v.id = sl.variant_id
+            LEFT JOIN warehouse_locations l ON l.id = sl.location_id
+            WHERE sl.warehouse_id = :warehouse_id
+              AND sl.quantity <> 0
+            ORDER BY l.code ASC, p.name ASC, v.size ASC, v.color ASC
+        ');
+        $stmt->execute([':warehouse_id' => $warehouseId]);
+
+        return $stmt->fetchAll();
+    }
+
     /** Nombre total de lignes de stock a compter dans cet entrepot (denominateur). */
     public function countableLines(int $warehouseId): int
     {

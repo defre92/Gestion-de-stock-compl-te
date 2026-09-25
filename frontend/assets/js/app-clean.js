@@ -3615,6 +3615,31 @@ async function renderInventorySessionDetail(sessionId) {
         </section>
 
         ${writable && isEditable ? `
+        <section class="panel">
+            <div class="panel-head">
+                <h4>Comptage sur Excel</h4>
+            </div>
+            <p class="muted">
+                Telecharge la feuille de comptage de l'entrepot ${sanitize(session.warehouse_name)} (une ligne par
+                produit/variante/emplacement), compte directement dedans en remplissant la colonne
+                "Quantite comptee", puis reimporte-la ici : chaque ligne remplie devient un comptage,
+                exactement comme si tu l'avais saisi a la main. Une ligne laissee vide est ignoree -
+                tu peux donc ne compter qu'une partie de l'entrepot, reimporter, puis recompter le
+                reste plus tard et reimporter a nouveau. Ne modifie pas les colonnes "ID ..." : elles
+                servent a retrouver le bon produit/variante/emplacement a la reimportation. Une fois
+                tous les comptages faits, clique "Finaliser la session" plus bas pour clore
+                l'inventaire avec les correctifs.
+            </p>
+            <div class="panel-actions">
+                <button type="button" class="btn btn-soft" id="downloadCountSheetBtn">Telecharger la feuille de comptage</button>
+            </div>
+            <form id="importCountSheetForm" class="form-grid" style="margin-top: 0.8rem;">
+                <label><span>Feuille de comptage remplie (.xlsx)</span><input type="file" name="file" accept=".xlsx" required></label>
+                <button type="submit" class="btn btn-primary">Reimporter les comptages</button>
+                <p id="importCountSheetFeedback" class="feedback full"></p>
+            </form>
+        </section>
+
         <section class="panel hidden" id="inventoryRemainingPanel">
             <div class="panel-head">
                 <h4>Reste a compter</h4>
@@ -3679,6 +3704,55 @@ async function renderInventorySessionDetail(sessionId) {
             await downloadCsv(`/inventories/${sessionId}/export.xlsx`, `inventaire-${session.code}.xlsx`);
         } catch (error) {
             window.alert(error.message);
+        }
+    });
+
+    document.getElementById('downloadCountSheetBtn')?.addEventListener('click', async () => {
+        try {
+            await downloadCsv(`/inventories/${sessionId}/count-sheet.xlsx`, `comptage-${session.code}.xlsx`);
+        } catch (error) {
+            window.alert(error.message);
+        }
+    });
+
+    document.getElementById('importCountSheetForm')?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const feedback = document.getElementById('importCountSheetFeedback');
+        feedback.textContent = '';
+        feedback.classList.remove('is-error');
+
+        const data = new FormData(event.target);
+        const file = data.get('file');
+        if (!(file instanceof File) || !file.name) {
+            feedback.textContent = 'Choisis le fichier .xlsx rempli.';
+            feedback.classList.add('is-error');
+            return;
+        }
+
+        const payload = new FormData();
+        payload.append('file', file);
+
+        try {
+            const response = await uploadRequest(`/inventories/${sessionId}/import-counts`, payload);
+            const summary = response.data ?? {};
+            const parts = [`${summary.success_rows ?? 0} comptage(s) importe(s)`];
+            if (summary.skipped_rows) {
+                parts.push(`${summary.skipped_rows} ligne(s) vide(s) ignoree(s)`);
+            }
+            if (summary.failed_rows) {
+                parts.push(`${summary.failed_rows} en erreur`);
+            }
+            feedback.textContent = parts.join(', ') + '.';
+            feedback.classList.toggle('is-error', (summary.failed_rows ?? 0) > 0);
+            if (Array.isArray(summary.errors) && summary.errors.length > 0) {
+                window.alert(`Certaines lignes n'ont pas pu etre importees :\n${summary.errors.join('\n')}`);
+            }
+            // Comme apres l'ajout d'un comptage manuel, on recharge la session
+            // pour voir tout de suite les comptages importes dans le tableau.
+            await renderInventorySessionDetail(sessionId);
+        } catch (error) {
+            feedback.textContent = error.message;
+            feedback.classList.add('is-error');
         }
     });
 
