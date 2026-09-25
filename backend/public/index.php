@@ -211,6 +211,11 @@ $router->add('POST', '/api/v1/products', static fn (Request $req) => $productCon
 $router->add('PUT', '/api/v1/products/{id}', static fn (Request $req, array $p) => $productController->update($req, (int)$p['id']), [$authMiddleware, $adminRolesMiddleware]);
 $router->add('DELETE', '/api/v1/products/{id}', static fn (Request $req, array $p) => $productController->destroy($req, (int)$p['id']), [$authMiddleware, $adminRolesMiddleware]);
 
+// Chemin distinct de /product-variants/{id} (et non /product-variants/quelque-chose) :
+// le Router fait correspondre les routes dans l'ordre d'ajout et {id} est un
+// segment generique ([^/]+) qui matcherait n'importe quel mot avant meme
+// d'atteindre cette route si elle partageait le meme prefixe.
+$router->add('GET', '/api/v1/product-variant-attribute-values', static fn () => JsonResponse::send(['data' => (new ProductVariantRepository())->attributeValues()]), [$authMiddleware]);
 $router->add('GET', '/api/v1/product-variants', static fn (Request $req) => $productVariantController->index($req), [$authMiddleware]);
 $router->add('GET', '/api/v1/product-variants/{id}', static fn (Request $req, array $p) => $productVariantController->show((int)$p['id']), [$authMiddleware]);
 $router->add('POST', '/api/v1/product-variants', static fn (Request $req) => $productVariantController->store($req), [$authMiddleware, $stockRolesMiddleware]);

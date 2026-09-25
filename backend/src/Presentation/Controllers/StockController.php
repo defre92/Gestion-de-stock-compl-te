@@ -28,6 +28,12 @@ final class StockController
             'date_to' => $request->query('date_to'),
             'customer_id' => $request->query('customer_id'),
         ];
+        // Filtre par attribut de variante (ecran Mouvements) : un menu
+        // deroulant par attribut (Marque, Type, Puissance...), combinables -
+        // voir StockMovementRepository::ATTRIBUTE_COLUMNS / paginate().
+        foreach (\App\Infrastructure\Persistence\ProductVariantRepository::ATTRIBUTE_COLUMNS as $column) {
+            $filters['variant_' . $column] = $request->query('variant_' . $column);
+        }
         JsonResponse::send($this->service->paginateMovements($page, $perPage, $filters));
     }
 

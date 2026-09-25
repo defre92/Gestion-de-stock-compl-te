@@ -37,6 +37,15 @@ const state = {
     categoryFilter: '',
     supplierFilter: '',
     locationFilter: '',
+    // Filtres par attribut de variante (Taille, Couleur, Marque, Type...),
+    // un par menu deroulant - ecran Variantes (grille) et ecran Mouvements
+    // (historique). Cles = colonnes de product_variants (voir
+    // VARIANT_ATTRIBUTE_DEFS) ; combinables entre elles (ET logique).
+    variantAttributeFilters: {},
+    movementVariantAttributeFilters: {},
+    // Valeurs distinctes actuellement en base pour chaque attribut, pour
+    // remplir les menus deroulants ci-dessus (voir refreshVariantAttributeValues).
+    variantAttributeValues: null,
 };
 
 const dashboardCharts = {
@@ -1815,6 +1824,16 @@ async function renderCrud(module) {
         query.page = 1;
         state.crudPages[module] = 1;
     }
+    if (module === 'product-variants') {
+        // Filtre par attribut (Taille, Couleur, Marque, Type...) - un ou
+        // plusieurs menus a la fois, voir renderVariantAttributeFilters().
+        await refreshVariantAttributeValues();
+        Object.entries(state.variantAttributeFilters).forEach(([key, value]) => {
+            if (value !== '') {
+                query[key] = value;
+            }
+        });
+    }
 
     let response = await apiRequest(config.endpoint + toQueryString(query));
     let meta = response?.meta ?? null;
@@ -1934,6 +1953,14 @@ async function renderCrud(module) {
                 </div>
             </div>
 
+            ${module === 'product-variants' && renderVariantAttributeFilters('variantGrid', state.variantAttributeFilters) !== '' ? `
+            <div class="panel-actions" style="margin-top: -0.4rem; margin-bottom: 0.8rem; flex-wrap: wrap;">
+                <span class="muted" style="align-self: center;">Filtrer par attribut :</span>
+                ${renderVariantAttributeFilters('variantGrid', state.variantAttributeFilters)}
+                <button class="btn btn-soft" id="clearVariantAttributeFilters">Effacer filtres attribut</button>
+            </div>
+            ` : ''}
+
             <form id="crudForm" class="form-grid hidden"></form>
             <div id="crudFeedback" class="feedback"></div>
 
@@ -2003,6 +2030,18 @@ async function renderCrud(module) {
     }
 
     setupPagination(module, meta);
+
+    if (module === 'product-variants') {
+        attachVariantAttributeFilterListeners('variantGrid', state.variantAttributeFilters, async () => {
+            state.crudPages['product-variants'] = 1;
+            await renderCrud('product-variants');
+        });
+        document.getElementById('clearVariantAttributeFilters')?.addEventListener('click', async () => {
+            state.variantAttributeFilters = {};
+            state.crudPages['product-variants'] = 1;
+            await renderCrud('product-variants');
+        });
+    }
 
     if (module === 'product-variants' && writable) {
         setupVariantGenerator();
@@ -2436,9 +2475,20 @@ async function renderMovements() {
     // Journal des mouvements + creation rapide.
     const root = document.getElementById('appContent');
 
+    // Filtre par attribut de variante (Marque, Type, Puissance...) applique a
+    // l'historique - un ou plusieurs menus a la fois, prefixe "variant_" cote
+    // API (voir StockController::movements / StockMovementRepository).
+    const movementFilterQuery = {};
+    Object.entries(state.movementVariantAttributeFilters).forEach(([key, value]) => {
+        if (value !== '') {
+            movementFilterQuery['variant_' + key] = value;
+        }
+    });
+
     const [listResponse] = await Promise.all([
-        apiRequest('/stock/movements'),
+        apiRequest('/stock/movements' + toQueryString(movementFilterQuery)),
         refreshLookups(),
+        refreshVariantAttributeValues(),
     ]);
 
     const rows = normalizeRows(listResponse);
@@ -2519,7 +2569,16 @@ async function renderMovements() {
         </section>
 
         <section class="panel">
-            <h4>Historique mouvements</h4>
+            <div class="panel-head">
+                <h4>Historique mouvements</h4>
+            </div>
+            ${renderVariantAttributeFilters('movementHist', state.movementVariantAttributeFilters) !== '' ? `
+            <div class="panel-actions" style="margin-top: -0.4rem; margin-bottom: 0.8rem; flex-wrap: wrap;">
+                <span class="muted" style="align-self: center;">Filtrer par attribut de variante :</span>
+                ${renderVariantAttributeFilters('movementHist', state.movementVariantAttributeFilters)}
+                <button class="btn btn-soft" id="clearMovementAttributeFilters">Effacer filtres attribut</button>
+            </div>
+            ` : ''}
             ${renderSimpleTable(rows, [
                 ['created_at', 'Date'],
                 // Un transfert entre deux entrepots ecrit DEUX lignes : la
@@ -2950,6 +3009,14 @@ async function renderMovements() {
             feedback.textContent = error.message;
             feedback.classList.add('is-error');
         }
+    });
+
+    attachVariantAttributeFilterListeners('movementHist', state.movementVariantAttributeFilters, async () => {
+        await renderMovements();
+    });
+    document.getElementById('clearMovementAttributeFilters')?.addEventListener('click', async () => {
+        state.movementVariantAttributeFilters = {};
+        await renderMovements();
     });
 }
 
@@ -7067,6 +7134,65 @@ function renderSimpleTable(rows, columns) {
 async function refreshLookups() {
     const lookupResponse = await apiRequest('/lookups/options');
     state.lookups = lookupResponse.data;
+}
+
+// Definition partagee des attributs de variante filtrables (ecrans Variantes
+// et Mouvements) - meme colonnes que le generateur en lot / ProductVariantRepository::ATTRIBUTE_COLUMNS
+// cote backend. `flag` dit quel reglage (Parametres) active ce menu.
+const VARIANT_ATTRIBUTE_DEFS = [
+    { key: 'size', label: 'Taille / Pointure', flag: 'clothingVariantsEnabled' },
+    { key: 'color', label: 'Couleur', flag: 'clothingVariantsEnabled' },
+    { key: 'vintage', label: 'Millesime', flag: 'bottleVariantsEnabled' },
+    { key: 'volume_cl', label: 'Contenance (cl)', flag: 'bottleVariantsEnabled' },
+    { key: 'width', label: 'Largeur', flag: 'dimensionVariantsEnabled' },
+    { key: 'height', label: 'Hauteur', flag: 'dimensionVariantsEnabled' },
+    { key: 'depth', label: 'Profondeur', flag: 'dimensionVariantsEnabled' },
+    { key: 'weight', label: 'Poids', flag: 'dimensionVariantsEnabled' },
+    { key: 'puissance', label: 'Puissance', flag: 'technicalVariantsEnabled' },
+    { key: 'marque', label: 'Marque', flag: 'technicalVariantsEnabled' },
+    { key: 'type', label: 'Type', flag: 'technicalVariantsEnabled' },
+    { key: 'vitesse', label: 'Vitesse', flag: 'technicalVariantsEnabled' },
+    { key: 'tension', label: 'Tension', flag: 'technicalVariantsEnabled' },
+    { key: 'forme', label: 'Forme', flag: 'technicalVariantsEnabled' },
+];
+
+async function refreshVariantAttributeValues() {
+    // Petit appel dedie (pas dans /lookups/options : ce ne sont pas des
+    // referentiels a ID mais des valeurs de texte libre distinctes par
+    // colonne) - voir ProductVariantRepository::attributeValues().
+    const response = await apiRequest('/product-variant-attribute-values');
+    state.variantAttributeValues = response.data;
+}
+
+/**
+ * Construit un menu deroulant par attribut actif (Taille, Couleur, Marque...),
+ * un seul choix par menu mais combinables entre eux - utilise a la fois par
+ * l'ecran Variantes (filtre de la grille) et l'ecran Mouvements (filtre de
+ * l'historique). `idPrefix` distingue les deux jeux d'ID dans le DOM.
+ */
+function renderVariantAttributeFilters(idPrefix, currentFilters) {
+    return VARIANT_ATTRIBUTE_DEFS
+        .filter((def) => state[def.flag])
+        .map((def) => {
+            const values = state.variantAttributeValues?.[def.key] ?? [];
+            if (values.length === 0) {
+                return '';
+            }
+            const current = currentFilters[def.key] ?? '';
+            const options = values.map((value) => `<option value="${sanitize(value)}" ${String(value) === String(current) ? 'selected' : ''}>${sanitize(value)}</option>`).join('');
+            return `<select id="${idPrefix}${def.key}Filter" data-attr-filter="${def.key}"><option value="">${sanitize(def.label)} (tous)</option>${options}</select>`;
+        })
+        .join('');
+}
+
+/** Ecoute les changements des menus construits par renderVariantAttributeFilters(). */
+function attachVariantAttributeFilterListeners(idPrefix, currentFilters, onChange) {
+    VARIANT_ATTRIBUTE_DEFS.forEach((def) => {
+        document.getElementById(`${idPrefix}${def.key}Filter`)?.addEventListener('change', async (event) => {
+            currentFilters[def.key] = event.target.value;
+            await onChange();
+        });
+    });
 }
 
 function toQueryString(params) {

@@ -34,7 +34,56 @@ final class ProductVariantRepository extends PdoCrudRepository
         'unit_price',
         'is_active',
     ];
-    protected array $filterable = ['product_id', 'is_active'];
+    // Colonnes d'attribut ajoutees pour permettre de filtrer l'ecran
+    // Variantes par une ou plusieurs valeurs d'attribut (ex: Marque=Bosch ET
+    // Type=Perceuse) - voir attributeValues() ci-dessous pour la liste des
+    // valeurs distinctes proposees dans chaque menu deroulant, et buildWhere()
+    // (methode parente) qui traite deja generiquement toute colonne listee
+    // ici comme un filtre en egalite exacte.
+    protected array $filterable = [
+        'product_id', 'is_active',
+        'size', 'color', 'vintage', 'volume_cl',
+        'width', 'height', 'depth', 'weight',
+        'puissance', 'marque', 'type', 'vitesse', 'tension', 'forme',
+    ];
+
+    /**
+     * Colonnes d'attribut filtrables (voir $filterable ci-dessus), dans le
+     * meme ordre que le generateur en lot - sert a la fois a attributeValues()
+     * et au frontend pour construire un menu deroulant par attribut.
+     *
+     * @var array<int, string>
+     */
+    public const ATTRIBUTE_COLUMNS = [
+        'size', 'color', 'vintage', 'volume_cl',
+        'width', 'height', 'depth', 'weight',
+        'puissance', 'marque', 'type', 'vitesse', 'tension', 'forme',
+    ];
+
+    /**
+     * Valeurs distinctes actuellement utilisees pour chaque attribut, tous
+     * produits confondus - alimente les menus deroulants de filtre de l'ecran
+     * Variantes (et du filtre par variante de l'ecran Mouvements). Sans ceci,
+     * il faudrait taper la valeur exacte a la main ou parcourir toutes les
+     * variantes pour savoir quelles marques/types/... existent reellement.
+     *
+     * @return array<string, array<int, string>>
+     */
+    public function attributeValues(): array
+    {
+        $result = [];
+        foreach (self::ATTRIBUTE_COLUMNS as $column) {
+            $stmt = $this->pdo->prepare(
+                "SELECT DISTINCT {$column} FROM product_variants
+                 WHERE {$column} IS NOT NULL AND {$column} <> ''
+                 ORDER BY {$column} ASC LIMIT 500"
+            );
+            $stmt->execute();
+            $result[$column] = array_map('strval', $stmt->fetchAll(\PDO::FETCH_COLUMN));
+        }
+
+        return $result;
+    }
 
     /**
      * Mot-cle d'attribut -> colonne. Permet de retrouver "toutes les

@@ -85,9 +85,28 @@ final class StockMovementRepository
             $params[':customer_id'] = (int)$filters['customer_id'];
         }
 
+        // Filtre par attribut de variante (ex: Marque=Bosch), voir l'ecran
+        // Mouvements. Prefixe "variant_" cote filtre HTTP pour ne pas entrer
+        // en collision avec 'type' (type de MOUVEMENT : IN/OUT/...), qui
+        // existe deja ci-dessus - v.type designe ici le type de VARIANTE
+        // (ex: "Perceuse"). v est deja jointe plus bas (LEFT JOIN
+        // product_variants), donc un mouvement sans variante (v.xxx = NULL)
+        // ne matche naturellement aucun de ces filtres.
+        foreach (ProductVariantRepository::ATTRIBUTE_COLUMNS as $column) {
+            $filterKey = 'variant_' . $column;
+            if (!empty($filters[$filterKey])) {
+                $token = ':f_variant_' . $column;
+                $clauses[] = "v.{$column} = {$token}";
+                $params[$token] = (string)$filters[$filterKey];
+            }
+        }
+
         $whereSql = $clauses !== [] ? 'WHERE ' . implode(' AND ', $clauses) : '';
 
-        $countStmt = $this->pdo->prepare("SELECT COUNT(*) FROM stock_movements sm {$whereSql}");
+        // LEFT JOIN necessaire des le COUNT des que le where reference v.xxx
+        // (filtre par attribut de variante) - sans elle, la requete de comptage
+        // echouerait ("colonne v.marque inconnue") des qu'un tel filtre est actif.
+        $countStmt = $this->pdo->prepare("SELECT COUNT(*) FROM stock_movements sm LEFT JOIN product_variants v ON v.id = sm.variant_id {$whereSql}");
         foreach ($params as $key => $value) {
             $countStmt->bindValue($key, $value);
         }
