@@ -24,7 +24,13 @@ final class ProductSerialRepository
     public function paginate(int $page, int $perPage, array $filters = []): array
     {
         $page = max(1, $page);
-        $perPage = max(1, min(200, $perPage));
+        // Meme plafond que ProductVariantRepository::paginate() (200 -> 5000),
+        // pour la meme raison : les ecrans qui listent "tous les numeros de
+        // serie en stock d'un produit" (ex: ecran Mouvements) demandent
+        // per_page=200 pour tout recuperer en un appel, sans jamais paginer -
+        // au-dela de 200 SN sur un meme produit, les plus anciens
+        // disparaissaient silencieusement de ces listes.
+        $perPage = max(1, min(5000, $perPage));
         $offset = ($page - 1) * $perPage;
 
         $clauses = [];

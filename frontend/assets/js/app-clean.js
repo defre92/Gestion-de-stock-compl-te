@@ -2659,7 +2659,7 @@ async function renderMovements() {
         }
 
         variantSelect.innerHTML = '<option value="">Chargement...</option>';
-        const response = await apiRequest(`/product-variants?product_id=${productId}&is_active=1&per_page=200`);
+        const response = await apiRequest(`/product-variants?product_id=${productId}&is_active=1&per_page=5000`);
         const variants = normalizeRows(response);
         lastLoadedVariants = variants;
         variantSelect.innerHTML = variants.length === 0
@@ -2684,7 +2684,7 @@ async function renderMovements() {
         }
 
         serialOutList.innerHTML = '<p class="muted">Chargement...</p>';
-        const query = `product_id=${productId}&status=IN_STOCK&per_page=200${warehouseId ? `&warehouse_id=${warehouseId}` : ''}`;
+        const query = `product_id=${productId}&status=IN_STOCK&per_page=5000${warehouseId ? `&warehouse_id=${warehouseId}` : ''}`;
         const response = await apiRequest(`/product-serials?${query}`);
         const available = normalizeRows(response);
         availableOutSerialCount = available.length;
@@ -3153,7 +3153,7 @@ async function renderProductSerials() {
         }
 
         serialVariantSelect.innerHTML = '<option value="">Chargement...</option>';
-        const response = await apiRequest(`/product-variants?product_id=${productId}&is_active=1&per_page=200`);
+        const response = await apiRequest(`/product-variants?product_id=${productId}&is_active=1&per_page=5000`);
         const variants = normalizeRows(response);
         serialVariantSelect.innerHTML = variants.length === 0
             ? '<option value="">Aucune variante active pour ce produit</option>'
@@ -3379,7 +3379,7 @@ async function renderDeliveries() {
             }
             variantSelect.innerHTML = '<option value="">Choisir...</option>';
             try {
-                const response = await apiRequest(`/product-variants?product_id=${productId}&is_active=1&per_page=200`);
+                const response = await apiRequest(`/product-variants?product_id=${productId}&is_active=1&per_page=5000`);
                 const variants = normalizeRows(response);
                 variantSelect.innerHTML = '<option value="">Choisir...</option>' + variants.map((v) => {
                     const descriptors = variantDescriptor(v);
@@ -3401,7 +3401,7 @@ async function renderDeliveries() {
             }
 
             try {
-                const response = await apiRequest(`/product-serials?product_id=${productId}&status=IN_STOCK&per_page=200`);
+                const response = await apiRequest(`/product-serials?product_id=${productId}&status=IN_STOCK&per_page=5000`);
                 const serials = normalizeRows(response);
                 serialSelect.innerHTML = '<option value="">Aucun (sortie standard)</option>'
                     + serials.map((serial) => `<option value="${serial.id}">${sanitize(serial.serial_number)}</option>`).join('');
@@ -4015,7 +4015,7 @@ async function renderInventorySessionDetail(sessionId) {
 
         countVariantSelect.innerHTML = '<option value="">Chargement...</option>';
         try {
-            const variantsResponse = await apiRequest(`/product-variants?product_id=${productId}&is_active=1&per_page=200`);
+            const variantsResponse = await apiRequest(`/product-variants?product_id=${productId}&is_active=1&per_page=5000`);
             const variants = normalizeRows(variantsResponse);
             countVariantSelect.innerHTML = variants.length === 0
                 ? '<option value="">Aucune variante active pour ce produit</option>'
@@ -4235,7 +4235,7 @@ async function renderPurchaseRequests() {
             return;
         }
         lineVariantSelect.innerHTML = '<option value="">Choisir...</option>';
-        const response = await apiRequest(`/product-variants?product_id=${productId}&is_active=1&per_page=200`);
+        const response = await apiRequest(`/product-variants?product_id=${productId}&is_active=1&per_page=5000`);
         const variants = normalizeRows(response);
         lineVariantSelect.innerHTML = '<option value="">Choisir...</option>' + variants.map((v) => {
             const descriptors = variantDescriptor(v);
@@ -4491,7 +4491,7 @@ async function renderPurchaseOrders() {
             return;
         }
         orderLineVariantSelect.innerHTML = '<option value="">Choisir...</option>';
-        const response = await apiRequest(`/product-variants?product_id=${productId}&is_active=1&per_page=200`);
+        const response = await apiRequest(`/product-variants?product_id=${productId}&is_active=1&per_page=5000`);
         const variants = normalizeRows(response);
         orderLineVariantSelect.innerHTML = '<option value="">Choisir...</option>' + variants.map((v) => {
             const descriptors = variantDescriptor(v);
@@ -5288,7 +5288,7 @@ async function renderProductDetail(productId) {
             return;
         }
         productMoveVariantSelect.innerHTML = '<option value="">Chargement...</option>';
-        const response = await apiRequest(`/product-variants?product_id=${productId}&is_active=1&per_page=200`);
+        const response = await apiRequest(`/product-variants?product_id=${productId}&is_active=1&per_page=5000`);
         const variants = normalizeRows(response);
         productMoveLastVariants = variants;
         productMoveVariantSelect.innerHTML = variants.length === 0
@@ -5306,7 +5306,7 @@ async function renderProductDetail(productId) {
         }
         const warehouseId = moveWarehouseSelect?.value;
         productMoveSerialOutList.innerHTML = '<p class="muted">Chargement...</p>';
-        const query = `product_id=${productId}&status=IN_STOCK&per_page=200${warehouseId ? `&warehouse_id=${warehouseId}` : ''}`;
+        const query = `product_id=${productId}&status=IN_STOCK&per_page=5000${warehouseId ? `&warehouse_id=${warehouseId}` : ''}`;
         const response = await apiRequest(`/product-serials?${query}`);
         const available = normalizeRows(response);
         productMoveAvailableOutSerialCount = available.length;
@@ -5836,7 +5836,12 @@ async function downloadCsv(path, fileName) {
 // panneau apres la generation, on le reaffiche donc apres coup.
 let lastVariantGenerationReport = null;
 
-const VARIANT_GENERATOR_MAX = 200;
+// Plus un blocage dur : au-dela de ce seuil, on demande juste une
+// confirmation (un lot tres volumineux enchaine une requete par variante et
+// peut prendre plusieurs minutes) au lieu de refuser purement et simplement.
+// Aucune limite n'empeche de generer un lot plus grand si l'utilisateur
+// confirme.
+const VARIANT_GENERATOR_WARN_THRESHOLD = 500;
 
 function renderVariantGenerator() {
     const clothing = state.clothingVariantsEnabled;
@@ -6077,17 +6082,19 @@ function setupVariantGenerator() {
             combos = next;
         }
 
-        if (combos.length > VARIANT_GENERATOR_MAX) {
-            feedback.textContent = `${combos.length} combinaisons demandees, maximum ${VARIANT_GENERATOR_MAX} par lot. Reduis les listes et procede en plusieurs fois.`;
-            feedback.classList.add('is-error');
-            return;
+        if (combos.length > VARIANT_GENERATOR_WARN_THRESHOLD) {
+            const proceed = window.confirm(`${combos.length} combinaisons vont etre creees en une seule fois (une requete par variante) - cela peut prendre plusieurs minutes. Continuer ?`);
+            if (!proceed) {
+                feedback.textContent = 'Generation annulee.';
+                return;
+            }
         }
 
         // SKU deja utilises par ce produit : on les marque "existe deja" pour
         // pouvoir relancer un lot elargi sans creer de doublon.
         let existingSkus = new Set();
         try {
-            const response = await apiRequest(`/product-variants?product_id=${productId}&per_page=200`);
+            const response = await apiRequest(`/product-variants?product_id=${productId}&per_page=5000`);
             existingSkus = new Set(normalizeRows(response).map((row) => String(row.sku ?? '').toUpperCase()));
         } catch (error) {
             feedback.textContent = `Impossible de lire les variantes existantes : ${error.message}`;

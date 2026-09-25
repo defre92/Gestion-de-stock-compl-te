@@ -74,7 +74,18 @@ final class ProductVariantRepository extends PdoCrudRepository
     public function paginate(int $page, int $perPage, array $filters = []): array
     {
         $page = max(1, $page);
-        $perPage = max(1, min(200, $perPage));
+        // Plafond releve de 200 a 5000 (meme valeur que allForLookup() /
+        // selectableForLookup() ailleurs dans le code) : les ecrans qui
+        // gerent les variantes d'UN produit (onglet Stock, formulaire de
+        // mouvement, generateur en lot...) demandent toujours per_page=200
+        // pour recuperer "toutes les variantes du produit" en un seul appel,
+        // sans jamais regarder meta.last_page - un produit qui depassait 200
+        // variantes voyait donc ses variantes les plus anciennes disparaitre
+        // silencieusement de ces listes (ORDER BY v.id DESC). 5000 reste une
+        // limite technique (protege contre un appel HTTP ?per_page=999999999
+        // abusif) mais n'est plus une limite metier atteignable en usage
+        // normal.
+        $perPage = max(1, min(5000, $perPage));
         $offset = ($page - 1) * $perPage;
 
         [$whereSql, $params] = $this->buildWhere($filters);
