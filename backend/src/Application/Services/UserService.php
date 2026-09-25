@@ -116,7 +116,13 @@ final class UserService
         }
 
         $this->repository->update($id, $update);
-        $this->auditRepository->log($actorId, 'UPDATE', 'user', $id, array_keys($update), $ip);
+        // email du compte cible en plus des champs modifies : sans lui, une
+        // ligne "UPDATE user #14" dans le journal ne dit pas QUI a ete
+        // modifie sans devoir recouper avec l'ecran Utilisateurs.
+        $this->auditRepository->log($actorId, 'UPDATE', 'user', $id, [
+            'target_email' => $user['email'],
+            'fields' => array_keys($update),
+        ], $ip);
     }
 
     /**
@@ -177,7 +183,7 @@ final class UserService
         // deja emis continuer a fonctionner.
         $this->authTokenRepository->revokeAllForUser($id);
 
-        $this->auditRepository->log($actorId, 'RESET_PASSWORD', 'user', $id, [], $ip);
+        $this->auditRepository->log($actorId, 'RESET_PASSWORD', 'user', $id, ['email' => $user['email']], $ip);
     }
 
     public function changeOwnPassword(int $userId, string $currentPassword, string $newPassword, ?string $ip): void
@@ -222,6 +228,6 @@ final class UserService
         $this->rejectCrossSuperAdminAction($user, $actorRole);
 
         $this->repository->delete($id);
-        $this->auditRepository->log($actorId, 'DELETE', 'user', $id, [], $ip);
+        $this->auditRepository->log($actorId, 'DELETE', 'user', $id, ['email' => $user['email'], 'full_name' => $user['full_name']], $ip);
     }
 }

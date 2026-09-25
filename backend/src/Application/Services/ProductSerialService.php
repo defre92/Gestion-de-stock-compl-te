@@ -253,7 +253,10 @@ final class ProductSerialService
                 );
             }
 
-            $this->auditRepository->log($actorId, 'MARK_OUT', 'product_serial', $id, [], $ip);
+            $this->auditRepository->log($actorId, 'MARK_OUT', 'product_serial', $id, [
+                'serial_number' => $serial['serial_number'],
+                'product_id' => $serial['product_id'],
+            ], $ip);
 
             if ($ownsTransaction) {
                 $pdo->commit();
@@ -297,7 +300,10 @@ final class ProductSerialService
                 $locationId
             );
 
-            $this->auditRepository->log($actorId, 'MARK_IN_STOCK', 'product_serial', $id, [], $ip);
+            $this->auditRepository->log($actorId, 'MARK_IN_STOCK', 'product_serial', $id, [
+                'serial_number' => $serial['serial_number'],
+                'product_id' => $serial['product_id'],
+            ], $ip);
 
             if ($ownsTransaction) {
                 $pdo->commit();

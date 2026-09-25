@@ -69,10 +69,16 @@ final class CrudService
 
     public function delete(int $id, ?int $actorId, ?string $ip): void
     {
-        $this->findById($id);
+        $current = $this->findById($id);
         $this->repository->delete($id);
 
-        $this->auditRepository->log($actorId, 'DELETE', $this->entityType, $id, [], $ip);
+        // Sans ceci, une suppression ne laissait dans le journal que
+        // "DELETE product #482" - illisible une fois la fiche disparue,
+        // impossible de savoir ce qui a ete supprime sans deviner depuis
+        // l'ID. On ne garde qu'un libelle identifiant (pas toute la ligne,
+        // qui porte aussi des colonnes techniques sans interet ici).
+        $label = $current['name'] ?? $current['full_name'] ?? $current['sku'] ?? $current['code'] ?? null;
+        $this->auditRepository->log($actorId, 'DELETE', $this->entityType, $id, $label !== null ? ['label' => $label] : [], $ip);
     }
 
     /**

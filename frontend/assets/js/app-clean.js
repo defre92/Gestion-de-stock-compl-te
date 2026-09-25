@@ -1374,6 +1374,218 @@ function destroyDashboardCharts() {
     }
 }
 
+// Libelle francais (avec article) de chaque entite journalisee - sert a
+// batir une phrase lisible ("a supprime le produit «X»") plutot que
+// d'afficher le nom technique de table ("product") tel quel.
+const AUDIT_ENTITY_LABELS = {
+    category: 'la catégorie',
+    supplier: 'le fournisseur',
+    product: 'le produit',
+    product_variant: 'la variante produit',
+    brand: 'la marque',
+    unit: "l'unité",
+    tax: 'la taxe',
+    tag: 'le tag',
+    customer: 'le client',
+    warehouse: "l'entrepôt",
+    warehouse_zone: "la zone d'entrepôt",
+    warehouse_location: "l'emplacement",
+    app_setting: 'le paramètre',
+    product_media: 'le média produit',
+    stock_alert: "l'alerte de stock",
+    import_job: "l'import",
+    user: "l'utilisateur",
+    delivery: 'la livraison',
+    inventory_session: "la session d'inventaire",
+    inventory_session_item: 'la ligne de comptage',
+    product_serial: 'le numéro de série',
+    purchase_order: "la commande d'achat",
+    purchase_request: "la demande d'achat",
+    stock_movement: 'le mouvement de stock',
+    document_attachment: 'la pièce jointe',
+    auth: 'la session',
+};
+
+// Verbe francais associe a chaque action journalisee. Couvre TOUTES les
+// actions ecrites par le backend (voir les appels a AuditRepository::log
+// dans backend/src/Application/Services/*.php) - une action non listee ici
+// retombe sur son nom brut en minuscules (voir describeAuditEntry).
+const AUDIT_ACTION_VERBS = {
+    CREATE: 'a créé',
+    UPDATE: 'a modifié',
+    UPDATE_STATUS: 'a changé le statut de',
+    DELETE: 'a supprimé',
+    UPLOAD: 'a téléversé',
+    LOGIN: "s'est connecté",
+    LOGOUT: "s'est déconnecté",
+    RESET_PASSWORD: 'a réinitialisé le mot de passe de',
+    CHANGE_PASSWORD: 'a changé son mot de passe',
+    CANCEL: 'a annulé',
+    RECEIVE: 'a réceptionné',
+    FINALIZE: 'a finalisé',
+    IMPORT: 'a importé des données pour',
+    IMPORT_COUNTS: 'a importé un comptage Excel pour',
+    COUNT: 'a saisi un comptage pour',
+    MARK_OUT: 'a marqué comme sorti',
+    MARK_IN_STOCK: 'a remis en stock',
+    CONVERT: 'a converti',
+};
+
+// Options du filtre "Action" (valeur envoyee au backend + libelle francais
+// affiche). Liste explicite plutot que derivee de AUDIT_ACTION_VERBS : un
+// verbe a l'infinitif se lit mieux dans une liste deroulante qu'un verbe
+// conjugue ("Créer" plutot que "a créé").
+const AUDIT_ACTION_OPTIONS = [
+    ['CREATE', 'Création'],
+    ['UPDATE', 'Modification'],
+    ['UPDATE_STATUS', 'Changement de statut'],
+    ['DELETE', 'Suppression'],
+    ['UPLOAD', 'Téléversement de fichier'],
+    ['LOGIN', 'Connexion'],
+    ['LOGOUT', 'Déconnexion'],
+    ['RESET_PASSWORD', 'Réinitialisation de mot de passe'],
+    ['CHANGE_PASSWORD', 'Changement de mot de passe'],
+    ['CANCEL', 'Annulation'],
+    ['RECEIVE', 'Réception'],
+    ['FINALIZE', 'Finalisation'],
+    ['IMPORT', 'Import de données'],
+    ['IMPORT_COUNTS', 'Import de comptage Excel'],
+    ['COUNT', 'Saisie de comptage'],
+    ['MARK_OUT', 'Sortie de numéro de série'],
+    ['MARK_IN_STOCK', 'Remise en stock'],
+    ['CONVERT', 'Conversion'],
+].map(([value, label]) => ({ value, label }));
+
+/**
+ * Cherche un libelle affichable (nom/code/...) pour un id dans un
+ * referentiel de state.lookups (state.lookups.products, .warehouses,
+ * .warehouse_locations, ...). Renvoie null si l'id est absent, vide, ou
+ * introuvable dans le referentiel (par ex. si refreshLookups() n'a pas ete
+ * appele) - describeAuditEntry retombe alors sur l'identifiant technique.
+ */
+function auditLookupLabel(collection, id) {
+    if (id === null || id === undefined || id === '') {
+        return null;
+    }
+    const list = state.lookups?.[collection] ?? [];
+    const match = list.find((item) => String(item.id) === String(id));
+    if (!match) {
+        return null;
+    }
+    return match.name ?? match.code ?? match.full_name ?? match.sku ?? null;
+}
+
+/**
+ * Construit une phrase francaise unique et comprehensible pour une ligne du
+ * journal d'audit ("Fred a supprimé le produit «Chaise Oslo»"), a partir du
+ * payload_json enregistre par AuditRepository::log(). Objectif du ticket :
+ * comprendre immediatement ce qu'a fait un utilisateur, sans avoir a
+ * recouper manuellement action/entite/ID/JSON brut.
+ */
+function describeAuditEntry(row) {
+    const action = String(row.action ?? '');
+    const entityType = String(row.entity_type ?? '');
+    const verb = AUDIT_ACTION_VERBS[action] ?? action.toLowerCase().replace(/_/g, ' ');
+    const entityLabel = AUDIT_ENTITY_LABELS[entityType] ?? entityType;
+    const actor = sanitize(row.user_name ?? row.user_email ?? 'Un compte système');
+
+    let payload = {};
+    if (row.payload_json) {
+        try {
+            payload = JSON.parse(row.payload_json) ?? {};
+        } catch {
+            payload = {};
+        }
+    }
+
+    // Connexion/deconnexion : pas d'entite ciblee, la phrase s'arrete au verbe.
+    if (entityType === 'auth') {
+        return `${actor} ${verb}.`;
+    }
+
+    if (action === 'CHANGE_PASSWORD') {
+        return `${actor} a changé son propre mot de passe.`;
+    }
+
+    let identifier = null;
+
+    switch (entityType) {
+        case 'product':
+        case 'product_variant':
+            identifier = payload.name ?? payload.sku ?? payload.label ?? null;
+            break;
+        case 'user':
+            identifier = payload.target_email ?? payload.email ?? payload.full_name ?? null;
+            break;
+        case 'delivery':
+            identifier = payload.delivery_number ?? null;
+            break;
+        case 'purchase_order':
+            identifier = payload.order_number
+                ?? (payload.status ? `nouveau statut : ${payload.status}` : null);
+            break;
+        case 'purchase_request':
+            identifier = payload.request_number
+                ?? (payload.converted_to_purchase_order ? `convertie en commande #${payload.converted_to_purchase_order}` : null)
+                ?? (payload.status ? `nouveau statut : ${payload.status}` : null);
+            break;
+        case 'inventory_session':
+            identifier = payload.code
+                ?? (action === 'IMPORT_COUNTS'
+                    ? `${payload.success ?? 0}/${payload.total ?? 0} ligne(s), ${payload.failed ?? 0} erreur(s)`
+                    : null);
+            break;
+        case 'inventory_session_item': {
+            const productName = auditLookupLabel('products', payload.product_id);
+            identifier = productName
+                ? `${productName}${payload.counted_qty !== undefined ? ` (compté : ${payload.counted_qty})` : ''}`
+                : null;
+            break;
+        }
+        case 'product_serial':
+            identifier = payload.serial_number
+                ?? (payload.product_id ? `${payload.count ?? 1} unité(s) - ${auditLookupLabel('products', payload.product_id) ?? 'produit #' + payload.product_id}` : null);
+            break;
+        case 'document_attachment':
+            identifier = payload.file_name ?? null;
+            break;
+        case 'import_job':
+            identifier = payload.entity
+                ? `${payload.entity} (${payload.success ?? 0}/${payload.total ?? 0} ligne(s))`
+                : null;
+            break;
+        case 'stock_movement': {
+            const productName = auditLookupLabel('products', payload.product_id);
+            const warehouseName = auditLookupLabel('warehouses', payload.warehouse_id);
+            const typeLabel = { IN: 'entrée', OUT: 'sortie', TRANSFER: 'transfert', ADJUSTMENT: 'ajustement' }[payload.type] ?? payload.type;
+            const parts = [];
+            if (typeLabel) {
+                parts.push(typeLabel);
+            }
+            if (payload.quantity !== undefined && payload.quantity !== null) {
+                parts.push(`de ${payload.quantity}`);
+            }
+            if (productName) {
+                parts.push(`- ${productName}`);
+            }
+            if (warehouseName) {
+                parts.push(`(${warehouseName})`);
+            }
+            identifier = parts.length > 0 ? parts.join(' ') : null;
+            break;
+        }
+        default:
+            identifier = payload.label ?? payload.name ?? payload.full_name ?? payload.code ?? payload.email ?? null;
+    }
+
+    const safeIdentifier = identifier !== null ? sanitize(String(identifier)) : null;
+    const target = safeIdentifier
+        ? `${entityLabel} « ${safeIdentifier} »`
+        : `${entityLabel} #${row.entity_id ?? '?'}`;
+
+    return `${actor} ${verb} ${target}.`;
+}
+
 async function renderAudits() {
     // Journal d'audit en lecture seule (qui a fait quoi) - reserve aux admins,
     // deja filtre par le middleware cote backend, on ne fait ici que l'affichage.
@@ -1382,14 +1594,18 @@ async function renderAudits() {
     const filters = state.auditFilters ?? { user_id: '', action: '' };
     state.auditFilters = filters;
 
+    // refreshLookups() alimente state.lookups.products/warehouses/... : sans
+    // cet appel, describeAuditEntry() ne peut pas resoudre un product_id ou
+    // warehouse_id en nom lisible dans les mouvements de stock (l'ecran
+    // Audit n'appelait jusqu'ici jamais refreshLookups()).
     const [usersResponse, auditsResponse] = await Promise.all([
         apiRequest('/users' + toQueryString({ per_page: 200 })),
         apiRequest('/audits' + toQueryString({ ...filters, per_page: 100 })),
+        refreshLookups(),
     ]);
 
     const users = normalizeRows(usersResponse);
     const rows = normalizeRows(auditsResponse);
-    const actionOptions = ['CREATE', 'UPDATE', 'DELETE', 'RESET_PASSWORD', 'LOGIN', 'LOGOUT'];
 
     root.innerHTML = `
         <section class="panel">
@@ -1408,7 +1624,7 @@ async function renderAudits() {
                     <span>Action</span>
                     <select name="action">
                         <option value="">Toutes</option>
-                        ${actionOptions.map((a) => `<option value="${a}" ${filters.action === a ? 'selected' : ''}>${a}</option>`).join('')}
+                        ${AUDIT_ACTION_OPTIONS.map((a) => `<option value="${a.value}" ${filters.action === a.value ? 'selected' : ''}>${sanitize(a.label)}</option>`).join('')}
                     </select>
                 </label>
                 <div class="full form-actions">
@@ -1423,12 +1639,12 @@ async function renderAudits() {
             <h4>Historique (100 dernieres entrees)</h4>
             ${renderSimpleTable(rows, [
                 ['created_at', 'Date'],
-                ['user_name', 'Utilisateur', (value, row) => sanitize(value ?? row.user_email ?? 'Systeme')],
-                ['action', 'Action'],
-                ['entity_type', 'Entite'],
-                ['entity_id', 'ID'],
-                ['ip_address', 'IP'],
-                ['payload_json', 'Detail', (value) => (value ? `<code>${sanitize(value)}</code>` : '')],
+                ['description', 'Ce qui s\'est passé', (value, row) => describeAuditEntry(row)],
+                ['ip_address', 'IP', (value) => sanitize(value ?? '')],
+                ['payload_json', 'Détail technique', (value, row) => (value
+                    ? `<details><summary>${sanitize(row.entity_type ?? '')} #${sanitize(String(row.entity_id ?? ''))}</summary><code>${sanitize(value)}</code></details>`
+                    : ''),
+                ],
             ])}
         </section>
     `;
