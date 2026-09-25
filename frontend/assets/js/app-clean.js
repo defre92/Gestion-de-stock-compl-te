@@ -2503,8 +2503,9 @@ async function renderMovements() {
             <form id="movementForm" class="form-grid">
                 ${selectField('product_id', 'Produit', state.lookups.products, 'id', 'name', true)}
                 <div class="full hidden" id="movementVariantWrap">
+                    <div class="panel-actions hidden" id="movementVariantFilterWrap" style="justify-content:flex-start; margin-bottom:0.5rem;"></div>
                     <label><span>Variante</span><select name="variant_id" id="movementVariantSelect"></select></label>
-                    <small class="field-hint">Ce produit utilise des variantes : choisis celle concernee par ce mouvement.</small>
+                    <small class="field-hint">Ce produit utilise des variantes : choisis celle concernee par ce mouvement. Beaucoup de variantes ? Filtre par attribut ci-dessus pour retrouver plus vite le bon article.</small>
                     <div class="hidden" id="movementMultiToggleWrap" style="margin-top: 0.6rem;">
                         <button type="button" class="btn btn-soft" id="movementMultiToggle">Deplacer plusieurs variantes a la fois &rarr;</button>
                     </div>
@@ -2626,9 +2627,14 @@ async function renderMovements() {
     const multiBackBtn = document.getElementById('movementMultiBackBtn');
     const quantityWrap = document.getElementById('movementQuantityWrap');
     const quantityInput = document.getElementById('movementQuantityInput');
+    const variantFilterWrap = document.getElementById('movementVariantFilterWrap');
     let availableOutSerialCount = 0;
     let multiMode = false;
     let lastLoadedVariants = [];
+    // Filtre rapide (client, sans appel API) par attribut de variante -
+    // reduit lastLoadedVariants avant de construire le select / la checklist.
+    // Remis a zero a chaque changement de produit (voir loadVariantOptions).
+    let variantFilterValues = {};
 
     // "Deplacer plusieurs variantes a la fois" : uniquement pertinent sur une
     // sortie ou un transfert (il faut du stock existant a deplacer - une
@@ -2653,9 +2659,10 @@ async function renderMovements() {
             warehouseSelect?.value ?? '',
             document.getElementById('movementSourceLocation')?.value ?? ''
         );
-        variantMultiList.innerHTML = lastLoadedVariants.length === 0
-            ? '<p class="muted">Aucune variante active pour ce produit</p>'
-            : lastLoadedVariants.map((v) => {
+        const filteredVariants = filterVariantsByAttributes(lastLoadedVariants, variantFilterValues);
+        variantMultiList.innerHTML = filteredVariants.length === 0
+            ? `<p class="muted">${lastLoadedVariants.length === 0 ? 'Aucune variante active pour ce produit' : 'Aucune variante ne correspond au filtre choisi'}</p>`
+            : filteredVariants.map((v) => {
                 const available = availability.get(String(v.id)) ?? 0;
                 // Toutes cochees par defaut : le but du mode multi-variantes
                 // est de tout deplacer en un clic, l'utilisateur decoche
@@ -2702,6 +2709,34 @@ async function renderMovements() {
         applyVariantMode();
     });
 
+    // Reconstruit uniquement le <select> Variante a partir de
+    // lastLoadedVariants + variantFilterValues - appele au chargement et a
+    // chaque changement d'un menu de filtre rapide (pas de nouvel appel API,
+    // la liste complete est deja en memoire).
+    const renderFilteredVariantSelect = () => {
+        if (!variantSelect) {
+            return;
+        }
+        const previousValue = variantSelect.value;
+        const filteredVariants = filterVariantsByAttributes(lastLoadedVariants, variantFilterValues);
+        if (lastLoadedVariants.length === 0) {
+            variantSelect.innerHTML = '<option value="">Aucune variante active pour ce produit</option>';
+        } else if (filteredVariants.length === 0) {
+            variantSelect.innerHTML = '<option value="">Aucune variante ne correspond au filtre choisi</option>';
+        } else {
+            variantSelect.innerHTML = filteredVariants.map((v) => {
+                const descriptors = variantDescriptor(v);
+                return `<option value="${v.id}">${sanitize(descriptors)} (stock: ${v.stock_total ?? 0})</option>`;
+            }).join('');
+            // Garde la selection en cours si elle correspond toujours au
+            // filtre (evite de perdre le choix quand on affine juste un
+            // deuxieme attribut) ; sinon, laisse le tout premier resultat.
+            if (filteredVariants.some((v) => String(v.id) === String(previousValue))) {
+                variantSelect.value = previousValue;
+            }
+        }
+    };
+
     const loadVariantOptions = async () => {
         if (!variantWrap || !variantSelect) {
             return;
@@ -2713,6 +2748,11 @@ async function renderMovements() {
         if (!hasVariants || !productId) {
             variantSelect.innerHTML = '';
             lastLoadedVariants = [];
+            variantFilterValues = {};
+            if (variantFilterWrap) {
+                variantFilterWrap.innerHTML = '';
+                variantFilterWrap.classList.add('hidden');
+            }
             applyVariantMode();
             return;
         }
@@ -2721,12 +2761,16 @@ async function renderMovements() {
         const response = await apiRequest(`/product-variants?product_id=${productId}&is_active=1&per_page=5000`);
         const variants = normalizeRows(response);
         lastLoadedVariants = variants;
-        variantSelect.innerHTML = variants.length === 0
-            ? '<option value="">Aucune variante active pour ce produit</option>'
-            : variants.map((v) => {
-                const descriptors = variantDescriptor(v);
-                return `<option value="${v.id}">${sanitize(descriptors)} (stock: ${v.stock_total ?? 0})</option>`;
-            }).join('');
+        // Nouveau produit choisi : les filtres precedents (ex: Marque=Bosch
+        // sur un autre produit) n'ont plus de sens, on repart de zero.
+        variantFilterValues = {};
+        renderQuickVariantAttributeFilters(variantFilterWrap, variants, variantFilterValues, () => {
+            renderFilteredVariantSelect();
+            if (multiMode) {
+                loadMultiVariantChecklist();
+            }
+        });
+        renderFilteredVariantSelect();
         applyVariantMode();
     };
 
@@ -7191,6 +7235,68 @@ function attachVariantAttributeFilterListeners(idPrefix, currentFilters, onChang
         document.getElementById(`${idPrefix}${def.key}Filter`)?.addEventListener('change', async (event) => {
             currentFilters[def.key] = event.target.value;
             await onChange();
+        });
+    });
+}
+
+/**
+ * Variante client (sans appel API) des deux fonctions ci-dessus, pour filtrer
+ * une liste de variantes DEJA CHARGEE - utilisee par le formulaire "Nouveau
+ * mouvement de stock" (et la fiche produit, onglet Stock) pour retrouver plus
+ * vite un article parmi les variantes d'UN produit deja recuperees en un
+ * appel. Ne propose un menu que pour un attribut ou au moins 2 valeurs
+ * distinctes existent parmi CES variantes (inutile de filtrer sur un
+ * attribut constant, ou absent).
+ */
+function computeAttributeOptionsFromVariants(variants) {
+    const result = {};
+    VARIANT_ATTRIBUTE_DEFS.forEach((def) => {
+        if (!state[def.flag]) {
+            return;
+        }
+        const values = Array.from(new Set(
+            variants.map((v) => v[def.key]).filter((v) => v !== null && v !== undefined && String(v) !== '')
+        )).sort((a, b) => String(a).localeCompare(String(b), 'fr', { numeric: true }));
+        if (values.length > 1) {
+            result[def.key] = values;
+        }
+    });
+    return result;
+}
+
+function filterVariantsByAttributes(variants, filterValues) {
+    return variants.filter((v) => Object.entries(filterValues).every(
+        ([key, value]) => value === '' || value === undefined || String(v[key] ?? '') === String(value)
+    ));
+}
+
+/**
+ * Construit et cable les menus de filtre rapide (client) dans `container`, a
+ * partir des attributs presents dans `variants`. `onChange` est appele avec
+ * les valeurs de filtre a chaque changement.
+ */
+function renderQuickVariantAttributeFilters(container, variants, filterValues, onChange) {
+    if (!container) {
+        return;
+    }
+    const optionsByAttr = computeAttributeOptionsFromVariants(variants);
+    const defs = VARIANT_ATTRIBUTE_DEFS.filter((def) => optionsByAttr[def.key]);
+    if (defs.length === 0) {
+        container.innerHTML = '';
+        container.classList.add('hidden');
+        return;
+    }
+    container.classList.remove('hidden');
+    container.innerHTML = defs.map((def) => {
+        const current = filterValues[def.key] ?? '';
+        const options = optionsByAttr[def.key].map((value) => `<option value="${sanitize(value)}" ${String(value) === String(current) ? 'selected' : ''}>${sanitize(value)}</option>`).join('');
+        return `<select data-quick-attr-filter="${def.key}"><option value="">${sanitize(def.label)} (tous)</option>${options}</select>`;
+    }).join('');
+    container.querySelectorAll('[data-quick-attr-filter]').forEach((select) => {
+        select.addEventListener('change', (event) => {
+            const key = event.target.dataset.quickAttrFilter;
+            filterValues[key] = event.target.value;
+            onChange();
         });
     });
 }
