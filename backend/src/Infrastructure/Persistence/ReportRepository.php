@@ -111,4 +111,143 @@ final class ReportRepository
             ORDER BY i.id DESC
         ')->fetchAll();
     }
+
+    /**
+     * Annees ou existe au moins une livraison VALIDATED - alimente le
+     * selecteur d'annee de la page Statistiques (onglet Rapports). Ordre
+     * decroissant : l'annee en cours (ou la plus recente) en premier.
+     *
+     * @return array<int, int>
+     */
+    public function salesYears(): array
+    {
+        $stmt = $this->pdo->query("
+            SELECT DISTINCT YEAR(delivered_at) AS y
+            FROM deliveries
+            WHERE status = 'VALIDATED'
+            ORDER BY y DESC
+        ");
+        return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    }
+
+    /**
+     * Statistiques de vente pour la page "Statistiques" de l'onglet Rapports.
+     * Se base sur les bons de livraison (deliveries/delivery_lines) : c'est
+     * la seule donnee de vente reelle dans l'application (le mouvement de
+     * stock "OUT" seul n'a ni client ni prix - une sortie pour casse ou
+     * perte n'est pas une vente). Seules les livraisons VALIDATED comptent :
+     * une livraison annulee n'a jamais ete une vente effective.
+     *
+     * @return array<string, mixed>
+     */
+    public function salesStats(int $year): array
+    {
+        $summaryStmt = $this->pdo->prepare("
+            SELECT
+                COALESCE(SUM(d.total_amount), 0) AS revenue,
+                COUNT(*) AS deliveries_count,
+                COUNT(DISTINCT d.customer_id) AS customers_count
+            FROM deliveries d
+            WHERE d.status = 'VALIDATED' AND YEAR(d.delivered_at) = :year
+        ");
+        $summaryStmt->execute([':year' => $year]);
+        $summaryRow = $summaryStmt->fetch() ?: ['revenue' => 0, 'deliveries_count' => 0, 'customers_count' => 0];
+        $deliveriesCount = (int)$summaryRow['deliveries_count'];
+        $revenue = (float)$summaryRow['revenue'];
+        $summary = [
+            'revenue' => $revenue,
+            'deliveries_count' => $deliveriesCount,
+            'customers_count' => (int)$summaryRow['customers_count'],
+            // Panier moyen : montant moyen d'une livraison cette annee-la.
+            // Zero livraison = 0, pas une division par zero.
+            'average_basket' => $deliveriesCount > 0 ? $revenue / $deliveriesCount : 0.0,
+        ];
+
+        // Chiffre d'affaires mois par mois, les 12 mois presents meme a 0
+        // (sinon un graphique "par mois" sauterait les mois sans vente).
+        $monthlyStmt = $this->pdo->prepare("
+            SELECT MONTH(d.delivered_at) AS month, COALESCE(SUM(d.total_amount), 0) AS revenue
+            FROM deliveries d
+            WHERE d.status = 'VALIDATED' AND YEAR(d.delivered_at) = :year
+            GROUP BY MONTH(d.delivered_at)
+        ");
+        $monthlyStmt->execute([':year' => $year]);
+        $monthlyByMonth = [];
+        foreach ($monthlyStmt->fetchAll() as $row) {
+            $monthlyByMonth[(int)$row['month']] = (float)$row['revenue'];
+        }
+        $monthlyRevenue = [];
+        for ($month = 1; $month <= 12; $month++) {
+            $monthlyRevenue[] = ['month' => $month, 'revenue' => $monthlyByMonth[$month] ?? 0.0];
+        }
+
+        // Tendance annuelle (jusqu'a 6 dernieres annees ayant une vente) :
+        // vue d'ensemble a cote du detail mensuel de l'annee choisie.
+        $yearlyRevenue = $this->pdo->query("
+            SELECT YEAR(d.delivered_at) AS year, COALESCE(SUM(d.total_amount), 0) AS revenue
+            FROM deliveries d
+            WHERE d.status = 'VALIDATED'
+            GROUP BY YEAR(d.delivered_at)
+            ORDER BY year DESC
+            LIMIT 6
+        ")->fetchAll();
+        $yearlyRevenue = array_reverse(array_map(
+            static fn (array $row): array => ['year' => (int)$row['year'], 'revenue' => (float)$row['revenue']],
+            $yearlyRevenue
+        ));
+
+        $topCustomersStmt = $this->pdo->prepare("
+            SELECT c.id AS customer_id, c.name, COALESCE(SUM(d.total_amount), 0) AS revenue, COUNT(*) AS deliveries_count
+            FROM deliveries d
+            INNER JOIN customers c ON c.id = d.customer_id
+            WHERE d.status = 'VALIDATED' AND YEAR(d.delivered_at) = :year
+            GROUP BY c.id
+            ORDER BY revenue DESC
+            LIMIT 10
+        ");
+        $topCustomersStmt->execute([':year' => $year]);
+        $topCustomers = array_map(
+            static fn (array $row): array => [
+                'customer_id' => (int)$row['customer_id'],
+                'name' => (string)$row['name'],
+                'revenue' => (float)$row['revenue'],
+                'deliveries_count' => (int)$row['deliveries_count'],
+            ],
+            $topCustomersStmt->fetchAll()
+        );
+
+        // Article le plus vendu : classe par quantite (ce qu'on entend
+        // spontanement par "le plus vendu"), le CA genere par produit reste
+        // affiche a cote a titre d'info.
+        $topProductsStmt = $this->pdo->prepare("
+            SELECT p.id AS product_id, p.sku, p.name, COALESCE(SUM(dl.quantity), 0) AS qty, COALESCE(SUM(dl.line_total), 0) AS revenue
+            FROM delivery_lines dl
+            INNER JOIN deliveries d ON d.id = dl.delivery_id
+            INNER JOIN products p ON p.id = dl.product_id
+            WHERE d.status = 'VALIDATED' AND YEAR(d.delivered_at) = :year
+            GROUP BY p.id
+            ORDER BY qty DESC
+            LIMIT 10
+        ");
+        $topProductsStmt->execute([':year' => $year]);
+        $topProducts = array_map(
+            static fn (array $row): array => [
+                'product_id' => (int)$row['product_id'],
+                'sku' => (string)$row['sku'],
+                'name' => (string)$row['name'],
+                'qty' => (int)$row['qty'],
+                'revenue' => (float)$row['revenue'],
+            ],
+            $topProductsStmt->fetchAll()
+        );
+
+        return [
+            'year' => $year,
+            'summary' => $summary,
+            'monthly_revenue' => $monthlyRevenue,
+            'yearly_revenue' => $yearlyRevenue,
+            'top_customers' => $topCustomers,
+            'top_products' => $topProducts,
+        ];
+    }
 }

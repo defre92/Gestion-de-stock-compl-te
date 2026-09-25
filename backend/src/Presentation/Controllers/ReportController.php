@@ -4,11 +4,25 @@ declare(strict_types=1);
 namespace App\Presentation\Controllers;
 
 use App\Application\Services\ReportService;
+use App\Shared\Http\JsonResponse;
+use App\Shared\Http\Request;
 
 final class ReportController
 {
     public function __construct(private readonly ReportService $service)
     {
+    }
+
+    /**
+     * Page Statistiques (onglet Rapports) : CA par mois/annee, top clients,
+     * article le plus vendu - voir ReportRepository::salesStats().
+     */
+    public function salesStats(Request $request): void
+    {
+        $yearParam = $request->query('year');
+        $year = $yearParam !== null && $yearParam !== '' ? (int)$yearParam : null;
+
+        JsonResponse::send(['data' => $this->service->salesStats($year)]);
     }
 
     public function stockCsv(): void

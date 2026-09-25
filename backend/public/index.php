@@ -345,6 +345,7 @@ $router->add('GET', '/api/v1/reports/customers.csv', static fn () => $reportCont
 $router->add('GET', '/api/v1/reports/deliveries.csv', static fn () => $reportController->deliveryCsv(), [$authMiddleware]);
 $router->add('GET', '/api/v1/reports/inventories.csv', static fn () => $reportController->inventoryCsv(), [$authMiddleware]);
 $router->add('GET', '/api/v1/reports/full.zip', static fn () => $reportController->fullZip(), [$authMiddleware]);
+$router->add('GET', '/api/v1/reports/sales-stats', static fn (Request $req) => $reportController->salesStats($req), [$authMiddleware]);
 $router->add('POST', '/api/v1/imports/{entity}', static fn (Request $req, array $p) => $importController->upload($req, (string)$p['entity']), [$authMiddleware, $adminRolesMiddleware]);
 $router->add('GET', '/api/v1/import-jobs', static fn (Request $req) => $importJobController->index($req), [$authMiddleware, $adminRolesMiddleware]);
 

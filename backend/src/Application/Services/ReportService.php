@@ -51,6 +51,39 @@ final class ReportService
         return $this->toCsv($this->repository->inventorySessions());
     }
 
+    /** @return array<int, int> */
+    public function salesYears(): array
+    {
+        return $this->repository->salesYears();
+    }
+
+    /**
+     * Page Statistiques de l'onglet Rapports. $year est valide/borne ici
+     * (pas seulement caste cote controleur) : une annee farfelue envoyee a
+     * la main dans l'URL doit renvoyer des stats vides, jamais une erreur
+     * SQL ou une plage de dates absurde.
+     *
+     * @return array<string, mixed>
+     */
+    public function salesStats(?int $year): array
+    {
+        $availableYears = $this->repository->salesYears();
+        if ($year === null || $year < 2000 || $year > 2100) {
+            $year = $availableYears[0] ?? (int)date('Y');
+        }
+
+        $stats = $this->repository->salesStats($year);
+        // L'annee en cours doit rester choisissable dans le selecteur meme
+        // sans aucune vente encore enregistree dessus (sinon impossible de
+        // revenir dessus une fois qu'une annee plus ancienne est choisie).
+        if (!in_array($year, $availableYears, true)) {
+            array_unshift($availableYears, $year);
+        }
+        $stats['available_years'] = $availableYears;
+
+        return $stats;
+    }
+
     /**
      * Rapport complet : un ZIP contenant l'ensemble des exports CSV. Genere
      * dans un fichier temporaire (ZipArchive ne sait pas ecrire directement

@@ -669,6 +669,20 @@ textarea {
     max-width: 220px;
 }
 
+/* Label + select en ligne (ex: selecteur d'annee de la page Statistiques). */
+.field-inline {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: auto;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+.field-inline select {
+    width: auto;
+    min-width: 110px;
+}
+
 /* Vignettes de choix de theme (ecran Parametres > Apparence). */
 .theme-grid {
     display: grid;

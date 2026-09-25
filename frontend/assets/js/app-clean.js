@@ -46,12 +46,27 @@ const state = {
     // Valeurs distinctes actuellement en base pour chaque attribut, pour
     // remplir les menus deroulants ci-dessus (voir refreshVariantAttributeValues).
     variantAttributeValues: null,
+    // Annee affichee par la page Statistiques (onglet Rapports). null =
+    // laisse le backend choisir (annee en cours, ou la plus recente ayant
+    // des ventes - voir ReportService::salesStats).
+    reportsYear: null,
 };
 
 const dashboardCharts = {
     movementTrend: null,
     outgoing: null,
 };
+
+// Graphiques de la page Statistiques (onglet Rapports) - meme raison d'etre
+// que dashboardCharts : Chart.js exige de detruire une instance existante
+// avant de redessiner sur le meme <canvas>, sinon le graphique precedent
+// reste visible en fantome derriere le nouveau.
+const reportsCharts = {
+    monthlyRevenue: null,
+    yearlyRevenue: null,
+};
+
+const MONTH_LABELS_FR = ['Janv', 'Fevr', 'Mars', 'Avr', 'Mai', 'Juin', 'Juil', 'Aout', 'Sept', 'Oct', 'Nov', 'Dec'];
 
 const moduleTitles = {
     dashboard: 'Tableau de bord',
@@ -4876,10 +4891,85 @@ async function renderPurchaseOrders() {
 }
 
 async function renderReports() {
-    // Exports rapides en CSV pour exploitation externe.
+    // Statistiques (style page d'accueil) + exports rapides en CSV.
     const root = document.getElementById('appContent');
 
+    const response = await apiRequest('/reports/sales-stats' + toQueryString({ year: state.reportsYear || '' }));
+    const data = response.data;
+    // Le backend peut renvoyer une annee differente de celle demandee (ex:
+    // premier chargement, aucune annee choisie) - on realigne l'etat pour
+    // que le selecteur affiche la bonne valeur des le premier rendu.
+    state.reportsYear = data.year;
+
+    const summary = data.summary ?? { revenue: 0, deliveries_count: 0, average_basket: 0, customers_count: 0 };
+    const availableYears = Array.isArray(data.available_years) && data.available_years.length > 0
+        ? data.available_years
+        : [data.year];
+
+    const kpis = [
+        { label: 'Chiffre d\'affaires', value: formatMoney(summary.revenue), icon: 'bi-cash-stack', theme: 'kpi-teal' },
+        { label: 'Livraisons', value: summary.deliveries_count, icon: 'bi-truck', theme: 'kpi-blue' },
+        { label: 'Panier moyen', value: formatMoney(summary.average_basket), icon: 'bi-basket', theme: 'kpi-orange' },
+        { label: 'Clients actifs', value: summary.customers_count, icon: 'bi-people', theme: 'kpi-violet' },
+    ];
+
     root.innerHTML = `
+        <section class="panel">
+            <div class="panel-actions" style="justify-content: space-between; align-items: center;">
+                <h4 style="margin: 0;">Statistiques</h4>
+                <label class="field-inline">
+                    Annee
+                    <select id="reportsYearSelect">
+                        ${availableYears.map((y) => `<option value="${y}" ${y === data.year ? 'selected' : ''}>${y}</option>`).join('')}
+                    </select>
+                </label>
+            </div>
+
+            <div class="kpi-grid">
+                ${kpis.map((item) => `
+                    <article class="kpi-card ${item.theme}">
+                        <div class="kpi-head"><strong>${item.label}</strong><i class="bi ${item.icon}"></i></div>
+                        <p class="kpi-value">${sanitize(item.value)}</p>
+                        <p class="kpi-label">Annee ${data.year}</p>
+                    </article>
+                `).join('')}
+            </div>
+        </section>
+
+        <div class="chart-grid">
+            <section class="panel">
+                <h4>Chiffre d'affaires par mois</h4>
+                <p class="dashboard-subtitle">Ventes livrees (${data.year})</p>
+                <div class="chart-canvas-wrap"><canvas id="reportsMonthlyChart"></canvas></div>
+            </section>
+            <section class="panel">
+                <h4>Chiffre d'affaires par annee</h4>
+                <p class="dashboard-subtitle">Tendance sur les dernieres annees</p>
+                <div class="chart-canvas-wrap"><canvas id="reportsYearlyChart"></canvas></div>
+            </section>
+        </div>
+
+        <div class="panel-grid">
+            <section class="panel">
+                <h4>Meilleurs clients</h4>
+                ${renderSimpleTable(data.top_customers ?? [], [
+                    ['name', 'Client'],
+                    ['revenue', 'CA', (value) => formatMoney(value)],
+                    ['deliveries_count', 'Livraisons'],
+                ])}
+            </section>
+
+            <section class="panel">
+                <h4>Articles les plus vendus</h4>
+                ${renderSimpleTable(data.top_products ?? [], [
+                    ['sku', 'SKU'],
+                    ['name', 'Produit'],
+                    ['qty', 'Quantite vendue'],
+                    ['revenue', 'CA', (value) => formatMoney(value)],
+                ])}
+            </section>
+        </div>
+
         <section class="panel">
             <h4>Rapport complet</h4>
             <p class="muted">Telecharge en une fois un fichier ZIP contenant tous les exports ci-dessous.</p>
@@ -4903,6 +4993,16 @@ async function renderReports() {
         </section>
     `;
 
+    renderReportsCharts(data);
+
+    const yearSelect = document.getElementById('reportsYearSelect');
+    if (yearSelect) {
+        yearSelect.addEventListener('change', async () => {
+            state.reportsYear = Number(yearSelect.value);
+            await renderReports();
+        });
+    }
+
     const fullReportFeedback = document.getElementById('fullReportFeedback');
 
     root.querySelectorAll('[data-report]').forEach((btn) => {
@@ -4925,6 +5025,82 @@ async function renderReports() {
             }
         });
     });
+}
+
+function renderReportsCharts(data) {
+    // Si Chart.js n'est pas charge, on garde une page stable sans casser l'UI.
+    if (typeof window.Chart === 'undefined') {
+        return;
+    }
+
+    destroyReportsCharts();
+
+    const monthly = Array.isArray(data.monthly_revenue) ? data.monthly_revenue : [];
+    const monthlyCanvas = document.getElementById('reportsMonthlyChart');
+    if (monthlyCanvas) {
+        reportsCharts.monthlyRevenue = new window.Chart(monthlyCanvas, {
+            type: 'bar',
+            data: {
+                labels: monthly.map((row) => MONTH_LABELS_FR[(Number(row.month) || 1) - 1] ?? row.month),
+                datasets: [{
+                    label: 'CA',
+                    data: monthly.map((row) => Number(row.revenue ?? 0)),
+                    backgroundColor: '#186bb2',
+                    borderRadius: 8,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false } },
+                    y: { beginAtZero: true, grid: { color: 'rgba(16,34,45,0.08)' } },
+                },
+            },
+        });
+    }
+
+    const yearly = Array.isArray(data.yearly_revenue) ? data.yearly_revenue : [];
+    const yearlyCanvas = document.getElementById('reportsYearlyChart');
+    if (yearlyCanvas) {
+        reportsCharts.yearlyRevenue = new window.Chart(yearlyCanvas, {
+            type: 'line',
+            data: {
+                labels: yearly.map((row) => String(row.year)),
+                datasets: [{
+                    label: 'CA',
+                    data: yearly.map((row) => Number(row.revenue ?? 0)),
+                    borderColor: '#0f8f74',
+                    backgroundColor: 'rgba(15, 143, 116, 0.16)',
+                    tension: 0.3,
+                    fill: true,
+                    borderWidth: 2,
+                    pointRadius: 3,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: 'rgba(16,34,45,0.08)' } },
+                    y: { beginAtZero: true, grid: { color: 'rgba(16,34,45,0.08)' } },
+                },
+            },
+        });
+    }
+}
+
+function destroyReportsCharts() {
+    if (reportsCharts.monthlyRevenue) {
+        reportsCharts.monthlyRevenue.destroy();
+        reportsCharts.monthlyRevenue = null;
+    }
+    if (reportsCharts.yearlyRevenue) {
+        reportsCharts.yearlyRevenue.destroy();
+        reportsCharts.yearlyRevenue = null;
+    }
 }
 
 async function renderImports() {
@@ -7246,7 +7422,10 @@ function attachVariantAttributeFilterListeners(idPrefix, currentFilters, onChang
  * vite un article parmi les variantes d'UN produit deja recuperees en un
  * appel. Ne propose un menu que pour un attribut ou au moins 2 valeurs
  * distinctes existent parmi CES variantes (inutile de filtrer sur un
- * attribut constant, ou absent).
+ * attribut constant, ou absent, pour CE produit - contrairement aux ecrans
+ * Variantes/Mouvements qui listent plusieurs produits a la fois, ici on ne
+ * regarde qu'un seul produit : un menu a une seule valeur possible ne
+ * filtrerait jamais rien).
  */
 function computeAttributeOptionsFromVariants(variants) {
     const result = {};
