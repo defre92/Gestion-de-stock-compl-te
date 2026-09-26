@@ -250,4 +250,103 @@ final class ReportRepository
             'top_products' => $topProducts,
         ];
     }
+
+    /**
+     * Meme principe que salesStats() mais restreint a un mois donne, avec
+     * une repartition jour par jour au lieu de mois par mois - alimente
+     * l'export CSV "stats du mois" de la page Statistiques.
+     *
+     * @return array<string, mixed>
+     */
+    public function salesStatsMonth(int $year, int $month): array
+    {
+        $summaryStmt = $this->pdo->prepare("
+            SELECT
+                COALESCE(SUM(d.total_amount), 0) AS revenue,
+                COUNT(*) AS deliveries_count,
+                COUNT(DISTINCT d.customer_id) AS customers_count
+            FROM deliveries d
+            WHERE d.status = 'VALIDATED' AND YEAR(d.delivered_at) = :year AND MONTH(d.delivered_at) = :month
+        ");
+        $summaryStmt->execute([':year' => $year, ':month' => $month]);
+        $summaryRow = $summaryStmt->fetch() ?: ['revenue' => 0, 'deliveries_count' => 0, 'customers_count' => 0];
+        $deliveriesCount = (int)$summaryRow['deliveries_count'];
+        $revenue = (float)$summaryRow['revenue'];
+        $summary = [
+            'revenue' => $revenue,
+            'deliveries_count' => $deliveriesCount,
+            'customers_count' => (int)$summaryRow['customers_count'],
+            'average_basket' => $deliveriesCount > 0 ? $revenue / $deliveriesCount : 0.0,
+        ];
+
+        // Repartition jour par jour, tous les jours du mois presents meme a
+        // 0 (meme raisonnement que la repartition mois par mois de l'annee).
+        $daysInMonth = (int)date('t', mktime(0, 0, 0, $month, 1, $year));
+        $dailyStmt = $this->pdo->prepare("
+            SELECT DAY(d.delivered_at) AS day, COALESCE(SUM(d.total_amount), 0) AS revenue
+            FROM deliveries d
+            WHERE d.status = 'VALIDATED' AND YEAR(d.delivered_at) = :year AND MONTH(d.delivered_at) = :month
+            GROUP BY DAY(d.delivered_at)
+        ");
+        $dailyStmt->execute([':year' => $year, ':month' => $month]);
+        $dailyByDay = [];
+        foreach ($dailyStmt->fetchAll() as $row) {
+            $dailyByDay[(int)$row['day']] = (float)$row['revenue'];
+        }
+        $dailyRevenue = [];
+        for ($day = 1; $day <= $daysInMonth; $day++) {
+            $dailyRevenue[] = ['day' => $day, 'revenue' => $dailyByDay[$day] ?? 0.0];
+        }
+
+        $topCustomersStmt = $this->pdo->prepare("
+            SELECT c.id AS customer_id, c.name, COALESCE(SUM(d.total_amount), 0) AS revenue, COUNT(*) AS deliveries_count
+            FROM deliveries d
+            INNER JOIN customers c ON c.id = d.customer_id
+            WHERE d.status = 'VALIDATED' AND YEAR(d.delivered_at) = :year AND MONTH(d.delivered_at) = :month
+            GROUP BY c.id
+            ORDER BY revenue DESC
+            LIMIT 10
+        ");
+        $topCustomersStmt->execute([':year' => $year, ':month' => $month]);
+        $topCustomers = array_map(
+            static fn (array $row): array => [
+                'customer_id' => (int)$row['customer_id'],
+                'name' => (string)$row['name'],
+                'revenue' => (float)$row['revenue'],
+                'deliveries_count' => (int)$row['deliveries_count'],
+            ],
+            $topCustomersStmt->fetchAll()
+        );
+
+        $topProductsStmt = $this->pdo->prepare("
+            SELECT p.id AS product_id, p.sku, p.name, COALESCE(SUM(dl.quantity), 0) AS qty, COALESCE(SUM(dl.line_total), 0) AS revenue
+            FROM delivery_lines dl
+            INNER JOIN deliveries d ON d.id = dl.delivery_id
+            INNER JOIN products p ON p.id = dl.product_id
+            WHERE d.status = 'VALIDATED' AND YEAR(d.delivered_at) = :year AND MONTH(d.delivered_at) = :month
+            GROUP BY p.id
+            ORDER BY qty DESC
+            LIMIT 10
+        ");
+        $topProductsStmt->execute([':year' => $year, ':month' => $month]);
+        $topProducts = array_map(
+            static fn (array $row): array => [
+                'product_id' => (int)$row['product_id'],
+                'sku' => (string)$row['sku'],
+                'name' => (string)$row['name'],
+                'qty' => (int)$row['qty'],
+                'revenue' => (float)$row['revenue'],
+            ],
+            $topProductsStmt->fetchAll()
+        );
+
+        return [
+            'year' => $year,
+            'month' => $month,
+            'summary' => $summary,
+            'daily_revenue' => $dailyRevenue,
+            'top_customers' => $topCustomers,
+            'top_products' => $topProducts,
+        ];
+    }
 }

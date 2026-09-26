@@ -50,6 +50,10 @@ const state = {
     // laisse le backend choisir (annee en cours, ou la plus recente ayant
     // des ventes - voir ReportService::salesStats).
     reportsYear: null,
+    // Mois affiche/exporte par la page Statistiques (1-12). Purement
+    // cote frontend : contrairement a l'annee, tous les mois sont toujours
+    // proposes au telechargement, meme sans aucune vente dessus.
+    reportsMonth: null,
 };
 
 const dashboardCharts = {
@@ -67,6 +71,9 @@ const reportsCharts = {
 };
 
 const MONTH_LABELS_FR = ['Janv', 'Fevr', 'Mars', 'Avr', 'Mai', 'Juin', 'Juil', 'Aout', 'Sept', 'Oct', 'Nov', 'Dec'];
+// Noms complets, pour le selecteur de mois de l'export CSV (les abreges
+// ci-dessus ne servent qu'aux libelles d'axe des graphiques).
+const MONTH_LABELS_FULL_FR = ['Janvier', 'Fevrier', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Aout', 'Septembre', 'Octobre', 'Novembre', 'Decembre'];
 
 const moduleTitles = {
     dashboard: 'Tableau de bord',
@@ -4900,6 +4907,9 @@ async function renderReports() {
     // premier chargement, aucune annee choisie) - on realigne l'etat pour
     // que le selecteur affiche la bonne valeur des le premier rendu.
     state.reportsYear = data.year;
+    if (!state.reportsMonth) {
+        state.reportsMonth = new Date().getMonth() + 1;
+    }
 
     const summary = data.summary ?? { revenue: 0, deliveries_count: 0, average_basket: 0, customers_count: 0 };
     const availableYears = Array.isArray(data.available_years) && data.available_years.length > 0
@@ -4923,6 +4933,17 @@ async function renderReports() {
                         ${availableYears.map((y) => `<option value="${y}" ${y === data.year ? 'selected' : ''}>${y}</option>`).join('')}
                     </select>
                 </label>
+            </div>
+
+            <div class="panel-actions">
+                <button class="btn btn-soft" id="reportsYearCsvBtn" data-report="/reports/sales-stats-year.csv${toQueryString({ year: data.year })}" data-name="statistiques-${data.year}.csv">Telecharger les stats de l'annee ${data.year} (CSV)</button>
+                <label class="field-inline">
+                    Mois
+                    <select id="reportsMonthSelect">
+                        ${MONTH_LABELS_FULL_FR.map((label, idx) => `<option value="${idx + 1}" ${idx + 1 === state.reportsMonth ? 'selected' : ''}>${label}</option>`).join('')}
+                    </select>
+                </label>
+                <button class="btn btn-soft" id="reportsMonthCsvBtn" data-report="/reports/sales-stats-month.csv${toQueryString({ year: data.year, month: state.reportsMonth })}" data-name="statistiques-${data.year}-${String(state.reportsMonth).padStart(2, '0')}.csv">Telecharger les stats du mois (CSV)</button>
             </div>
 
             <div class="kpi-grid">
@@ -4999,6 +5020,14 @@ async function renderReports() {
     if (yearSelect) {
         yearSelect.addEventListener('change', async () => {
             state.reportsYear = Number(yearSelect.value);
+            await renderReports();
+        });
+    }
+
+    const monthSelect = document.getElementById('reportsMonthSelect');
+    if (monthSelect) {
+        monthSelect.addEventListener('change', async () => {
+            state.reportsMonth = Number(monthSelect.value);
             await renderReports();
         });
     }

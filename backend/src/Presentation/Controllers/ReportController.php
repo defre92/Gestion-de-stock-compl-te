@@ -25,6 +25,33 @@ final class ReportController
         JsonResponse::send(['data' => $this->service->salesStats($year)]);
     }
 
+    /**
+     * Export CSV "stats completes de l'annee" (bouton de la page
+     * Statistiques) - resume + CA par mois + meilleurs clients + articles
+     * les plus vendus, pour une seule annee.
+     */
+    public function salesStatsYearCsv(Request $request): void
+    {
+        $yearParam = $request->query('year');
+        $year = $yearParam !== null && $yearParam !== '' ? (int)$yearParam : null;
+
+        $this->sendCsv('statistiques-annee.csv', $this->service->salesStatsYearCsv($year));
+    }
+
+    /**
+     * Export CSV "stats completes du mois" - meme principe, restreint a un
+     * mois donne, avec une repartition jour par jour.
+     */
+    public function salesStatsMonthCsv(Request $request): void
+    {
+        $yearParam = $request->query('year');
+        $monthParam = $request->query('month');
+        $year = $yearParam !== null && $yearParam !== '' ? (int)$yearParam : null;
+        $month = $monthParam !== null && $monthParam !== '' ? (int)$monthParam : null;
+
+        $this->sendCsv('statistiques-mois.csv', $this->service->salesStatsMonthCsv($year, $month));
+    }
+
     public function stockCsv(): void
     {
         $this->sendCsv('stock-report.csv', $this->service->stockCsv());
